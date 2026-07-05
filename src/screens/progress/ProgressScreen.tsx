@@ -4,6 +4,7 @@ import { ChevronDown, Scale, Trophy, Plus } from 'lucide-react'
 import { db } from '../../db/db'
 import { localDateStr, addDays, mondayOf, parseLocalDate } from '../../lib/dates'
 import { LineChart, BarChart, BandBars, Sparkline, type ChartPoint } from '../../components/Charts'
+import { standardFor, levelFor } from '../../lib/standards'
 import ExercisePicker from '../workout/ExercisePicker'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
@@ -211,6 +212,7 @@ function BodyweightTile() {
 }
 
 function PrWall({ exMap }: { exMap: Map<number, Exercise> }) {
+  const settings = useLiveQuery(() => db.settings.get(1))
   const prs = useLiveQuery(async () => {
     const sets = await db.sets.filter(s => !s.isWarmup && s.weightKg > 0).toArray()
     const byEx = new Map<number, { e1rm: number; weight: number; reps: number; date: number }>()
@@ -232,18 +234,46 @@ function PrWall({ exMap }: { exMap: Map<number, Exercise> }) {
         <Trophy size={18} className="text-primary" /> PR wall
       </h2>
       <div className="grid grid-cols-2 gap-2">
-        {prs.map(([exId, pr]) => (
-          <div key={exId} className="rounded-xl border border-edge bg-card p-3">
-            <p className="truncate text-sm font-medium">{exMap.get(exId)?.name ?? '…'}</p>
-            <p className="num font-display text-2xl font-bold text-primary">
-              {Math.round(pr.e1rm * 10) / 10}
-              <span className="text-sm font-medium text-sub"> e1RM</span>
-            </p>
-            <p className="num text-xs text-sub">
-              {pr.weight} kg × {pr.reps} · {shortDate(pr.date)}
-            </p>
-          </div>
-        ))}
+        {prs.map(([exId, pr]) => {
+          const ex = exMap.get(exId)
+          const std = ex ? standardFor(ex.nameLower) : null
+          const level = std && settings ? levelFor(pr.e1rm, settings.bodyweightKg, std) : null
+          return (
+            <div key={exId} className="rounded-xl border border-edge bg-card p-3">
+              <p className="truncate text-sm font-medium">{ex?.name ?? '…'}</p>
+              <p className="num font-display text-2xl font-bold text-primary">
+                {Math.round(pr.e1rm * 10) / 10}
+                <span className="text-sm font-medium text-sub"> e1RM</span>
+              </p>
+              <p className="num text-xs text-sub">
+                {pr.weight} kg × {pr.reps} · {shortDate(pr.date)}
+              </p>
+              {level && (
+                <div className="mt-1.5">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      level.index >= 4
+                        ? 'bg-primary/20 text-primary'
+                        : level.index >= 2
+                          ? 'bg-accent/15 text-accent'
+                          : 'bg-muted/40 text-sub'
+                    }`}
+                  >
+                    {level.level}
+                  </span>
+                  {level.next && (
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted/30">
+                      <div
+                        className="h-full rounded-full bg-sub/60"
+                        style={{ width: `${level.progress * 100}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </section>
   )

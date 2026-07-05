@@ -5,7 +5,7 @@ import { db } from '../../db/db'
 import { exportBackup, importBackup } from '../../db/backup'
 import { unlockAudio, beep } from '../../lib/audio'
 import { localDateStr } from '../../lib/dates'
-import { rankForPoints, rankLabel, SEASON_CARRYOVER } from '../../lib/ranks'
+import { archiveCurrentSeason } from '../../lib/season'
 import { DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
 import NumberStepper from '../../components/NumberStepper'
 import type { Settings } from '../../types'
@@ -32,25 +32,7 @@ export default function SettingsScreen() {
 
   async function resetSeason() {
     if (!window.confirm('End the current season now? Points carry over at 20%.')) return
-    const state = await db.rankState.get(1)
-    if (!state) return
-    const info = rankForPoints(state.points)
-    await db.seasons.add({
-      seasonId: state.seasonId,
-      startDate: state.seasonStart,
-      endDate: localDateStr(),
-      finalPoints: Math.round(state.points),
-      finalRank: rankLabel(info.tier),
-    })
-    await db.rankState.put({
-      ...state,
-      seasonId: state.seasonId + 1,
-      seasonStart: localDateStr(),
-      points: Math.round(state.points * SEASON_CARRYOVER),
-      streakWeeks: 0,
-      lastStreakWeek: '',
-      idleDecayTaken: 0,
-    })
+    await archiveCurrentSeason(localDateStr())
   }
 
   return (

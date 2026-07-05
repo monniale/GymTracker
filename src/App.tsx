@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ensureSeeded } from './db/seed'
 import { runDailyChecks } from './lib/season'
+import { checkAchievements } from './lib/achievements'
+import { evaluateQuests } from './lib/quests'
 import TabBar from './components/TabBar'
 import RestTimerBar from './components/RestTimerBar'
 import WorkoutHome from './screens/workout/WorkoutHome'
@@ -22,6 +24,9 @@ export default function App() {
       await ensureSeeded()
       await runDailyChecks()
       setReady(true)
+      // Post-launch, non-blocking: catch up on unlocks/quest awards.
+      void checkAchievements()
+      void evaluateQuests()
     })()
   }, [])
 

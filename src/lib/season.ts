@@ -1,9 +1,51 @@
 import { db } from '../db/db'
-import { localDateStr, daysBetween, mondayOf, addDays } from './dates'
+import { localDateStr, daysBetween, mondayOf, addDays, parseLocalDate } from './dates'
 import {
   SEASON_DAYS, DECAY_GRACE_DAYS, DECAY_PER_DAY, DECAY_MAX, SEASON_CARRYOVER,
   rankForPoints, rankLabel,
 } from './ranks'
+import type { Season } from '../types'
+
+/** Archives the running season (with recap stats) and starts the next one. */
+export async function archiveCurrentSeason(endDate: string): Promise<void> {
+  const state = await db.rankState.get(1)
+  if (!state) return
+
+  const seasonStartMs = parseLocalDate(state.seasonStart).getTime()
+  const sessions = await db.sessions
+    .where('startedAt').aboveOrEqual(seasonStartMs)
+    .filter(s => s.endedAt !== undefined)
+    .toArray()
+  const ids = new Set(sessions.map(s => s.id!))
+  const sets = (await db.sets.toArray()).filter(s => ids.has(s.sessionId) && !s.isWarmup)
+  let recap: Season['recap'] = {
+    sessions: sessions.length,
+    totalVolumeKg: Math.round(sets.reduce((a, s) => a + s.weightKg * s.reps, 0)),
+  }
+  const best = sets.reduce<typeof sets[number] | null>(
+    (acc, s) => (acc === null || s.e1rm > acc.e1rm ? s : acc), null)
+  if (best) {
+    const ex = await db.exercises.get(best.exerciseId)
+    recap = { ...recap, bestLift: { exerciseName: ex?.name ?? 'Exercise', e1rm: Math.round(best.e1rm * 10) / 10 } }
+  }
+
+  await db.seasons.add({
+    seasonId: state.seasonId,
+    startDate: state.seasonStart,
+    endDate,
+    finalPoints: Math.round(state.points),
+    finalRank: rankLabel(rankForPoints(state.points).tier),
+    recap,
+  })
+  const today = localDateStr()
+  state.seasonId += 1
+  state.seasonStart = today
+  state.points = Math.round(state.points * SEASON_CARRYOVER)
+  state.streakWeeks = 0
+  state.lastStreakWeek = ''
+  state.idleDecayTaken = 0
+  await db.rankState.put(state)
+}
 
 /**
  * Idempotent maintenance run on every app launch:
@@ -18,20 +60,9 @@ export async function runDailyChecks(): Promise<void> {
   let changed = false
 
   if (daysBetween(state.seasonStart, today) >= SEASON_DAYS) {
-    const info = rankForPoints(state.points)
-    await db.seasons.add({
-      seasonId: state.seasonId,
-      startDate: state.seasonStart,
-      endDate: addDays(state.seasonStart, SEASON_DAYS - 1),
-      finalPoints: Math.round(state.points),
-      finalRank: rankLabel(info.tier),
-    })
-    state.seasonId += 1
-    state.seasonStart = today
-    state.points = Math.round(state.points * SEASON_CARRYOVER)
-    state.streakWeeks = 0
-    state.lastStreakWeek = ''
-    state.idleDecayTaken = 0
+    await archiveCurrentSeason(addDays(state.seasonStart, SEASON_DAYS - 1))
+    const rolled = await db.rankState.get(1)
+    if (rolled) Object.assign(state, rolled)
     changed = true
   }
 

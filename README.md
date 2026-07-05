@@ -6,17 +6,27 @@ Personal workout + nutrition PWA, built for one user. Installs on iPhone from Sa
 
 ## Features
 
-- **Workouts**: templates (exercises × sets × reps × rest), one-tap set logging
-  pre-filled from your last session, mid-session exercise additions, warm-up flag, history.
-- **Rest timer**: auto-starts when a set is logged, ±15s, optional beep (Web Audio),
-  survives backgrounding/relaunch (timestamp-based), screen wake lock during sessions.
-- **Diet**: daily log by meal, Open Food Facts search (cached locally for offline reuse),
-  custom foods, editable macro data (your overrides always win), saved meals,
-  copy-yesterday, calorie/macro target rings.
+- **Workouts**: templates (exercises × sets × reps × rest, supersets), one-tap set
+  logging pre-filled from your last session, auto-progression suggestions (double
+  progression), one-tap warm-up ramps, plate calculator, per-exercise notes,
+  mid-session exercise additions, warm-up flag, history.
+- **Rest timer**: auto-starts when a set is logged (short 30s after warm-ups, held
+  until the last superset member), ±15s, optional beep (Web Audio), survives
+  backgrounding/relaunch (timestamp-based), screen wake lock during sessions.
+- **Diet**: daily log by meal with training/rest-day macro targets (auto-detected,
+  one-tap override), camera barcode scanner (zxing WASM + Open Food Facts, manual
+  entry fallback), OFF text search (cached locally for offline reuse), custom foods,
+  editable macro data (your overrides always win), recipe builder (cook once, log
+  per-portion), saved meals, copy-yesterday, water tracker, last-7-days report.
+- **Progress**: per-exercise e1RM + volume charts, weekly sets-per-muscle vs the
+  10–20 evidence band, bodyweight log with sparkline, all-time PR wall with
+  strength-standard levels (Novice → Elite).
 - **Ranking**: Rainbow-Six-style tiers (Copper III → Champion) driven by an
   evidence-based score: volume load ÷ bodyweight, weighted by relative intensity
   (% of estimated 1RM, Epley), PR bonuses for progressive overload, weekly-consistency
-  streak multiplier, junk-volume caps, idle decay, 12-week seasons.
+  streak multiplier, junk-volume caps, idle decay, 12-week seasons with recap +
+  ghost race vs your previous season, deterministic weekly quests (+15 pts),
+  achievements, PR confetti.
 - **Backup**: JSON export (iOS share sheet) / import in Settings.
 
 ## Development

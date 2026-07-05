@@ -1,10 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Flame, CalendarDays, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import {
+  Flame, CalendarDays, ChevronDown, ChevronUp, Info, Target, Check, Lock,
+  Dumbbell, Trophy, Scale, UtensilsCrossed, Zap, Medal, Ghost,
+} from 'lucide-react'
 import { db } from '../../db/db'
 import { rankForPoints, rankLabel, SEASON_DAYS, TIERS } from '../../lib/ranks'
+import { ACHIEVEMENTS, type AchievementDef } from '../../lib/achievements'
+import { evaluateQuests, QUEST_BONUS, type QuestStatus } from '../../lib/quests'
 import RankBadge from '../../components/RankBadge'
 import { addDays, daysBetween, fmtDate, localDateStr } from '../../lib/dates'
+import type { Season } from '../../types'
+
+const ICONS: Record<AchievementDef['icon'], typeof Dumbbell> = {
+  dumbbell: Dumbbell,
+  flame: Flame,
+  trophy: Trophy,
+  scale: Scale,
+  utensils: UtensilsCrossed,
+  zap: Zap,
+  medal: Medal,
+}
 
 export default function RankScreen() {
   const rankState = useLiveQuery(() => db.rankState.get(1))
@@ -13,6 +29,32 @@ export default function RankScreen() {
   ) ?? []
   const pastSeasons = useLiveQuery(() => db.seasons.orderBy('startDate').reverse().toArray()) ?? []
   const [showInfo, setShowInfo] = useState(false)
+  const [quests, setQuests] = useState<QuestStatus[]>([])
+  const unlockedIds = useLiveQuery(
+    async () => new Map((await db.achievements.toArray()).map(a => [a.id, a.unlockedAt])),
+  )
+
+  useEffect(() => {
+    void evaluateQuests().then(r => setQuests(r.statuses))
+  }, [])
+
+  // Ghost race: points earned by this day-of-season, this season vs last.
+  const ghost = useLiveQuery(async () => {
+    const state = await db.rankState.get(1)
+    if (!state) return null
+    const prev = await db.seasons.orderBy('startDate').last()
+    if (!prev || prev.seasonId !== state.seasonId - 1) return null
+    const dayN = daysBetween(state.seasonStart, localDateStr())
+    const cutoff = addDays(prev.startDate, dayN)
+    const events = await db.scoreEvents.toArray()
+    const ghostPts = events
+      .filter(e => e.date >= prev.startDate && e.date <= cutoff)
+      .reduce((a, e) => a + e.total, 0)
+    const currentPts = events
+      .filter(e => e.date >= state.seasonStart)
+      .reduce((a, e) => a + e.total, 0)
+    return { dayN: dayN + 1, ghostPts, currentPts }
+  })
 
   if (!rankState) return null
 
@@ -55,7 +97,49 @@ export default function RankScreen() {
             Season {rankState.seasonId} · <span className="num">{daysLeft}</span>d left
           </span>
         </div>
+
+        {ghost && (
+          <p className="num mt-3 flex items-center gap-1.5 text-xs font-medium text-sub">
+            <Ghost size={14} />
+            Day {ghost.dayN}: {ghost.currentPts} pts vs{' '}
+            <span className={ghost.currentPts >= ghost.ghostPts ? 'text-accent' : 'text-danger'}>
+              {ghost.ghostPts} last season
+            </span>
+          </p>
+        )}
       </div>
+
+      {quests.length > 0 && (
+        <div className="mt-3 rounded-2xl border border-edge bg-card p-4">
+          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+            <Target size={17} className="text-accent" /> Weekly quests
+            <span className="num ml-auto text-xs font-medium text-sub">+{QUEST_BONUS} pts each</span>
+          </h2>
+          <div className="space-y-2.5">
+            {quests.map(q => (
+              <div key={q.def.id}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className={`font-medium ${q.done ? 'text-accent' : ''}`}>
+                    {q.done && <Check size={14} className="mr-1 inline" />}
+                    {q.def.label}
+                  </span>
+                  <span className="num text-xs text-sub">
+                    {q.current.toLocaleString()} / {q.def.target.toLocaleString()}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted/40">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-500 ${
+                      q.done ? 'bg-accent' : 'bg-primary'
+                    }`}
+                    style={{ width: `${Math.min(100, (q.current / q.def.target) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <button
         onClick={() => setShowInfo(s => !s)}
@@ -101,7 +185,9 @@ export default function RankScreen() {
       <div className="space-y-1.5">
         {events.map(e => (
           <div key={e.id} className="flex items-center gap-3 rounded-xl bg-card px-4 py-2.5">
-            <span className="flex-1 text-sm font-medium">{fmtDate(e.date)}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              {e.label ?? fmtDate(e.date)}
+            </span>
             {e.prBonus > 0 && (
               <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
                 PR +{e.prBonus}
@@ -112,17 +198,37 @@ export default function RankScreen() {
         ))}
       </div>
 
+      <h2 className="mb-2 mt-6 font-display text-xl font-semibold">Achievements</h2>
+      <div className="grid grid-cols-2 gap-2">
+        {ACHIEVEMENTS.map(a => {
+          const unlockedAt = unlockedIds?.get(a.id)
+          const Icon = ICONS[a.icon]
+          return (
+            <div
+              key={a.id}
+              className={`flex items-center gap-2 rounded-xl border p-3 ${
+                unlockedAt ? 'border-primary/40 bg-card' : 'border-edge bg-card opacity-45'
+              }`}
+            >
+              {unlockedAt ? (
+                <Icon size={20} className="shrink-0 text-primary" />
+              ) : (
+                <Lock size={18} className="shrink-0 text-sub" />
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{a.name}</p>
+                <p className="truncate text-[11px] text-sub">{a.desc}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       {pastSeasons.length > 0 && (
         <>
           <h2 className="mb-2 mt-6 font-display text-xl font-semibold">Past seasons</h2>
           <div className="space-y-1.5">
-            {pastSeasons.map(s => (
-              <div key={s.id} className="flex items-center gap-3 rounded-xl bg-card px-4 py-2.5">
-                <span className="flex-1 text-sm font-medium">Season {s.seasonId}</span>
-                <span className="text-sm text-sub">{s.finalRank}</span>
-                <span className="num text-sm font-semibold">{s.finalPoints} pts</span>
-              </div>
-            ))}
+            {pastSeasons.map(s => <SeasonRow key={s.id} season={s} />)}
           </div>
         </>
       )}
@@ -141,6 +247,34 @@ export default function RankScreen() {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function SeasonRow({ season }: { season: Season }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-xl bg-card">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center gap-3 px-4 py-2.5 text-left"
+      >
+        <span className="flex-1 text-sm font-medium">Season {season.seasonId}</span>
+        <span className="text-sm text-sub">{season.finalRank}</span>
+        <span className="num text-sm font-semibold">{season.finalPoints} pts</span>
+        {open ? <ChevronUp size={16} className="text-sub" /> : <ChevronDown size={16} className="text-sub" />}
+      </button>
+      {open && season.recap && (
+        <div className="num flex justify-between border-t border-edge/60 px-4 py-2.5 text-xs text-sub">
+          <span>{season.recap.sessions} sessions</span>
+          <span>{season.recap.totalVolumeKg.toLocaleString()} kg lifted</span>
+          {season.recap.bestLift && (
+            <span>
+              best: {season.recap.bestLift.exerciseName} {season.recap.bestLift.e1rm} e1RM
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

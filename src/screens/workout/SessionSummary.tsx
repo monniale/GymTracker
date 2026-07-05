@@ -1,14 +1,29 @@
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { TrendingUp, Award } from 'lucide-react'
+import { TrendingUp, Award, Medal, Target } from 'lucide-react'
 import { db } from '../../db/db'
 import { rankForPoints, rankLabel } from '../../lib/ranks'
+import { checkAchievements, type AchievementDef } from '../../lib/achievements'
+import { evaluateQuests, QUEST_BONUS, type QuestDef } from '../../lib/quests'
 import RankBadge from '../../components/RankBadge'
+import Confetti from '../../components/Confetti'
 import { fmtDuration } from '../../lib/dates'
 
 export default function SessionSummary() {
   const { id } = useParams()
   const sid = Number(id)
+  const [unlocked, setUnlocked] = useState<AchievementDef[]>([])
+  const [questsDone, setQuestsDone] = useState<QuestDef[]>([])
+
+  useEffect(() => {
+    void (async () => {
+      const fresh = await checkAchievements()
+      const { fresh: quests } = await evaluateQuests()
+      setUnlocked(u => (u.length ? u : fresh))
+      setQuestsDone(q => (q.length ? q : quests))
+    })()
+  }, [sid])
   const session = useLiveQuery(() => db.sessions.get(sid), [sid])
   const event = useLiveQuery(() => db.scoreEvents.where('sessionId').equals(sid).first(), [sid])
   const sets = useLiveQuery(() => db.sets.where('sessionId').equals(sid).toArray(), [sid]) ?? []
@@ -22,8 +37,11 @@ export default function SessionSummary() {
   const volume = Math.round(sets.filter(s => !s.isWarmup).reduce((a, s) => a + s.weightKg * s.reps, 0))
   const duration = session.endedAt ? session.endedAt - session.startedAt : 0
 
+  const hasPr = event.breakdown.some(b => b.e1rmPr || b.volumePr)
+
   return (
     <div className="pt-6 text-center">
+      <Confetti fire={hasPr || rankedUp || unlocked.length > 0} />
       <p className="font-display text-lg font-semibold text-sub">{session.name} complete</p>
       <p className="num mt-1 font-display text-6xl font-bold text-primary">+{event.total}</p>
       <p className="text-sm font-medium text-sub">points</p>
@@ -59,6 +77,29 @@ export default function SessionSummary() {
         <span>{volume.toLocaleString()} kg volume</span>
         <span>{fmtDuration(duration)}</span>
       </div>
+
+      {(unlocked.length > 0 || questsDone.length > 0) && (
+        <div className="mt-4 space-y-1.5">
+          {unlocked.map(a => (
+            <div key={a.id} className="flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2.5 text-left">
+              <Medal size={18} className="shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-primary">Achievement unlocked!</p>
+                <p className="truncate text-sm">{a.name} — {a.desc}</p>
+              </div>
+            </div>
+          ))}
+          {questsDone.map(q => (
+            <div key={q.id} className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-left">
+              <Target size={18} className="shrink-0 text-accent" />
+              <p className="min-w-0 flex-1 truncate text-sm">
+                <b className="text-accent">Quest complete:</b> {q.label}
+              </p>
+              <span className="num text-sm font-bold text-accent">+{QUEST_BONUS}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 space-y-2 text-left">
         <div className="rounded-2xl border border-edge bg-card p-4">
