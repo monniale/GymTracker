@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
-  SavedMeal, Settings, RankState, ScoreEvent, Season,
+  SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
 } from '../types'
 
 export class GymDB extends Dexie {
@@ -16,6 +16,7 @@ export class GymDB extends Dexie {
   rankState!: Table<RankState, number>
   scoreEvents!: Table<ScoreEvent, number>
   seasons!: Table<Season, number>
+  dayTypes!: Table<DayType, string>
 
   constructor() {
     super('gymtracker')
@@ -31,6 +32,9 @@ export class GymDB extends Dexie {
       rankState: 'id',
       scoreEvents: '++id, date, sessionId',
       seasons: '++id, startDate',
+    })
+    this.version(2).stores({
+      dayTypes: 'date',
     })
   }
 }

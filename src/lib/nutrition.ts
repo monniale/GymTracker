@@ -1,5 +1,5 @@
 import { db } from '../db/db'
-import type { Food, FoodLog, MealType } from '../types'
+import type { Food, FoodLog, MealType, Settings } from '../types'
 
 export interface MacroTotals {
   kcal: number
@@ -9,6 +9,26 @@ export interface MacroTotals {
 }
 
 export const EMPTY_TOTALS: MacroTotals = { kcal: 0, protein: 0, carbs: 0, fat: 0 }
+
+export interface DayTargets {
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
+/** Targets for a day; rest-day values fall back to training values (pre-v2 data). */
+export function dayTargets(s: Settings, training: boolean): DayTargets {
+  if (training) {
+    return { kcal: s.kcalTarget, protein: s.proteinTarget, carbs: s.carbsTarget, fat: s.fatTarget }
+  }
+  return {
+    kcal: s.restKcalTarget ?? s.kcalTarget,
+    protein: s.restProteinTarget ?? s.proteinTarget,
+    carbs: s.restCarbsTarget ?? s.carbsTarget,
+    fat: s.restFatTarget ?? s.fatTarget,
+  }
+}
 
 export function macrosFor(food: Food, grams: number): MacroTotals {
   const f = grams / 100

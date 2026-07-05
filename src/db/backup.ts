@@ -3,7 +3,7 @@ import { localDateStr } from '../lib/dates'
 
 const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
-  'savedMeals', 'settings', 'rankState', 'scoreEvents', 'seasons',
+  'savedMeals', 'settings', 'rankState', 'scoreEvents', 'seasons', 'dayTypes',
 ] as const
 
 type TableName = (typeof TABLES)[number]

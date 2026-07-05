@@ -79,13 +79,26 @@ export default function SettingsScreen() {
         </p>
       </Section>
 
-      <Section title="Nutrition targets">
+      <Section title="Training day targets">
         <div className="grid grid-cols-2 gap-y-4">
           <NumberStepper label="kcal" value={settings.kcalTarget} onChange={v => update({ kcalTarget: Math.round(v) })} step={50} min={800} max={8000} />
           <NumberStepper label="Protein g" value={settings.proteinTarget} onChange={v => update({ proteinTarget: Math.round(v) })} step={5} min={0} max={500} />
           <NumberStepper label="Carbs g" value={settings.carbsTarget} onChange={v => update({ carbsTarget: Math.round(v) })} step={5} min={0} max={1000} />
           <NumberStepper label="Fat g" value={settings.fatTarget} onChange={v => update({ fatTarget: Math.round(v) })} step={2} min={0} max={400} />
         </div>
+      </Section>
+
+      <Section title="Rest day targets">
+        <div className="grid grid-cols-2 gap-y-4">
+          <NumberStepper label="kcal" value={settings.restKcalTarget ?? settings.kcalTarget} onChange={v => update({ restKcalTarget: Math.round(v) })} step={50} min={800} max={8000} />
+          <NumberStepper label="Protein g" value={settings.restProteinTarget ?? settings.proteinTarget} onChange={v => update({ restProteinTarget: Math.round(v) })} step={5} min={0} max={500} />
+          <NumberStepper label="Carbs g" value={settings.restCarbsTarget ?? settings.carbsTarget} onChange={v => update({ restCarbsTarget: Math.round(v) })} step={5} min={0} max={1000} />
+          <NumberStepper label="Fat g" value={settings.restFatTarget ?? settings.fatTarget} onChange={v => update({ restFatTarget: Math.round(v) })} step={2} min={0} max={400} />
+        </div>
+        <p className="mt-2 text-xs text-sub">
+          The Diet tab switches automatically: a day with a logged workout uses training targets.
+          Tap the Training/Rest chip on the Diet tab to override a specific day.
+        </p>
       </Section>
 
       <Section title="Rest timer">

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus, Dumbbell, BedDouble, ArrowLeftRight } from 'lucide-react'
 import { db } from '../../db/db'
-import { localDateStr, addDays, fmtDate } from '../../lib/dates'
-import { macrosFor, totalsForLogs, logFood } from '../../lib/nutrition'
+import { localDateStr, addDays, fmtDate, parseLocalDate } from '../../lib/dates'
+import { macrosFor, totalsForLogs, logFood, dayTargets } from '../../lib/nutrition'
 import ProgressRing from '../../components/ProgressRing'
 import AddFoodSheet from './AddFoodSheet'
 import EntryEditor from './EntryEditor'
@@ -29,8 +29,26 @@ export default function DietDay() {
   const foods = useLiveQuery(() => db.foods.toArray()) ?? []
   const settings = useLiveQuery(() => db.settings.get(1))
 
+  // A day is a training day when a workout was logged on it; tap the chip to override.
+  const dayStartMs = parseLocalDate(date).getTime()
+  const hasSession =
+    (useLiveQuery(
+      () => db.sessions.where('startedAt').between(dayStartMs, dayStartMs + 86_400_000).count(),
+      [dayStartMs],
+    ) ?? 0) > 0
+  const override = useLiveQuery(() => db.dayTypes.get(date), [date])
+  const isTraining = override ? override.type === 'training' : hasSession
+
+  async function toggleDayType() {
+    const next = isTraining ? 'rest' : 'training'
+    const auto = hasSession ? 'training' : 'rest'
+    if (next === auto) await db.dayTypes.delete(date)
+    else await db.dayTypes.put({ date, type: next })
+  }
+
   const foodsById = useMemo(() => new Map(foods.map(f => [f.id!, f])), [foods])
   const totals = totalsForLogs(logs, foodsById)
+  const tg = settings ? dayTargets(settings, isTraining) : undefined
 
   async function copyYesterday(meal: MealType) {
     for (const l of yLogs.filter(l => l.meal === meal)) {
@@ -49,8 +67,6 @@ export default function DietDay() {
       lastUsedAt: Date.now(),
     })
   }
-
-  const t = settings
 
   return (
     <div className="pt-4">
@@ -77,14 +93,27 @@ export default function DietDay() {
         </button>
       </div>
 
-      <div className="mb-5 flex items-center justify-around rounded-2xl border border-edge bg-card p-4">
-        <ProgressRing size={92} stroke={9} progress={t ? totals.kcal / t.kcalTarget : 0} color="#F97316">
-          <span className="num font-display text-xl font-bold">{Math.round(totals.kcal)}</span>
-          <span className="text-[10px] font-medium uppercase text-sub">/ {t?.kcalTarget} kcal</span>
-        </ProgressRing>
-        <MacroRing label="P" value={totals.protein} target={t?.proteinTarget} color="#22C55E" />
-        <MacroRing label="C" value={totals.carbs} target={t?.carbsTarget} color="#3FC1C9" />
-        <MacroRing label="F" value={totals.fat} target={t?.fatTarget} color="#E8B93B" />
+      <div className="mb-5 rounded-2xl border border-edge bg-card p-4">
+        <button
+          onClick={toggleDayType}
+          aria-label="Switch between training and rest day targets"
+          className={`mb-3 flex min-h-[36px] items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
+            isTraining ? 'bg-primary/15 text-primary' : 'bg-muted/40 text-sub'
+          }`}
+        >
+          {isTraining ? <Dumbbell size={13} /> : <BedDouble size={13} />}
+          {isTraining ? 'Training day' : 'Rest day'}
+          <ArrowLeftRight size={11} className="opacity-60" />
+        </button>
+        <div className="flex items-center justify-around">
+          <ProgressRing size={92} stroke={9} progress={tg ? totals.kcal / tg.kcal : 0} color="#F97316">
+            <span className="num font-display text-xl font-bold">{Math.round(totals.kcal)}</span>
+            <span className="text-[10px] font-medium uppercase text-sub">/ {tg?.kcal} kcal</span>
+          </ProgressRing>
+          <MacroRing label="P" value={totals.protein} target={tg?.protein} color="#22C55E" />
+          <MacroRing label="C" value={totals.carbs} target={tg?.carbs} color="#3FC1C9" />
+          <MacroRing label="F" value={totals.fat} target={tg?.fat} color="#E8B93B" />
+        </div>
       </div>
 
       <div className="space-y-4">

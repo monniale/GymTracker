@@ -94,13 +94,25 @@ export interface SavedMeal {
 export interface Settings {
   id: number
   bodyweightKg: number
+  // Training-day targets
   kcalTarget: number
   proteinTarget: number
   carbsTarget: number
   fatTarget: number
+  // Rest-day targets (optional for pre-v2 data/backups; fall back to training values)
+  restKcalTarget?: number
+  restProteinTarget?: number
+  restCarbsTarget?: number
+  restFatTarget?: number
   soundEnabled: boolean
   defaultRestSec: number
   weeklySessionTarget: number
+}
+
+/** Manual override of the automatic training/rest day detection, per date. */
+export interface DayType {
+  date: string // YYYY-MM-DD, primary key
+  type: 'training' | 'rest'
 }
 
 export interface RankState {

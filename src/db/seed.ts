@@ -90,6 +90,10 @@ export const DEFAULT_SETTINGS = {
   proteinTarget: 160,
   carbsTarget: 280,
   fatTarget: 80,
+  restKcalTarget: 2200,
+  restProteinTarget: 160,
+  restCarbsTarget: 200,
+  restFatTarget: 85,
   soundEnabled: true,
   defaultRestSec: 90,
   weeklySessionTarget: 3,
@@ -109,7 +113,17 @@ export async function ensureSeeded(): Promise<void> {
     await db.exercises.bulkAdd(rows)
   }
   const settings = await db.settings.get(1)
-  if (!settings) await db.settings.add(DEFAULT_SETTINGS)
+  if (!settings) {
+    await db.settings.add(DEFAULT_SETTINGS)
+  } else if (settings.restKcalTarget === undefined) {
+    // v1 -> v2: start rest-day targets as a copy of the existing targets.
+    await db.settings.update(1, {
+      restKcalTarget: settings.kcalTarget,
+      restProteinTarget: settings.proteinTarget,
+      restCarbsTarget: settings.carbsTarget,
+      restFatTarget: settings.fatTarget,
+    })
+  }
   const rank = await db.rankState.get(1)
   if (!rank) {
     const today = localDateStr()
