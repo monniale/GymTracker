@@ -10,6 +10,9 @@ export interface Exercise {
   equipment?: string
   defaultRestSec: number
   isCustom: boolean
+  notes?: string
+  /** kg added when the double-progression rule fires (default 2.5). */
+  progressionStepKg?: number
 }
 
 export interface TemplateItem {
@@ -17,6 +20,8 @@ export interface TemplateItem {
   targetSets: number
   targetReps: number
   restSec?: number
+  /** Linked to the NEXT item as a superset: rest only starts after the last member. */
+  supersetWithNext?: boolean
 }
 
 export interface WorkoutTemplate {
@@ -107,6 +112,9 @@ export interface Settings {
   soundEnabled: boolean
   defaultRestSec: number
   weeklySessionTarget: number
+  barWeightKg?: number
+  platesAvailable?: number[]
+  waterTargetMl?: number
 }
 
 /** Manual override of the automatic training/rest day detection, per date. */
@@ -140,7 +148,10 @@ export interface ExerciseBreakdown {
 
 export interface ScoreEvent {
   id?: number
-  sessionId: number
+  /** Absent for non-session awards (e.g. weekly quest bonuses). */
+  sessionId?: number
+  /** Display label for non-session awards. */
+  label?: string
   date: string
   basePoints: number
   prBonus: number
@@ -157,4 +168,30 @@ export interface Season {
   endDate: string
   finalPoints: number
   finalRank: string
+  recap?: {
+    sessions: number
+    totalVolumeKg: number
+    bestLift?: { exerciseName: string; e1rm: number }
+  }
+}
+
+export interface BodyLogEntry {
+  date: string // YYYY-MM-DD, primary key
+  weightKg: number
+}
+
+export interface WaterLog {
+  id?: number
+  date: string
+  ml: number
+}
+
+export interface AchievementUnlock {
+  id: string // achievement id, primary key
+  unlockedAt: number
+}
+
+export interface QuestState {
+  weekKey: string // monday YYYY-MM-DD, primary key
+  quests: { id: string; done: boolean; awardedAt?: number }[]
 }

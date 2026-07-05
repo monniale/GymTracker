@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronUp, ChevronDown, Trash2, Plus, Link2 } from 'lucide-react'
 import { db } from '../../db/db'
 import NumberStepper from '../../components/NumberStepper'
 import ExercisePicker from './ExercisePicker'
@@ -73,7 +73,12 @@ export default function TemplateEditor() {
         {template.items.map((item, i) => {
           const ex = exMap.get(item.exerciseId)
           return (
-            <div key={`${item.exerciseId}-${i}`} className="rounded-2xl border border-edge bg-card p-3">
+            <div key={`${item.exerciseId}-${i}`}>
+            <div className={`rounded-2xl border bg-card p-3 ${
+              item.supersetWithNext || template.items[i - 1]?.supersetWithNext
+                ? 'border-primary/40'
+                : 'border-edge'
+            }`}>
               <div className="mb-2 flex items-center justify-between">
                 <p className="font-display text-lg font-semibold">{ex?.name ?? '…'}</p>
                 <div className="flex gap-1">
@@ -127,6 +132,23 @@ export default function TemplateEditor() {
                   unit="s"
                 />
               </div>
+            </div>
+            {i < template.items.length - 1 && (
+              <div className="relative z-10 -mb-2 -mt-1.5 flex justify-center">
+                <button
+                  onClick={() => updateItem(i, { supersetWithNext: !item.supersetWithNext })}
+                  aria-label={item.supersetWithNext ? 'Unlink superset' : 'Link as superset'}
+                  aria-pressed={!!item.supersetWithNext}
+                  className={`flex min-h-[28px] items-center gap-1 rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-wide ${
+                    item.supersetWithNext
+                      ? 'border-primary/40 bg-bg text-primary'
+                      : 'border-edge bg-bg text-sub/60'
+                  }`}
+                >
+                  <Link2 size={11} /> {item.supersetWithNext ? 'Superset' : 'Link'}
+                </button>
+              </div>
+            )}
             </div>
           )
         })}

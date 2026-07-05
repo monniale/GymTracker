@@ -6,8 +6,11 @@ import { exportBackup, importBackup } from '../../db/backup'
 import { unlockAudio, beep } from '../../lib/audio'
 import { localDateStr } from '../../lib/dates'
 import { rankForPoints, rankLabel, SEASON_CARRYOVER } from '../../lib/ranks'
+import { DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
 import NumberStepper from '../../components/NumberStepper'
 import type { Settings } from '../../types'
+
+const PLATE_CATALOG = [25, 20, 15, 10, 5, 2.5, 1.25, 1, 0.5]
 
 export default function SettingsScreen() {
   const settings = useLiveQuery(() => db.settings.get(1))
@@ -98,6 +101,50 @@ export default function SettingsScreen() {
         <p className="mt-2 text-xs text-sub">
           The Diet tab switches automatically: a day with a logged workout uses training targets.
           Tap the Training/Rest chip on the Diet tab to override a specific day.
+        </p>
+      </Section>
+
+      <Section title="Barbell">
+        <div className="flex items-start justify-between gap-3">
+          <NumberStepper
+            label="Bar weight"
+            value={settings.barWeightKg ?? DEFAULT_BAR_KG}
+            onChange={v => update({ barWeightKg: v })}
+            step={2.5}
+            min={5}
+            max={35}
+            unit="kg"
+          />
+          <div className="flex-1">
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-sub">Plates you own</p>
+            <div className="flex flex-wrap gap-1.5">
+              {PLATE_CATALOG.map(p => {
+                const current = settings.platesAvailable ?? DEFAULT_PLATES
+                const active = current.includes(p)
+                return (
+                  <button
+                    key={p}
+                    onClick={() =>
+                      update({
+                        platesAvailable: active
+                          ? current.filter(x => x !== p)
+                          : [...current, p].sort((a, b) => b - a),
+                      })
+                    }
+                    aria-pressed={active}
+                    className={`num min-h-[36px] rounded-lg px-2.5 text-sm font-semibold ${
+                      active ? 'bg-primary/15 text-primary' : 'bg-muted/30 text-sub'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-sub">
+          Used by the plate calculator shown when adjusting a barbell set's weight.
         </p>
       </Section>
 

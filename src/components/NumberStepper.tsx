@@ -40,6 +40,7 @@ export default function NumberStepper({ value, onChange, step, min = 0, max = 99
             autoFocus
             inputMode="decimal"
             defaultValue={display}
+            onFocus={e => e.target.select()}
             onChange={e => setText(e.target.value)}
             onBlur={commit}
             onKeyDown={e => e.key === 'Enter' && commit()}
