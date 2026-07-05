@@ -1,5 +1,5 @@
 import { db } from '../db/db'
-import type { Food, FoodLog, MealType, Settings } from '../types'
+import type { Food, FoodLog, MacroSet, MealType, Settings } from '../types'
 
 export interface MacroTotals {
   kcal: number
@@ -56,6 +56,33 @@ export function totalsForLogs(logs: FoodLog[], foodsById: Map<number, Food>): Ma
     if (food) acc = addTotals(acc, macrosFor(food, log.grams))
   }
   return acc
+}
+
+/**
+ * Cook once, log per-portion: per-100g macros of a finished recipe from its raw
+ * ingredients and the total cooked weight (water loss/gain included).
+ */
+export function recipePer100(
+  items: { food: MacroSet; grams: number }[],
+  cookedWeightG: number,
+): MacroSet {
+  const total = items.reduce(
+    (acc, { food, grams }) => ({
+      kcal100: acc.kcal100 + (food.kcal100 * grams) / 100,
+      protein100: acc.protein100 + (food.protein100 * grams) / 100,
+      carbs100: acc.carbs100 + (food.carbs100 * grams) / 100,
+      fat100: acc.fat100 + (food.fat100 * grams) / 100,
+    }),
+    { kcal100: 0, protein100: 0, carbs100: 0, fat100: 0 },
+  )
+  const f = cookedWeightG > 0 ? 100 / cookedWeightG : 0
+  const r1 = (v: number) => Math.round(v * f * 10) / 10
+  return {
+    kcal100: r1(total.kcal100),
+    protein100: r1(total.protein100),
+    carbs100: r1(total.carbs100),
+    fat100: r1(total.fat100),
+  }
 }
 
 /** Logs a food and updates its recents metadata in one transaction. */

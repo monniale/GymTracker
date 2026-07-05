@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Search, Layers, Trash2, WifiOff, Loader2 } from 'lucide-react'
+import { Search, Layers, Trash2, WifiOff, Loader2, ScanBarcode, X } from 'lucide-react'
 import { db } from '../../db/db'
 import Sheet from '../../components/Sheet'
-import { logFood } from '../../lib/nutrition'
-import { searchOff, type OffProduct } from '../../lib/off'
+import BarcodeScanSheet from '../../components/BarcodeScanSheet'
+import NumberStepper from '../../components/NumberStepper'
+import { logFood, recipePer100 } from '../../lib/nutrition'
+import { searchOff, upsertOffProduct, type OffProduct } from '../../lib/off'
 import type { Food, MealType, SavedMeal } from '../../types'
 
 type Tab = 'recent' | 'search' | 'custom'
@@ -18,25 +20,47 @@ interface Props {
 
 export default function AddFoodSheet({ open, onClose, date, meal }: Props) {
   const [tab, setTab] = useState<Tab>('recent')
+  const [scanOpen, setScanOpen] = useState(false)
+
+  async function onScannedProduct(p: OffProduct) {
+    const foodId = await upsertOffProduct(p)
+    const food = await db.foods.get(foodId)
+    await logFood(foodId, food ? defaultGrams(food) : 100, date, meal)
+    setScanOpen(false)
+    onClose()
+  }
 
   return (
     <Sheet open={open} onClose={onClose} title="Add food">
-      <div className="mb-3 flex rounded-xl bg-card p-1">
-        {(['recent', 'search', 'custom'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`min-h-[40px] flex-1 rounded-lg text-sm font-semibold capitalize transition-colors ${
-              tab === t ? 'bg-muted text-ink' : 'text-sub'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+      <div className="mb-3 flex items-center gap-2">
+        <div className="flex flex-1 rounded-xl bg-card p-1">
+          {(['recent', 'search', 'custom'] as Tab[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`min-h-[40px] flex-1 rounded-lg text-sm font-semibold capitalize transition-colors ${
+                tab === t ? 'bg-muted text-ink' : 'text-sub'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setScanOpen(true)}
+          aria-label="Scan barcode"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary active:bg-primary/30"
+        >
+          <ScanBarcode size={22} />
+        </button>
       </div>
       {tab === 'recent' && <RecentTab date={date} meal={meal} onDone={onClose} />}
       {tab === 'search' && <SearchTab date={date} meal={meal} onDone={onClose} />}
       {tab === 'custom' && <CustomTab date={date} meal={meal} onDone={onClose} />}
+
+      {scanOpen && (
+        <BarcodeScanSheet open onClose={() => setScanOpen(false)} onProduct={onScannedProduct} />
+      )}
     </Sheet>
   )
 }
@@ -213,34 +237,7 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
 
   async function addOff(p: OffProduct) {
     // Upsert by barcode: an existing row (possibly user-edited) always wins.
-    const existing = await db.foods.where('offId').equals(p.offId).first()
-    let foodId: number
-    if (existing) {
-      foodId = existing.id!
-    } else {
-      foodId = await db.foods.add({
-        source: 'off',
-        offId: p.offId,
-        name: p.name,
-        nameLower: p.name.toLowerCase(),
-        brand: p.brand,
-        kcal100: p.kcal100,
-        protein100: p.protein100,
-        carbs100: p.carbs100,
-        fat100: p.fat100,
-        servingG: p.servingG,
-        servingLabel: p.servingLabel,
-        userOverridden: false,
-        offOriginal: {
-          kcal100: p.kcal100,
-          protein100: p.protein100,
-          carbs100: p.carbs100,
-          fat100: p.fat100,
-        },
-        lastUsedAt: Date.now(),
-        useCount: 0,
-      })
-    }
+    const foodId = await upsertOffProduct(p)
     const food = await db.foods.get(foodId)
     await logFood(foodId, food ? defaultGrams(food) : 100, date, meal)
     onDone()
@@ -320,12 +317,17 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
 /* ---------- Custom ---------- */
 
 function CustomTab({ date, meal, onDone }: { date: string; meal: MealType; onDone: () => void }) {
+  const [recipeMode, setRecipeMode] = useState(false)
   const [name, setName] = useState('')
   const [kcal, setKcal] = useState('')
   const [protein, setProtein] = useState('')
   const [carbs, setCarbs] = useState('')
   const [fat, setFat] = useState('')
   const [serving, setServing] = useState('')
+
+  if (recipeMode) {
+    return <RecipeBuilder date={date} meal={meal} onDone={onDone} onBack={() => setRecipeMode(false)} />
+  }
 
   const valid = name.trim().length > 0 && parseFloat(kcal) >= 0
 
@@ -365,6 +367,131 @@ function CustomTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
         className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
         Save & log
+      </button>
+      <button
+        onClick={() => setRecipeMode(true)}
+        className="flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-sub active:text-ink"
+      >
+        <Layers size={16} /> Build from a recipe (cook once, log portions)
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Recipe → food converter: pick raw ingredients + total cooked weight, and the
+ * result becomes an ordinary per-100g food (zero extra taps at log time).
+ */
+function RecipeBuilder({ date, meal, onDone, onBack }: {
+  date: string
+  meal: MealType
+  onDone: () => void
+  onBack: () => void
+}) {
+  const [name, setName] = useState('')
+  const [q, setQ] = useState('')
+  const [items, setItems] = useState<{ food: Food; grams: number }[]>([])
+  const [cooked, setCooked] = useState('')
+
+  const results = useLiveQuery(async () => {
+    const query = q.trim().toLowerCase()
+    if (!query) return []
+    return db.foods.filter(f => f.nameLower.includes(query)).limit(6).toArray()
+  }, [q]) ?? []
+
+  const cookedG = parseFloat(cooked) || 0
+  const per100 = recipePer100(
+    items.map(i => ({ food: i.food, grams: i.grams })),
+    cookedG,
+  )
+  const valid = name.trim().length > 0 && items.length > 0 && cookedG > 0
+
+  async function save() {
+    if (!valid) return
+    const foodId = await db.foods.add({
+      source: 'custom',
+      name: name.trim(),
+      nameLower: name.trim().toLowerCase(),
+      ...per100,
+      userOverridden: false,
+      lastUsedAt: Date.now(),
+      useCount: 0,
+    })
+    await logFood(foodId, 100, date, meal)
+    onDone()
+  }
+
+  return (
+    <div className="space-y-3">
+      <button onClick={onBack} className="text-sm font-medium text-sub active:text-ink">
+        ‹ Back to custom food
+      </button>
+      <Field label="Recipe name" value={name} onChange={setName} type="text" placeholder="e.g. Sunday ragù" />
+
+      <div>
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">
+          Add raw ingredients (from your foods)
+        </span>
+        <div className="flex items-center gap-2 rounded-xl bg-card px-3">
+          <Search size={16} className="shrink-0 text-sub" />
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Search your foods…"
+            className="min-h-[44px] w-full text-base"
+          />
+        </div>
+        {results.map(f => (
+          <button
+            key={f.id}
+            onClick={() => {
+              setItems(list => [...list, { food: f, grams: 100 }])
+              setQ('')
+            }}
+            className="flex min-h-[44px] w-full items-center justify-between px-2 text-left active:bg-muted/30"
+          >
+            <span className="truncate text-sm font-medium">{f.name}</span>
+            <span className="num text-xs text-sub">{f.kcal100} kcal/100g</span>
+          </button>
+        ))}
+      </div>
+
+      {items.map((it, idx) => (
+        <div key={`${it.food.id}-${idx}`} className="flex items-center gap-2 rounded-xl bg-card px-3 py-1.5">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{it.food.name}</span>
+          <NumberStepper
+            value={it.grams}
+            onChange={v => setItems(list => list.map((x, i) => (i === idx ? { ...x, grams: v } : x)))}
+            step={10}
+            min={1}
+            max={5000}
+            unit="g"
+          />
+          <button
+            onClick={() => setItems(list => list.filter((_, i) => i !== idx))}
+            aria-label={`Remove ${it.food.name}`}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-sub active:bg-muted/40"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ))}
+
+      <Field label="Total cooked weight (g)" value={cooked} onChange={setCooked} placeholder="e.g. 1200" />
+
+      {valid && (
+        <p className="num rounded-xl bg-card px-3 py-2 text-center text-sm text-sub">
+          Per 100g: <b className="text-ink">{per100.kcal100} kcal</b> · P {per100.protein100} · C{' '}
+          {per100.carbs100} · F {per100.fat100}
+        </p>
+      )}
+
+      <button
+        onClick={save}
+        disabled={!valid}
+        className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
+      >
+        Save recipe & log 100 g
       </button>
     </div>
   )

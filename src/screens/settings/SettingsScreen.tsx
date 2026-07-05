@@ -101,6 +101,17 @@ export default function SettingsScreen() {
           <NumberStepper label="Carbs g" value={settings.restCarbsTarget ?? settings.carbsTarget} onChange={v => update({ restCarbsTarget: Math.round(v) })} step={5} min={0} max={1000} />
           <NumberStepper label="Fat g" value={settings.restFatTarget ?? settings.fatTarget} onChange={v => update({ restFatTarget: Math.round(v) })} step={2} min={0} max={400} />
         </div>
+        <div className="mt-4 flex justify-center border-t border-edge/50 pt-3">
+          <NumberStepper
+            label="Water target"
+            value={settings.waterTargetMl ?? 2500}
+            onChange={v => update({ waterTargetMl: Math.round(v) })}
+            step={250}
+            min={500}
+            max={8000}
+            unit="ml"
+          />
+        </div>
         <p className="mt-2 text-xs text-sub">
           The Diet tab switches automatically: a day with a logged workout uses training targets.
           Tap the Training/Rest chip on the Diet tab to override a specific day.

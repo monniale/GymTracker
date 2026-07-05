@@ -13,13 +13,15 @@
   "dependencies": {
     "@fontsource/barlow": "^5.1.0",
     "@fontsource/barlow-condensed": "^5.1.0",
+    "barcode-detector": "^3.2.0",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
     "lucide-react": "^0.454.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "zustand": "^4.5.5"
+    "zustand": "^4.5.5",
+    "zxing-wasm": "^3.1.0"
   },
   "overrides": {
     "workbox-build": "7.1.1"

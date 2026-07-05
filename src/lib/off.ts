@@ -1,4 +1,5 @@
 /** Open Food Facts search client. Free, no API key, CORS-enabled. */
+import { db } from '../db/db'
 
 export interface OffProduct {
   offId: string
@@ -32,6 +33,49 @@ export async function searchOff(query: string, signal?: AbortSignal): Promise<Of
     }
   }
   return mapped
+}
+
+/** Direct product lookup by scanned/typed EAN. Returns null when unknown. */
+export async function lookupBarcode(code: string, signal?: AbortSignal): Promise<OffProduct | null> {
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}` +
+    `?fields=${FIELDS}&app_name=gymtracker`
+  const res = await fetch(url, { signal })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Open Food Facts lookup failed (${res.status})`)
+  const data = await res.json()
+  if (data.status !== 1 || !data.product) return null
+  return mapProduct({ code, ...data.product })
+}
+
+/**
+ * Insert an OFF product into the local foods table (or return the existing row
+ * — a previously cached/user-edited food always wins over fresh API data).
+ */
+export async function upsertOffProduct(p: OffProduct): Promise<number> {
+  const existing = await db.foods.where('offId').equals(p.offId).first()
+  if (existing) return existing.id!
+  return db.foods.add({
+    source: 'off',
+    offId: p.offId,
+    name: p.name,
+    nameLower: p.name.toLowerCase(),
+    brand: p.brand,
+    kcal100: p.kcal100,
+    protein100: p.protein100,
+    carbs100: p.carbs100,
+    fat100: p.fat100,
+    servingG: p.servingG,
+    servingLabel: p.servingLabel,
+    userOverridden: false,
+    offOriginal: {
+      kcal100: p.kcal100,
+      protein100: p.protein100,
+      carbs100: p.carbs100,
+      fat100: p.fat100,
+    },
+    lastUsedAt: Date.now(),
+    useCount: 0,
+  })
 }
 
 function num(v: unknown): number | undefined {

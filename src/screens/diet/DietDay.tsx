@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus, Dumbbell, BedDouble, ArrowLeftRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus, Dumbbell, BedDouble, ArrowLeftRight, Droplets, Minus, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { db } from '../../db/db'
 import { localDateStr, addDays, fmtDate, parseLocalDate } from '../../lib/dates'
-import { macrosFor, totalsForLogs, logFood, dayTargets } from '../../lib/nutrition'
+import { macrosFor, totalsForLogs, logFood, dayTargets, EMPTY_TOTALS } from '../../lib/nutrition'
+import type { Food } from '../../types'
 import ProgressRing from '../../components/ProgressRing'
 import AddFoodSheet from './AddFoodSheet'
 import EntryEditor from './EntryEditor'
@@ -114,6 +115,7 @@ export default function DietDay() {
           <MacroRing label="C" value={totals.carbs} target={tg?.carbs} color="#3FC1C9" />
           <MacroRing label="F" value={totals.fat} target={tg?.fat} color="#E8B93B" />
         </div>
+        <WaterRow date={date} targetMl={settings?.waterTargetMl ?? 2500} />
       </div>
 
       <div className="space-y-4">
@@ -190,12 +192,140 @@ export default function DietDay() {
         })}
       </div>
 
+      <WeekReport date={date} foodsById={foodsById} />
+
       {addMeal && (
         <AddFoodSheet open onClose={() => setAddMeal(null)} date={date} meal={addMeal} />
       )}
       {editLog && (
         <EntryEditor open log={editLog} food={foodsById.get(editLog.foodId)} onClose={() => setEditLog(null)} />
       )}
+    </div>
+  )
+}
+
+function WaterRow({ date, targetMl }: { date: string; targetMl: number }) {
+  const logs = useLiveQuery(() => db.waterLogs.where('date').equals(date).toArray(), [date]) ?? []
+  const total = logs.reduce((a, l) => a + l.ml, 0)
+
+  async function add() {
+    await db.waterLogs.add({ date, ml: 250 })
+  }
+  async function undo() {
+    const last = logs[logs.length - 1]
+    if (last) await db.waterLogs.delete(last.id!)
+  }
+
+  return (
+    <div className="mt-3 flex items-center gap-2 border-t border-edge/50 pt-3">
+      <Droplets size={18} className="shrink-0 text-[#3FC1C9]" aria-hidden />
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted/30">
+        <div
+          className="h-full rounded-full bg-[#3FC1C9] transition-[width] duration-300"
+          style={{ width: `${Math.min(100, (total / targetMl) * 100)}%` }}
+        />
+      </div>
+      <span className="num text-xs font-semibold text-sub">
+        {total} / {targetMl} ml
+      </span>
+      <button
+        onClick={undo}
+        aria-label="Undo water"
+        disabled={total === 0}
+        className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/30 text-sub active:bg-muted disabled:opacity-30"
+      >
+        <Minus size={15} />
+      </button>
+      <button
+        onClick={add}
+        aria-label="Add 250ml water"
+        className="num flex h-9 items-center justify-center rounded-lg bg-[#3FC1C9]/15 px-2.5 text-xs font-bold text-[#3FC1C9] active:bg-[#3FC1C9]/30"
+      >
+        +250
+      </button>
+    </div>
+  )
+}
+
+function WeekReport({ date, foodsById }: { date: string; foodsById: Map<number, Food> }) {
+  const [open, setOpen] = useState(false)
+  const days = Array.from({ length: 7 }, (_, i) => addDays(date, i - 6))
+
+  const report = useLiveQuery(async () => {
+    if (!open) return null
+    const settings = await db.settings.get(1)
+    if (!settings) return null
+    const logs = await db.foodLogs.where('date').anyOf(days).toArray()
+    const overrides = new Map(
+      (await db.dayTypes.where('date').anyOf(days).toArray()).map(d => [d.date, d.type]),
+    )
+    const rangeStart = parseLocalDate(days[0]).getTime()
+    const sessions = await db.sessions.where('startedAt').aboveOrEqual(rangeStart).toArray()
+    const trainedDates = new Set(sessions.map(s => localDateStr(new Date(s.startedAt))))
+
+    let loggedDays = 0
+    let kcalSum = 0
+    let proteinSum = 0
+    let adherent = 0
+    let trainingDays = 0
+    for (const d of days) {
+      const dayLogs = logs.filter(l => l.date === d)
+      const isTraining = overrides.has(d) ? overrides.get(d) === 'training' : trainedDates.has(d)
+      if (isTraining) trainingDays++
+      if (dayLogs.length === 0) continue
+      loggedDays++
+      const t = totalsForLogs(dayLogs, foodsById) ?? EMPTY_TOTALS
+      kcalSum += t.kcal
+      proteinSum += t.protein
+      const target = dayTargets(settings, isTraining).kcal
+      if (Math.abs(t.kcal - target) <= target * 0.1) adherent++
+    }
+    return {
+      loggedDays,
+      avgKcal: loggedDays ? Math.round(kcalSum / loggedDays) : 0,
+      avgProtein: loggedDays ? Math.round(proteinSum / loggedDays) : 0,
+      proteinPerKg: loggedDays
+        ? Math.round((proteinSum / loggedDays / settings.bodyweightKg) * 100) / 100
+        : 0,
+      adherent,
+      trainingDays,
+    }
+  }, [open, date, foodsById])
+
+  return (
+    <section className="mt-4 rounded-2xl border border-edge bg-card">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="flex items-center gap-2 font-display text-lg font-semibold">
+          <ClipboardList size={18} className="text-sub" /> Last 7 days
+        </span>
+        {open ? <ChevronUp size={18} className="text-sub" /> : <ChevronDown size={18} className="text-sub" />}
+      </button>
+      {open && report && (
+        <div className="border-t border-edge/60 px-4 py-3">
+          {report.loggedDays === 0 ? (
+            <p className="text-sm text-sub">No food logged in the last 7 days.</p>
+          ) : (
+            <div className="num grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <Stat label="Avg calories" value={`${report.avgKcal} kcal`} />
+              <Stat label="Avg protein" value={`${report.avgProtein} g (${report.proteinPerKg} g/kg)`} />
+              <Stat label="On-target days (±10%)" value={`${report.adherent} / ${report.loggedDays}`} />
+              <Stat label="Training days" value={`${report.trainingDays} / 7`} />
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-sub">{label}</p>
+      <p className="font-semibold">{value}</p>
     </div>
   )
 }
