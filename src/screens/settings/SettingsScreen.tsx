@@ -62,7 +62,10 @@ export default function SettingsScreen() {
           <NumberStepper
             label="Bodyweight"
             value={settings.bodyweightKg}
-            onChange={v => update({ bodyweightKg: v })}
+            onChange={v => {
+              void update({ bodyweightKg: v })
+              void db.bodyLog.put({ date: localDateStr(), weightKg: v })
+            }}
             step={0.5}
             min={30}
             max={300}

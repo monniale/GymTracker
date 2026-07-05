@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { Dumbbell, UtensilsCrossed, Trophy, Settings } from 'lucide-react'
+import { Dumbbell, UtensilsCrossed, TrendingUp, Trophy, Settings } from 'lucide-react'
 
 const TABS = [
   { to: '/workout', icon: Dumbbell, label: 'Workout' },
   { to: '/diet', icon: UtensilsCrossed, label: 'Diet' },
+  { to: '/progress', icon: TrendingUp, label: 'Progress' },
   { to: '/rank', icon: Trophy, label: 'Rank' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
