@@ -8,7 +8,7 @@ import { standardFor, levelFor } from '../../lib/standards'
 import ExercisePicker from '../workout/ExercisePicker'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
-import type { Exercise, MuscleGroup } from '../../types'
+import type { Exercise, Id, MuscleGroup } from '../../types'
 
 const ORANGE = '#F97316'
 const GREEN = '#22C55E'
@@ -20,7 +20,7 @@ function shortDate(ms: number): string {
 
 export default function ProgressScreen() {
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [exerciseId, setExerciseId] = useState<number | null>(null)
+  const [exerciseId, setExerciseId] = useState<Id | null>(null)
 
   const exercises = useLiveQuery(() => db.exercises.toArray()) ?? []
   const exMap = useMemo(() => new Map(exercises.map(e => [e.id!, e])), [exercises])
@@ -68,14 +68,14 @@ export default function ProgressScreen() {
   )
 }
 
-function ExerciseTrend({ exerciseId }: { exerciseId: number }) {
+function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
   const data = useLiveQuery(async () => {
     const sets = await db.sets
       .where('exerciseId').equals(exerciseId)
       .filter(s => !s.isWarmup)
       .toArray()
     if (sets.length === 0) return { e1rm: [], volume: [] }
-    const bySession = new Map<number, { best: number; volume: number; t: number }>()
+    const bySession = new Map<Id, { best: number; volume: number; t: number }>()
     for (const s of sets) {
       const cur = bySession.get(s.sessionId) ?? { best: 0, volume: 0, t: s.completedAt }
       cur.best = Math.max(cur.best, s.e1rm)
@@ -104,7 +104,7 @@ function ExerciseTrend({ exerciseId }: { exerciseId: number }) {
   )
 }
 
-function WeeklyMuscleVolume({ exMap }: { exMap: Map<number, Exercise> }) {
+function WeeklyMuscleVolume({ exMap }: { exMap: Map<Id, Exercise> }) {
   const rows = useLiveQuery(async () => {
     const thisMonday = mondayOf(localDateStr())
     const start8w = parseLocalDate(addDays(thisMonday, -49)).getTime()
@@ -211,11 +211,11 @@ function BodyweightTile() {
   )
 }
 
-function PrWall({ exMap }: { exMap: Map<number, Exercise> }) {
+function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
   const settings = useLiveQuery(() => db.settings.get(1))
   const prs = useLiveQuery(async () => {
     const sets = await db.sets.filter(s => !s.isWarmup && s.weightKg > 0).toArray()
-    const byEx = new Map<number, { e1rm: number; weight: number; reps: number; date: number }>()
+    const byEx = new Map<Id, { e1rm: number; weight: number; reps: number; date: number }>()
     for (const s of sets) {
       const cur = byEx.get(s.exerciseId)
       if (!cur || s.e1rm > cur.e1rm) {

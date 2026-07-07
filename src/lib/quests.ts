@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import { localDateStr, mondayOf, addDays, parseLocalDate } from './dates'
 import { dayTargets, totalsForLogs } from './nutrition'
+import type { Id } from '../types'
 
 export const QUEST_BONUS = 15
 
@@ -33,7 +34,7 @@ const POOL: QuestDef[] = [
     target: 2,
     measure: async w => {
       const sessions = await sessionsInWeek(w)
-      const legEx = new Set(
+      const legEx = new Set<Id>(
         (await db.exercises.filter(e => e.muscleGroup === 'legs' || e.muscleGroup === 'glutes').toArray())
           .map(e => e.id!),
       )

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { Id } from './types'
 import { persist } from 'zustand/middleware'
 
 export interface RestTimer {
@@ -12,8 +13,8 @@ interface StopwatchState {
 }
 
 interface AppStore {
-  activeSessionId: number | null
-  setActiveSessionId: (id: number | null) => void
+  activeSessionId: Id | null
+  setActiveSessionId: (id: Id | null) => void
 
   rest: RestTimer | null
   startRest: (sec: number) => void

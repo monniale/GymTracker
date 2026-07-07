@@ -1,5 +1,6 @@
 /** Open Food Facts search client. Free, no API key, CORS-enabled. */
 import { db } from '../db/db'
+import type { Id } from '../types'
 
 export interface OffProduct {
   offId: string
@@ -51,7 +52,7 @@ export async function lookupBarcode(code: string, signal?: AbortSignal): Promise
  * Insert an OFF product into the local foods table (or return the existing row
  * — a previously cached/user-edited food always wins over fresh API data).
  */
-export async function upsertOffProduct(p: OffProduct): Promise<number> {
+export async function upsertOffProduct(p: OffProduct): Promise<Id> {
   const existing = await db.foods.where('offId').equals(p.offId).first()
   if (existing) return existing.id!
   return db.foods.add({

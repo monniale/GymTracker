@@ -1,5 +1,6 @@
 import { db } from '../db/db'
 import { standardFor, levelFor } from './standards'
+import type { Id } from '../types'
 
 export interface AchievementDef {
   id: string
@@ -47,7 +48,7 @@ export async function computeAchievementStats(): Promise<AchievementStats> {
   const settings = await db.settings.get(1)
   const foodDates = new Set((await db.foodLogs.toArray()).map(l => l.date))
   const exercises = await db.exercises.toArray()
-  const exNames = new Map(exercises.map(e => [e.id!, e.nameLower]))
+  const exNames = new Map<Id, string>(exercises.map(e => [e.id!, e.nameLower]))
 
   const bw = settings?.bodyweightKg ?? 75
   const liftRatios = new Map<string, number>()

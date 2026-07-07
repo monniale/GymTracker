@@ -1,5 +1,5 @@
 import { db } from '../db/db'
-import type { Food, FoodLog, MacroSet, MealType, Settings } from '../types'
+import type { Food, FoodLog, Id, MacroSet, MealType, Settings } from '../types'
 
 export interface MacroTotals {
   kcal: number
@@ -49,7 +49,7 @@ export function addTotals(a: MacroTotals, b: MacroTotals): MacroTotals {
   }
 }
 
-export function totalsForLogs(logs: FoodLog[], foodsById: Map<number, Food>): MacroTotals {
+export function totalsForLogs(logs: FoodLog[], foodsById: Map<Id, Food>): MacroTotals {
   let acc = EMPTY_TOTALS
   for (const log of logs) {
     const food = foodsById.get(log.foodId)
@@ -87,7 +87,7 @@ export function recipePer100(
 
 /** Logs a food and updates its recents metadata in one transaction. */
 export async function logFood(
-  foodId: number, grams: number, date: string, meal: MealType,
+  foodId: Id, grams: number, date: string, meal: MealType,
 ): Promise<void> {
   await db.transaction('rw', db.foodLogs, db.foods, async () => {
     await db.foodLogs.add({ date, meal, foodId, grams, loggedAt: Date.now() })

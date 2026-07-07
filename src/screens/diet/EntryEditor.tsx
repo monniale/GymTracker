@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Trash2, Pencil, RotateCcw } from 'lucide-react'
-import { db } from '../../db/db'
+import { db, deleteWithTombstone } from '../../db/db'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
 import { macrosFor } from '../../lib/nutrition'
@@ -28,7 +28,7 @@ export default function EntryEditor({ open, onClose, log, food }: Props) {
   }
 
   async function remove() {
-    await db.foodLogs.delete(log.id!)
+    await deleteWithTombstone('foodLogs', log.id!)
     onClose()
   }
 

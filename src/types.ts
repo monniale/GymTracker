@@ -1,9 +1,13 @@
+/** Row key: legacy rows use auto-increment integers; rows created since
+ * GitHub Sync use UUID strings (globally unique across devices). */
+export type Id = number | string
+
 export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps'
   | 'legs' | 'glutes' | 'core' | 'cardio' | 'other'
 
 export interface Exercise {
-  id?: number
+  id?: Id
   name: string
   nameLower: string
   muscleGroup: MuscleGroup
@@ -13,10 +17,12 @@ export interface Exercise {
   notes?: string
   /** kg added when the double-progression rule fires (default 2.5). */
   progressionStepKg?: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface TemplateItem {
-  exerciseId: number
+  exerciseId: Id
   targetSets: number
   targetReps: number
   restSec?: number
@@ -25,7 +31,7 @@ export interface TemplateItem {
 }
 
 export interface WorkoutTemplate {
-  id?: number
+  id?: Id
   name: string
   position: number
   items: TemplateItem[]
@@ -33,26 +39,30 @@ export interface WorkoutTemplate {
 }
 
 export interface Session {
-  id?: number
-  templateId?: number
+  id?: Id
+  templateId?: Id
   name: string
   startedAt: number
   endedAt?: number
   bodyweightKg: number
   points?: number
-  extraExerciseIds: number[]
+  extraExerciseIds: Id[]
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface SetRow {
-  id?: number
-  sessionId: number
-  exerciseId: number
+  id?: Id
+  sessionId: Id
+  exerciseId: Id
   setNumber: number
   weightKg: number
   reps: number
   isWarmup: boolean
   completedAt: number
   e1rm: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface MacroSet {
@@ -63,7 +73,7 @@ export interface MacroSet {
 }
 
 export interface Food extends MacroSet {
-  id?: number
+  id?: Id
   source: 'off' | 'custom'
   offId?: string
   name: string
@@ -76,24 +86,30 @@ export interface Food extends MacroSet {
   lastUsedAt: number
   useCount: number
   lastGrams?: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
 export interface FoodLog {
-  id?: number
+  id?: Id
   date: string // YYYY-MM-DD local
   meal: MealType
-  foodId: number
+  foodId: Id
   grams: number
   loggedAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface SavedMeal {
-  id?: number
+  id?: Id
   name: string
-  items: { foodId: number; grams: number }[]
+  items: { foodId: Id; grams: number }[]
   lastUsedAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface Settings {
@@ -115,12 +131,16 @@ export interface Settings {
   barWeightKg?: number
   platesAvailable?: number[]
   waterTargetMl?: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 /** Manual override of the automatic training/rest day detection, per date. */
 export interface DayType {
   date: string // YYYY-MM-DD, primary key
   type: 'training' | 'rest'
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface RankState {
@@ -133,10 +153,12 @@ export interface RankState {
   lastSessionDate?: string
   idleDecayTaken: number // points already removed during the current idle streak
   lastDecayCheckDate: string
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface ExerciseBreakdown {
-  exerciseId: number
+  exerciseId: Id
   exerciseName: string
   setPoints: number
   countedSets: number
@@ -147,9 +169,9 @@ export interface ExerciseBreakdown {
 }
 
 export interface ScoreEvent {
-  id?: number
+  id?: Id
   /** Absent for non-session awards (e.g. weekly quest bonuses). */
-  sessionId?: number
+  sessionId?: Id
   /** Display label for non-session awards. */
   label?: string
   date: string
@@ -159,10 +181,12 @@ export interface ScoreEvent {
   dayFactor: number
   total: number
   breakdown: ExerciseBreakdown[]
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface Season {
-  id?: number
+  id?: Id
   seasonId: number
   startDate: string
   endDate: string
@@ -173,25 +197,44 @@ export interface Season {
     totalVolumeKg: number
     bestLift?: { exerciseName: string; e1rm: number }
   }
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface BodyLogEntry {
   date: string // YYYY-MM-DD, primary key
   weightKg: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface WaterLog {
-  id?: number
+  id?: Id
   date: string
   ml: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface AchievementUnlock {
   id: string // achievement id, primary key
   unlockedAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface QuestState {
   weekKey: string // monday YYYY-MM-DD, primary key
   quests: { id: string; done: boolean; awardedAt?: number }[]
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
+}
+
+/** Deletion marker so removals propagate across devices instead of resurrecting. */
+export interface Tombstone {
+  id?: Id
+  table: string
+  rowId: Id
+  deletedAt: number
+  updatedAt?: number
 }

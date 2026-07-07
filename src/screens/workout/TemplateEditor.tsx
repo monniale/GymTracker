@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronUp, ChevronDown, Trash2, Plus, Link2 } from 'lucide-react'
-import { db } from '../../db/db'
+import { db, deleteWithTombstone } from '../../db/db'
+import { parseRouteId } from '../../lib/ids'
 import NumberStepper from '../../components/NumberStepper'
 import ExercisePicker from './ExercisePicker'
 import type { Exercise, TemplateItem } from '../../types'
@@ -10,7 +11,7 @@ import type { Exercise, TemplateItem } from '../../types'
 export default function TemplateEditor() {
   const navigate = useNavigate()
   const { id } = useParams()
-  const tid = Number(id)
+  const tid = parseRouteId(id)
   const template = useLiveQuery(() => db.templates.get(tid), [tid])
   const exercises = useLiveQuery(() => db.exercises.toArray()) ?? []
   const exMap = useMemo(() => new Map(exercises.map(e => [e.id!, e])), [exercises])
@@ -47,7 +48,7 @@ export default function TemplateEditor() {
 
   async function deleteTemplate() {
     if (!window.confirm(`Delete workout “${template!.name}”? Logged sessions are kept.`)) return
-    await db.templates.delete(tid)
+    await deleteWithTombstone('templates', tid)
     navigate('/workout')
   }
 

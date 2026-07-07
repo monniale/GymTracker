@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ensureSeeded } from './db/seed'
 import { runDailyChecks } from './lib/season'
 import { checkAchievements } from './lib/achievements'
+import { installSyncTriggers, syncNow, isConnected } from './lib/sync'
 import { evaluateQuests } from './lib/quests'
 import TabBar from './components/TabBar'
 import RestTimerBar from './components/RestTimerBar'
@@ -24,9 +25,11 @@ export default function App() {
       await ensureSeeded()
       await runDailyChecks()
       setReady(true)
-      // Post-launch, non-blocking: catch up on unlocks/quest awards.
+      // Post-launch, non-blocking: catch up on unlocks/quest awards + sync.
       void checkAchievements()
       void evaluateQuests()
+      installSyncTriggers()
+      if (isConnected()) void syncNow('launch')
     })()
   }, [])
 

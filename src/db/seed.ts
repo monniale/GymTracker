@@ -102,7 +102,11 @@ export const DEFAULT_SETTINGS = {
 export async function ensureSeeded(): Promise<void> {
   const count = await db.exercises.count()
   if (count === 0) {
-    const rows: Exercise[] = ROWS.map(([name, muscleGroup, equipment, defaultRestSec]) => ({
+    // Explicit deterministic ids: fresh installs on different devices must
+    // produce IDENTICAL seed rows, or a sync merge would duplicate the whole
+    // catalog (the UUID middleware only fills ids that are missing).
+    const rows: Exercise[] = ROWS.map(([name, muscleGroup, equipment, defaultRestSec], i) => ({
+      id: i + 1,
       name,
       nameLower: name.toLowerCase(),
       muscleGroup,

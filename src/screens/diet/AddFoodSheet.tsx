@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Search, Layers, Trash2, WifiOff, Loader2, ScanBarcode, X } from 'lucide-react'
-import { db } from '../../db/db'
+import { db, deleteWithTombstone } from '../../db/db'
 import Sheet from '../../components/Sheet'
 import BarcodeScanSheet from '../../components/BarcodeScanSheet'
 import NumberStepper from '../../components/NumberStepper'
@@ -88,7 +88,7 @@ function RecentTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
   }
 
   async function removeSavedMeal(m: SavedMeal) {
-    if (window.confirm(`Delete saved meal “${m.name}”?`)) await db.savedMeals.delete(m.id!)
+    if (window.confirm(`Delete saved meal “${m.name}”?`)) await deleteWithTombstone('savedMeals', m.id!)
   }
 
   async function addFood(f: Food, grams: number) {

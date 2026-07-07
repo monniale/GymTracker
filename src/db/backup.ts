@@ -1,27 +1,54 @@
-import { db } from './db'
+import { db, withSyncTrackingSuspended, setSyncDirty } from './db'
 import { localDateStr } from '../lib/dates'
 
-const TABLES = [
+export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'settings', 'rankState', 'scoreEvents', 'seasons', 'dayTypes',
-  'bodyLog', 'waterLogs', 'achievements', 'quests',
+  'bodyLog', 'waterLogs', 'achievements', 'quests', 'tombstones',
 ] as const
 
-type TableName = (typeof TABLES)[number]
+export type TableName = (typeof TABLES)[number]
+export type TableDump = Record<TableName, unknown[]>
 
-interface BackupFile {
+export interface BackupFile {
   app: 'gymtracker'
-  version: 1
+  version: 1 | 2
   exportedAt: number
-  tables: Record<TableName, unknown[]>
+  deviceId?: string
+  tables: Partial<TableDump>
 }
 
-export async function exportBackup(): Promise<void> {
-  const tables = {} as Record<TableName, unknown[]>
+export async function collectTables(): Promise<TableDump> {
+  const tables = {} as TableDump
   for (const name of TABLES) {
     tables[name] = await db.table(name).toArray()
   }
-  const payload: BackupFile = { app: 'gymtracker', version: 1, exportedAt: Date.now(), tables }
+  return tables
+}
+
+/** Wholesale replace of all tables. Sync tracking suspended so the import
+ * itself doesn't stamp updatedAt or mark the device dirty. */
+export async function applyTables(tables: Partial<TableDump>): Promise<void> {
+  await withSyncTrackingSuspended(() =>
+    db.transaction('rw', TABLES.map(t => db.table(t)), async () => {
+      for (const name of TABLES) {
+        const rows = tables[name]
+        await db.table(name).clear()
+        if (Array.isArray(rows) && rows.length > 0) {
+          await db.table(name).bulkPut(rows)
+        }
+      }
+    }),
+  )
+}
+
+export async function exportBackup(): Promise<void> {
+  const payload: BackupFile = {
+    app: 'gymtracker',
+    version: 2,
+    exportedAt: Date.now(),
+    tables: await collectTables(),
+  }
   const json = JSON.stringify(payload)
   const fileName = `gymtracker-backup-${localDateStr()}.json`
   const file = new File([json], fileName, { type: 'application/json' })
@@ -43,7 +70,7 @@ export async function exportBackup(): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
-/** Replaces ALL current data with the backup's contents. */
+/** Replaces ALL current data with the backup's contents (v1 or v2 files). */
 export async function importBackup(fileText: string): Promise<void> {
   let parsed: BackupFile
   try {
@@ -54,13 +81,7 @@ export async function importBackup(fileText: string): Promise<void> {
   if (parsed.app !== 'gymtracker' || !parsed.tables) {
     throw new Error('Not a GymTracker backup file.')
   }
-  await db.transaction('rw', TABLES.map(t => db.table(t)), async () => {
-    for (const name of TABLES) {
-      const rows = parsed.tables[name]
-      await db.table(name).clear()
-      if (Array.isArray(rows) && rows.length > 0) {
-        await db.table(name).bulkPut(rows)
-      }
-    }
-  })
+  await applyTables(parsed.tables)
+  // A manual restore is a local change relative to any sync remote.
+  setSyncDirty(true)
 }

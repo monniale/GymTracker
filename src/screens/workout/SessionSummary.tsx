@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { TrendingUp, Award, Medal, Target } from 'lucide-react'
 import { db } from '../../db/db'
+import { parseRouteId } from '../../lib/ids'
 import { rankForPoints, rankLabel } from '../../lib/ranks'
 import { checkAchievements, type AchievementDef } from '../../lib/achievements'
 import { evaluateQuests, QUEST_BONUS, type QuestDef } from '../../lib/quests'
@@ -12,7 +13,7 @@ import { fmtDuration } from '../../lib/dates'
 
 export default function SessionSummary() {
   const { id } = useParams()
-  const sid = Number(id)
+  const sid = parseRouteId(id)
   const [unlocked, setUnlocked] = useState<AchievementDef[]>([])
   const [questsDone, setQuestsDone] = useState<QuestDef[]>([])
 

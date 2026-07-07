@@ -2,26 +2,78 @@ import Dexie, { type Table } from 'dexie'
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
   SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
-  BodyLogEntry, WaterLog, AchievementUnlock, QuestState,
+  BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone, Id,
 } from '../types'
 
+/** Tables with '++id' primary keys: new rows get UUID string ids so inserts
+ * made on different devices can never collide (legacy integer ids remain). */
+const UUID_TABLES = new Set([
+  'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
+  'savedMeals', 'scoreEvents', 'seasons', 'waterLogs', 'tombstones',
+])
+
+/* ---------- sync tracking (dirty flag + suspension during imports) ---------- */
+
+const DIRTY_KEY = 'gymtracker-sync-dirty'
+let suspended = false
+const dirtyListeners = new Set<() => void>()
+
+export function onSyncDirty(listener: () => void): () => void {
+  dirtyListeners.add(listener)
+  return () => dirtyListeners.delete(listener)
+}
+
+export function isSyncDirty(): boolean {
+  try {
+    return localStorage.getItem(DIRTY_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setSyncDirty(dirty: boolean): void {
+  try {
+    if (dirty) localStorage.setItem(DIRTY_KEY, '1')
+    else localStorage.removeItem(DIRTY_KEY)
+  } catch {
+    /* storage unavailable (tests) */
+  }
+}
+
+function markDirty(): void {
+  if (suspended) return
+  setSyncDirty(true)
+  dirtyListeners.forEach(l => l())
+}
+
+/** Run fn with sync tracking off (snapshot imports must not stamp/mark dirty). */
+export async function withSyncTrackingSuspended<T>(fn: () => Promise<T>): Promise<T> {
+  suspended = true
+  try {
+    return await fn()
+  } finally {
+    suspended = false
+  }
+}
+
 export class GymDB extends Dexie {
-  exercises!: Table<Exercise, number>
-  templates!: Table<WorkoutTemplate, number>
-  sessions!: Table<Session, number>
-  sets!: Table<SetRow, number>
-  foods!: Table<Food, number>
-  foodLogs!: Table<FoodLog, number>
-  savedMeals!: Table<SavedMeal, number>
+  exercises!: Table<Exercise, Id>
+  templates!: Table<WorkoutTemplate, Id>
+  sessions!: Table<Session, Id>
+  sets!: Table<SetRow, Id>
+  foods!: Table<Food, Id>
+  foodLogs!: Table<FoodLog, Id>
+  savedMeals!: Table<SavedMeal, Id>
   settings!: Table<Settings, number>
   rankState!: Table<RankState, number>
-  scoreEvents!: Table<ScoreEvent, number>
-  seasons!: Table<Season, number>
+  scoreEvents!: Table<ScoreEvent, Id>
+  seasons!: Table<Season, Id>
   dayTypes!: Table<DayType, string>
   bodyLog!: Table<BodyLogEntry, string>
-  waterLogs!: Table<WaterLog, number>
+  waterLogs!: Table<WaterLog, Id>
   achievements!: Table<AchievementUnlock, string>
   quests!: Table<QuestState, string>
+  tombstones!: Table<Tombstone, Id>
 
   constructor() {
     super('gymtracker')
@@ -47,7 +99,56 @@ export class GymDB extends Dexie {
       achievements: 'id',
       quests: 'weekKey',
     })
+    this.version(4).stores({
+      tombstones: '++id, deletedAt',
+    })
+
+    // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking.
+    this.use({
+      stack: 'dbcore',
+      name: 'gymtracker-sync',
+      create: down => ({
+        ...down,
+        table: name => {
+          const table = down.table(name)
+          return {
+            ...table,
+            mutate: req => {
+              if (!suspended) {
+                if (req.type === 'add' || req.type === 'put') {
+                  const now = Date.now()
+                  for (const value of req.values as Array<Record<string, unknown>>) {
+                    if (value && typeof value === 'object') {
+                      if (req.type === 'add' && UUID_TABLES.has(name) && value.id === undefined) {
+                        value.id = crypto.randomUUID()
+                      }
+                      value.updatedAt = now
+                    }
+                  }
+                }
+                markDirty()
+              }
+              return table.mutate(req)
+            },
+          }
+        },
+      }),
+    })
   }
 }
 
 export const db = new GymDB()
+
+/** Delete + tombstone in one transaction so the removal syncs across devices. */
+export async function deleteWithTombstone(tableName: string, key: Id): Promise<void> {
+  await db.transaction('rw', db.table(tableName), db.tombstones, async () => {
+    await db.table(tableName).delete(key)
+    await db.tombstones.add({ table: tableName, rowId: key, deletedAt: Date.now() })
+  })
+}
+
+/** Bulk variant used when deleting a session with all its sets/events. */
+export async function tombstoneKeys(tableName: string, keys: Id[]): Promise<void> {
+  const now = Date.now()
+  await db.tombstones.bulkAdd(keys.map(rowId => ({ table: tableName, rowId, deletedAt: now })))
+}

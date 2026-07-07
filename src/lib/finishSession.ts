@@ -3,13 +3,14 @@ import { scoreSession } from './scoring'
 import { registerSessionForStreak } from './season'
 import { localDateStr } from './dates'
 import { parseLocalDate } from './dates'
+import type { Id } from '../types'
 
 /**
  * Closes a session: gathers season-scoped prior bests, scores it, records the
  * score event and updates rank points. Returns the scored total, or null when
  * the session had no sets (it is then deleted instead).
  */
-export async function finishSession(sessionId: number): Promise<number | null> {
+export async function finishSession(sessionId: Id): Promise<number | null> {
   const session = await db.sessions.get(sessionId)
   if (!session) return null
 
@@ -23,8 +24,8 @@ export async function finishSession(sessionId: number): Promise<number | null> {
   const seasonStartMs = state ? parseLocalDate(state.seasonStart).getTime() : 0
 
   const exerciseIds = [...new Set(sets.map(s => s.exerciseId))]
-  const priorBestE1rm = new Map<number, number>()
-  const priorBestVolume = new Map<number, number>()
+  const priorBestE1rm = new Map<Id, number>()
+  const priorBestVolume = new Map<Id, number>()
 
   for (const exId of exerciseIds) {
     const prior = await db.sets
@@ -34,7 +35,7 @@ export async function finishSession(sessionId: number): Promise<number | null> {
       .toArray()
     if (prior.length === 0) continue
     priorBestE1rm.set(exId, Math.max(...prior.map(s => s.e1rm)))
-    const volBySession = new Map<number, number>()
+    const volBySession = new Map<Id, number>()
     for (const s of prior) {
       volBySession.set(s.sessionId, (volBySession.get(s.sessionId) ?? 0) + s.weightKg * s.reps)
     }
@@ -53,7 +54,7 @@ export async function finishSession(sessionId: number): Promise<number | null> {
   const streakWeeks = await registerSessionForStreak(now)
 
   const exercises = await db.exercises.bulkGet(exerciseIds)
-  const exerciseNames = new Map<number, string>()
+  const exerciseNames = new Map<Id, string>()
   exerciseIds.forEach((id, i) => exerciseNames.set(id, exercises[i]?.name ?? 'Exercise'))
 
   const result = scoreSession({

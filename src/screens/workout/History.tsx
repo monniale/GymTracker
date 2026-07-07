@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
-import { db } from '../../db/db'
+import { db, tombstoneKeys } from '../../db/db'
 import { fmtDateTime, fmtDuration } from '../../lib/dates'
 import type { Session } from '../../types'
 
@@ -52,10 +52,15 @@ function SessionRow({ session }: { session: Session }) {
 
   async function remove() {
     if (!window.confirm('Delete this session? Its sets are removed too (earned points are kept).')) return
-    await db.transaction('rw', db.sets, db.sessions, db.scoreEvents, async () => {
+    await db.transaction('rw', db.sets, db.sessions, db.scoreEvents, db.tombstones, async () => {
+      const setKeys = await db.sets.where('sessionId').equals(session.id!).primaryKeys()
+      const eventKeys = await db.scoreEvents.where('sessionId').equals(session.id!).primaryKeys()
       await db.sets.where('sessionId').equals(session.id!).delete()
       await db.scoreEvents.where('sessionId').equals(session.id!).delete()
       await db.sessions.delete(session.id!)
+      await tombstoneKeys('sets', setKeys)
+      await tombstoneKeys('scoreEvents', eventKeys)
+      await tombstoneKeys('sessions', [session.id!])
     })
   }
 

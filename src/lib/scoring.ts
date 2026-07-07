@@ -1,4 +1,4 @@
-import type { ExerciseBreakdown } from '../types'
+import type { ExerciseBreakdown, Id } from '../types'
 
 /**
  * All scoring constants in one place.
@@ -52,7 +52,7 @@ export function intensityMult(relIntensity: number): number {
 }
 
 export interface ScoreSet {
-  exerciseId: number
+  exerciseId: Id
   weightKg: number
   reps: number
   isWarmup: boolean
@@ -62,13 +62,13 @@ export interface ScoreInput {
   sets: ScoreSet[]
   bodyweightKg: number
   /** Best e1RM per exercise this season, before this session. */
-  priorBestE1rm: Map<number, number>
+  priorBestE1rm: Map<Id, number>
   /** Best single-session volume per exercise this season, before this session. */
-  priorBestVolume: Map<number, number>
+  priorBestVolume: Map<Id, number>
   /** Streak value to apply (weeks the weekly session target was met in a row). */
   streakWeeks: number
   isFirstSessionOfDay: boolean
-  exerciseNames: Map<number, string>
+  exerciseNames: Map<Id, string>
 }
 
 export interface ScoreResult {
@@ -84,7 +84,7 @@ export function scoreSession(input: ScoreInput): ScoreResult {
   const bw = Math.max(input.bodyweightKg, 30)
   const work = input.sets.filter(s => !s.isWarmup && s.weightKg > 0 && s.reps > 0)
 
-  const byExercise = new Map<number, ScoreSet[]>()
+  const byExercise = new Map<Id, ScoreSet[]>()
   for (const s of work) {
     const list = byExercise.get(s.exerciseId) ?? []
     list.push(s)

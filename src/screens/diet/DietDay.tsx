@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus, Dumbbell, BedDouble, ArrowLeftRight, Droplets, Minus, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
-import { db } from '../../db/db'
+import { db, deleteWithTombstone } from '../../db/db'
 import { localDateStr, addDays, fmtDate, parseLocalDate } from '../../lib/dates'
 import { macrosFor, totalsForLogs, logFood, dayTargets, EMPTY_TOTALS } from '../../lib/nutrition'
-import type { Food } from '../../types'
+import type { Food, Id } from '../../types'
 import ProgressRing from '../../components/ProgressRing'
 import AddFoodSheet from './AddFoodSheet'
 import EntryEditor from './EntryEditor'
@@ -43,7 +43,7 @@ export default function DietDay() {
   async function toggleDayType() {
     const next = isTraining ? 'rest' : 'training'
     const auto = hasSession ? 'training' : 'rest'
-    if (next === auto) await db.dayTypes.delete(date)
+    if (next === auto) await deleteWithTombstone('dayTypes', date)
     else await db.dayTypes.put({ date, type: next })
   }
 
@@ -213,7 +213,7 @@ function WaterRow({ date, targetMl }: { date: string; targetMl: number }) {
   }
   async function undo() {
     const last = logs[logs.length - 1]
-    if (last) await db.waterLogs.delete(last.id!)
+    if (last) await deleteWithTombstone('waterLogs', last.id!)
   }
 
   return (
@@ -247,7 +247,7 @@ function WaterRow({ date, targetMl }: { date: string; targetMl: number }) {
   )
 }
 
-function WeekReport({ date, foodsById }: { date: string; foodsById: Map<number, Food> }) {
+function WeekReport({ date, foodsById }: { date: string; foodsById: Map<Id, Food> }) {
   const [open, setOpen] = useState(false)
   const days = Array.from({ length: 7 }, (_, i) => addDays(date, i - 6))
 

@@ -13,7 +13,7 @@ import { fmtDuration } from '../../lib/dates'
 import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
-import type { Exercise, SetRow, TemplateItem } from '../../types'
+import type { Exercise, Id, SetRow, TemplateItem } from '../../types'
 
 const WARMUP_REST_SEC = 30
 
@@ -143,7 +143,7 @@ export default function ActiveSession() {
 interface CardProps {
   item: TemplateItem
   exercise?: Exercise
-  sessionId: number
+  sessionId: Id
   sessionSets: SetRow[]
   bodyweightKg: number
   defaultRestSec: number
@@ -243,9 +243,10 @@ function ExerciseCard({
     })))
   }
 
-  async function deleteSet(id: number) {
-    await db.transaction('rw', db.sets, async () => {
+  async function deleteSet(id: Id) {
+    await db.transaction('rw', db.sets, db.tombstones, async () => {
       await db.sets.delete(id)
+      await db.tombstones.add({ table: 'sets', rowId: id, deletedAt: Date.now() })
       const rest = await db.sets
         .where('sessionId').equals(sessionId)
         .filter(s => s.exerciseId === item.exerciseId)
