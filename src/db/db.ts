@@ -2,7 +2,8 @@ import Dexie, { type Table } from 'dexie'
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
   SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
-  BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone, Id,
+  BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone,
+  CoachNoteRow, Id,
 } from '../types'
 
 /** Tables with '++id' primary keys: new rows get UUID string ids so inserts
@@ -74,6 +75,8 @@ export class GymDB extends Dexie {
   achievements!: Table<AchievementUnlock, string>
   quests!: Table<QuestState, string>
   tombstones!: Table<Tombstone, Id>
+  /** Device-local AI coach cache, keyed by session. Excluded from sync/backups. */
+  coachNotes!: Table<CoachNoteRow, Id>
 
   constructor() {
     super('gymtracker')
@@ -101,6 +104,11 @@ export class GymDB extends Dexie {
     })
     this.version(4).stores({
       tombstones: '++id, deletedAt',
+    })
+    // Device-local AI coach cache. Keyed by sessionId (not '++id'), so no UUID
+    // assignment is needed; kept out of backup.ts TABLES so it never syncs.
+    this.version(5).stores({
+      coachNotes: 'sessionId',
     })
 
     // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking.

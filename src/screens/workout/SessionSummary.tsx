@@ -9,6 +9,7 @@ import { checkAchievements, type AchievementDef } from '../../lib/achievements'
 import { evaluateQuests, QUEST_BONUS, type QuestDef } from '../../lib/quests'
 import RankBadge from '../../components/RankBadge'
 import Confetti from '../../components/Confetti'
+import CoachCard from '../../components/CoachCard'
 import { fmtDuration } from '../../lib/dates'
 
 export default function SessionSummary() {
@@ -101,6 +102,8 @@ export default function SessionSummary() {
           ))}
         </div>
       )}
+
+      <CoachCard sessionId={sid} />
 
       <div className="mt-6 space-y-2 text-left">
         <div className="rounded-2xl border border-edge bg-card p-4">

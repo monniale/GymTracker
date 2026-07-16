@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, Scale, Trophy, Plus } from 'lucide-react'
 import { db } from '../../db/db'
-import { localDateStr, addDays, mondayOf, parseLocalDate } from '../../lib/dates'
+import { localDateStr, addDays } from '../../lib/dates'
 import { LineChart, BarChart, BandBars, Sparkline, type ChartPoint } from '../../components/Charts'
 import { standardFor, levelFor } from '../../lib/standards'
+import { gatherWeeklyMuscleVolume, HYPERTROPHY_SET_BAND } from '../../lib/muscleVolume'
 import ExercisePicker from '../workout/ExercisePicker'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
-import type { Exercise, Id, MuscleGroup } from '../../types'
+import type { Exercise, Id } from '../../types'
 
 const ORANGE = '#F97316'
 const GREEN = '#22C55E'
@@ -105,30 +106,7 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
 }
 
 function WeeklyMuscleVolume({ exMap }: { exMap: Map<Id, Exercise> }) {
-  const rows = useLiveQuery(async () => {
-    const thisMonday = mondayOf(localDateStr())
-    const start8w = parseLocalDate(addDays(thisMonday, -49)).getTime()
-    const weekStart = parseLocalDate(thisMonday).getTime()
-    const sets = await db.sets
-      .filter(s => !s.isWarmup && s.completedAt >= start8w)
-      .toArray()
-    const thisWeek = new Map<MuscleGroup, number>()
-    const past = new Map<MuscleGroup, number>()
-    for (const s of sets) {
-      const mg = exMap.get(s.exerciseId)?.muscleGroup
-      if (!mg || mg === 'cardio') continue
-      if (s.completedAt >= weekStart) thisWeek.set(mg, (thisWeek.get(mg) ?? 0) + 1)
-      else past.set(mg, (past.get(mg) ?? 0) + 1)
-    }
-    const groups = new Set([...thisWeek.keys(), ...past.keys()])
-    return [...groups]
-      .map(g => ({
-        label: g,
-        value: thisWeek.get(g) ?? 0,
-        marker: Math.round(((past.get(g) ?? 0) / 7) * 10) / 10,
-      }))
-      .sort((a, b) => b.value - a.value)
-  }, [exMap])
+  const rows = useLiveQuery(() => gatherWeeklyMuscleVolume(exMap), [exMap])
 
   if (!rows || rows.length === 0) return null
   return (
@@ -137,7 +115,11 @@ function WeeklyMuscleVolume({ exMap }: { exMap: Map<Id, Exercise> }) {
       <p className="mb-3 text-xs text-sub">
         This week's hard sets. Shaded band = the evidence-backed 10–20 range; tick = your 8-week average.
       </p>
-      <BandBars rows={rows} band={[10, 20]} color={ORANGE} />
+      <BandBars
+        rows={rows.map(r => ({ label: r.group, value: r.sets, marker: r.weeklyAvg }))}
+        band={HYPERTROPHY_SET_BAND}
+        color={ORANGE}
+      />
     </section>
   )
 }

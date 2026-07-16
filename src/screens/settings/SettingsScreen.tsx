@@ -15,6 +15,7 @@ import { archiveCurrentSeason } from "../../lib/season";
 import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
 import NumberStepper from "../../components/NumberStepper";
 import SyncSection from "./SyncSection";
+import AiSection from "./AiSection";
 import type { Settings } from "../../types";
 
 const PLATE_CATALOG = [25, 20, 15, 10, 5, 2.5, 1.25, 1, 0.5];
@@ -263,6 +264,8 @@ export default function SettingsScreen() {
       </Section>
 
       <SyncSection />
+
+      <AiSection />
 
       <Section title="Data">
         <div className="flex gap-2">

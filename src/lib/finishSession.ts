@@ -3,7 +3,47 @@ import { scoreSession } from './scoring'
 import { registerSessionForStreak } from './season'
 import { localDateStr } from './dates'
 import { parseLocalDate } from './dates'
-import type { Id } from '../types'
+import type { Id, SetRow } from '../types'
+
+export interface SeasonPriorBests {
+  /** Best e1RM per exercise this season, before the given session. */
+  e1rm: Map<Id, number>
+  /** Best single-session volume per exercise this season, before the session. */
+  volume: Map<Id, number>
+}
+
+/**
+ * Season-scoped prior bests per exercise, computed from all non-warmup sets in
+ * the current season that belong to a session other than `sessionId`. Shared by
+ * scoring (finishSession) and the AI coach briefing so both use identical logic.
+ */
+export async function gatherSeasonPriorBests(
+  sessionId: Id,
+  sets: SetRow[],
+): Promise<SeasonPriorBests> {
+  const state = await db.rankState.get(1)
+  const seasonStartMs = state ? parseLocalDate(state.seasonStart).getTime() : 0
+
+  const exerciseIds = [...new Set(sets.map(s => s.exerciseId))]
+  const e1rm = new Map<Id, number>()
+  const volume = new Map<Id, number>()
+
+  for (const exId of exerciseIds) {
+    const prior = await db.sets
+      .where('[exerciseId+completedAt]')
+      .between([exId, seasonStartMs], [exId, Infinity])
+      .filter(s => s.sessionId !== sessionId && !s.isWarmup)
+      .toArray()
+    if (prior.length === 0) continue
+    e1rm.set(exId, Math.max(...prior.map(s => s.e1rm)))
+    const volBySession = new Map<Id, number>()
+    for (const s of prior) {
+      volBySession.set(s.sessionId, (volBySession.get(s.sessionId) ?? 0) + s.weightKg * s.reps)
+    }
+    volume.set(exId, Math.max(...volBySession.values()))
+  }
+  return { e1rm, volume }
+}
 
 /**
  * Closes a session: gathers season-scoped prior bests, scores it, records the
@@ -20,27 +60,9 @@ export async function finishSession(sessionId: Id): Promise<number | null> {
     return null
   }
 
-  const state = await db.rankState.get(1)
-  const seasonStartMs = state ? parseLocalDate(state.seasonStart).getTime() : 0
+  const { e1rm: priorBestE1rm, volume: priorBestVolume } = await gatherSeasonPriorBests(sessionId, sets)
 
   const exerciseIds = [...new Set(sets.map(s => s.exerciseId))]
-  const priorBestE1rm = new Map<Id, number>()
-  const priorBestVolume = new Map<Id, number>()
-
-  for (const exId of exerciseIds) {
-    const prior = await db.sets
-      .where('[exerciseId+completedAt]')
-      .between([exId, seasonStartMs], [exId, Infinity])
-      .filter(s => s.sessionId !== sessionId && !s.isWarmup)
-      .toArray()
-    if (prior.length === 0) continue
-    priorBestE1rm.set(exId, Math.max(...prior.map(s => s.e1rm)))
-    const volBySession = new Map<Id, number>()
-    for (const s of prior) {
-      volBySession.set(s.sessionId, (volBySession.get(s.sessionId) ?? 0) + s.weightKg * s.reps)
-    }
-    priorBestVolume.set(exId, Math.max(...volBySession.values()))
-  }
 
   const dayStart = new Date(session.startedAt)
   dayStart.setHours(0, 0, 0, 0)

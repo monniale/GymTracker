@@ -230,6 +230,35 @@ export interface QuestState {
   updatedAt?: number
 }
 
+/** AI coach note categories/tones — mirrored by the Gemini response schema. */
+export type CoachInsightCategory =
+  | 'verdict' | 'pr' | 'progression' | 'balance' | 'intensity' | 'consistency' | 'milestone'
+export type CoachInsightTone = 'celebratory' | 'positive' | 'neutral' | 'warning'
+
+export interface CoachInsight {
+  category: CoachInsightCategory
+  tone: CoachInsightTone
+  message: string
+}
+
+/** Structured coaching note rendered on the session summary. */
+export interface CoachNote {
+  headline: string
+  tone: CoachInsightTone
+  insights: CoachInsight[]
+}
+
+/** Cached AI coach note, keyed by session. Device-local: intentionally excluded
+ * from the sync snapshot and local backups (not in backup.ts TABLES). */
+export interface CoachNoteRow {
+  sessionId: Id
+  note: CoachNote
+  model: string
+  generatedAt: number
+  /** Stamped by the sync middleware on non-suspended writes; unused for sync. */
+  updatedAt?: number
+}
+
 /** Deletion marker so removals propagate across devices instead of resurrecting. */
 export interface Tombstone {
   id?: Id
