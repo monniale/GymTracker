@@ -66,7 +66,7 @@ export default function TemplateEditor() {
           value={template.name}
           onChange={e => update({ name: e.target.value })}
           aria-label="Workout name"
-          className="w-full border-b border-transparent font-display text-2xl font-bold focus:border-primary"
+          className="min-w-0 w-full border-b border-transparent font-display text-2xl font-bold focus:border-primary"
         />
       </div>
 
@@ -80,34 +80,35 @@ export default function TemplateEditor() {
                 ? 'border-primary/40'
                 : 'border-edge'
             }`}>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="font-display text-lg font-semibold">{ex?.name ?? '…'}</p>
-                <div className="flex gap-1">
+              <div className="mb-2 flex items-center justify-between gap-1">
+                <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold">{ex?.name ?? '…'}</p>
+                <div className="flex shrink-0 gap-0.5">
                   <button
                     onClick={() => moveItem(i, -1)}
                     aria-label="Move up"
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-sub active:bg-muted/40"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-sub active:bg-muted/40"
                   >
                     <ChevronUp size={18} />
                   </button>
                   <button
                     onClick={() => moveItem(i, 1)}
                     aria-label="Move down"
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-sub active:bg-muted/40"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-sub active:bg-muted/40"
                   >
                     <ChevronDown size={18} />
                   </button>
                   <button
                     onClick={() => removeItem(i)}
                     aria-label="Remove exercise"
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-danger active:bg-muted/40"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-danger active:bg-muted/40"
                   >
                     <Trash2 size={18} />
                   </button>
                 </div>
               </div>
-              <div className="flex justify-between gap-2">
+              <div className="flex flex-wrap items-end justify-around gap-x-1 gap-y-2">
                 <NumberStepper
+                  compact
                   label="Sets"
                   value={item.targetSets}
                   onChange={v => updateItem(i, { targetSets: Math.round(v) })}
@@ -116,6 +117,7 @@ export default function TemplateEditor() {
                   max={10}
                 />
                 <NumberStepper
+                  compact
                   label="Reps"
                   value={item.targetReps}
                   onChange={v => updateItem(i, { targetReps: Math.round(v) })}
@@ -124,6 +126,7 @@ export default function TemplateEditor() {
                   max={50}
                 />
                 <NumberStepper
+                  compact
                   label="Rest"
                   value={item.restSec ?? ex?.defaultRestSec ?? 90}
                   onChange={v => updateItem(i, { restSec: Math.round(v) })}

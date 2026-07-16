@@ -1,39 +1,53 @@
-import { useRef, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { Volume2, VolumeX, Download, Upload, AlertTriangle } from 'lucide-react'
-import { db } from '../../db/db'
-import { exportBackup, importBackup } from '../../db/backup'
-import { unlockAudio, beep } from '../../lib/audio'
-import { localDateStr } from '../../lib/dates'
-import { archiveCurrentSeason } from '../../lib/season'
-import { DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
-import NumberStepper from '../../components/NumberStepper'
-import SyncSection from './SyncSection'
-import type { Settings } from '../../types'
+import { useRef, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import {
+  Volume2,
+  VolumeX,
+  Download,
+  Upload,
+  AlertTriangle,
+} from "lucide-react";
+import { db } from "../../db/db";
+import { exportBackup, importBackup } from "../../db/backup";
+import { unlockAudio, beep } from "../../lib/audio";
+import { localDateStr } from "../../lib/dates";
+import { archiveCurrentSeason } from "../../lib/season";
+import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
+import NumberStepper from "../../components/NumberStepper";
+import SyncSection from "./SyncSection";
+import type { Settings } from "../../types";
 
-const PLATE_CATALOG = [25, 20, 15, 10, 5, 2.5, 1.25, 1, 0.5]
+const PLATE_CATALOG = [25, 20, 15, 10, 5, 2.5, 1.25, 1, 0.5];
 
 export default function SettingsScreen() {
-  const settings = useLiveQuery(() => db.settings.get(1))
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [importMsg, setImportMsg] = useState<string | null>(null)
+  const settings = useLiveQuery(() => db.settings.get(1));
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
-  if (!settings) return null
-  const update = (patch: Partial<Settings>) => db.settings.update(1, patch)
+  if (!settings) return null;
+  const update = (patch: Partial<Settings>) => db.settings.update(1, patch);
 
   async function onImportFile(file: File) {
-    if (!window.confirm('Importing replaces ALL current data with the backup. Continue?')) return
+    if (
+      !window.confirm(
+        "Importing replaces ALL current data with the backup. Continue?",
+      )
+    )
+      return;
     try {
-      await importBackup(await file.text())
-      setImportMsg('Backup imported successfully.')
+      await importBackup(await file.text());
+      setImportMsg("Backup imported successfully.");
     } catch (e) {
-      setImportMsg(`Import failed: ${(e as Error).message}`)
+      setImportMsg(`Import failed: ${(e as Error).message}`);
     }
   }
 
   async function resetSeason() {
-    if (!window.confirm('End the current season now? Points carry over at 20%.')) return
-    await archiveCurrentSeason(localDateStr())
+    if (
+      !window.confirm("End the current season now? Points carry over at 20%.")
+    )
+      return;
+    await archiveCurrentSeason(localDateStr());
   }
 
   return (
@@ -45,9 +59,9 @@ export default function SettingsScreen() {
           <NumberStepper
             label="Bodyweight"
             value={settings.bodyweightKg}
-            onChange={v => {
-              void update({ bodyweightKg: v })
-              void db.bodyLog.put({ date: localDateStr(), weightKg: v })
+            onChange={(v) => {
+              void update({ bodyweightKg: v });
+              void db.bodyLog.put({ date: localDateStr(), weightKg: v });
             }}
             step={0.5}
             min={30}
@@ -57,38 +71,95 @@ export default function SettingsScreen() {
           <NumberStepper
             label="Sessions / week"
             value={settings.weeklySessionTarget}
-            onChange={v => update({ weeklySessionTarget: Math.round(v) })}
+            onChange={(v) => update({ weeklySessionTarget: Math.round(v) })}
             step={1}
             min={1}
             max={7}
           />
         </div>
         <p className="mt-2 text-xs text-sub">
-          Bodyweight normalizes your score (relative strength). The weekly target drives the streak multiplier.
+          Bodyweight normalizes your score (relative strength). The weekly
+          target drives the streak multiplier.
         </p>
       </Section>
 
       <Section title="Training day targets">
         <div className="grid grid-cols-2 gap-y-4">
-          <NumberStepper label="kcal" value={settings.kcalTarget} onChange={v => update({ kcalTarget: Math.round(v) })} step={50} min={800} max={8000} />
-          <NumberStepper label="Protein g" value={settings.proteinTarget} onChange={v => update({ proteinTarget: Math.round(v) })} step={5} min={0} max={500} />
-          <NumberStepper label="Carbs g" value={settings.carbsTarget} onChange={v => update({ carbsTarget: Math.round(v) })} step={5} min={0} max={1000} />
-          <NumberStepper label="Fat g" value={settings.fatTarget} onChange={v => update({ fatTarget: Math.round(v) })} step={2} min={0} max={400} />
+          <NumberStepper
+            label="kcal"
+            value={settings.kcalTarget}
+            onChange={(v) => update({ kcalTarget: Math.round(v) })}
+            step={50}
+            min={800}
+            max={8000}
+          />
+          <NumberStepper
+            label="Protein g"
+            value={settings.proteinTarget}
+            onChange={(v) => update({ proteinTarget: Math.round(v) })}
+            step={5}
+            min={0}
+            max={500}
+          />
+          <NumberStepper
+            label="Carbs g"
+            value={settings.carbsTarget}
+            onChange={(v) => update({ carbsTarget: Math.round(v) })}
+            step={5}
+            min={0}
+            max={1000}
+          />
+          <NumberStepper
+            label="Fat g"
+            value={settings.fatTarget}
+            onChange={(v) => update({ fatTarget: Math.round(v) })}
+            step={2}
+            min={0}
+            max={400}
+          />
         </div>
       </Section>
 
       <Section title="Rest day targets">
         <div className="grid grid-cols-2 gap-y-4">
-          <NumberStepper label="kcal" value={settings.restKcalTarget ?? settings.kcalTarget} onChange={v => update({ restKcalTarget: Math.round(v) })} step={50} min={800} max={8000} />
-          <NumberStepper label="Protein g" value={settings.restProteinTarget ?? settings.proteinTarget} onChange={v => update({ restProteinTarget: Math.round(v) })} step={5} min={0} max={500} />
-          <NumberStepper label="Carbs g" value={settings.restCarbsTarget ?? settings.carbsTarget} onChange={v => update({ restCarbsTarget: Math.round(v) })} step={5} min={0} max={1000} />
-          <NumberStepper label="Fat g" value={settings.restFatTarget ?? settings.fatTarget} onChange={v => update({ restFatTarget: Math.round(v) })} step={2} min={0} max={400} />
+          <NumberStepper
+            label="kcal"
+            value={settings.restKcalTarget ?? settings.kcalTarget}
+            onChange={(v) => update({ restKcalTarget: Math.round(v) })}
+            step={50}
+            min={800}
+            max={8000}
+          />
+          <NumberStepper
+            label="Protein g"
+            value={settings.restProteinTarget ?? settings.proteinTarget}
+            onChange={(v) => update({ restProteinTarget: Math.round(v) })}
+            step={5}
+            min={0}
+            max={500}
+          />
+          <NumberStepper
+            label="Carbs g"
+            value={settings.restCarbsTarget ?? settings.carbsTarget}
+            onChange={(v) => update({ restCarbsTarget: Math.round(v) })}
+            step={5}
+            min={0}
+            max={1000}
+          />
+          <NumberStepper
+            label="Fat g"
+            value={settings.restFatTarget ?? settings.fatTarget}
+            onChange={(v) => update({ restFatTarget: Math.round(v) })}
+            step={2}
+            min={0}
+            max={400}
+          />
         </div>
         <div className="mt-4 flex justify-center border-t border-edge/50 pt-3">
           <NumberStepper
             label="Water target"
             value={settings.waterTargetMl ?? 2500}
-            onChange={v => update({ waterTargetMl: Math.round(v) })}
+            onChange={(v) => update({ waterTargetMl: Math.round(v) })}
             step={250}
             min={500}
             max={8000}
@@ -96,8 +167,9 @@ export default function SettingsScreen() {
           />
         </div>
         <p className="mt-2 text-xs text-sub">
-          The Diet tab switches automatically: a day with a logged workout uses training targets.
-          Tap the Training/Rest chip on the Diet tab to override a specific day.
+          The Diet tab switches automatically: a day with a logged workout uses
+          training targets. Tap the Training/Rest chip on the Diet tab to
+          override a specific day.
         </p>
       </Section>
 
@@ -106,42 +178,47 @@ export default function SettingsScreen() {
           <NumberStepper
             label="Bar weight"
             value={settings.barWeightKg ?? DEFAULT_BAR_KG}
-            onChange={v => update({ barWeightKg: v })}
+            onChange={(v) => update({ barWeightKg: v })}
             step={2.5}
             min={5}
             max={35}
             unit="kg"
           />
           <div className="flex-1">
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-sub">Plates you own</p>
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-sub">
+              Plates you own
+            </p>
             <div className="flex flex-wrap gap-1.5">
-              {PLATE_CATALOG.map(p => {
-                const current = settings.platesAvailable ?? DEFAULT_PLATES
-                const active = current.includes(p)
+              {PLATE_CATALOG.map((p) => {
+                const current = settings.platesAvailable ?? DEFAULT_PLATES;
+                const active = current.includes(p);
                 return (
                   <button
                     key={p}
                     onClick={() =>
                       update({
                         platesAvailable: active
-                          ? current.filter(x => x !== p)
+                          ? current.filter((x) => x !== p)
                           : [...current, p].sort((a, b) => b - a),
                       })
                     }
                     aria-pressed={active}
                     className={`num min-h-[36px] rounded-lg px-2.5 text-sm font-semibold ${
-                      active ? 'bg-primary/15 text-primary' : 'bg-muted/30 text-sub'
+                      active
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted/30 text-sub"
                     }`}
                   >
                     {p}
                   </button>
-                )
+                );
               })}
             </div>
           </div>
         </div>
         <p className="mt-2 text-xs text-sub">
-          Used by the plate calculator shown when adjusting a barbell set's weight.
+          Used by the plate calculator shown when adjusting a barbell set's
+          weight.
         </p>
       </Section>
 
@@ -150,7 +227,7 @@ export default function SettingsScreen() {
           <NumberStepper
             label="Default rest"
             value={settings.defaultRestSec}
-            onChange={v => update({ defaultRestSec: Math.round(v) })}
+            onChange={(v) => update({ defaultRestSec: Math.round(v) })}
             step={15}
             min={15}
             max={600}
@@ -158,23 +235,30 @@ export default function SettingsScreen() {
           />
           <button
             onClick={() => {
-              unlockAudio()
-              const next = !settings.soundEnabled
-              void update({ soundEnabled: next })
-              if (next) beep(1)
+              unlockAudio();
+              const next = !settings.soundEnabled;
+              void update({ soundEnabled: next });
+              if (next) beep(1);
             }}
             aria-pressed={settings.soundEnabled}
             className={`flex min-h-[48px] items-center gap-2 rounded-xl px-4 font-semibold ${
-              settings.soundEnabled ? 'bg-primary/15 text-primary' : 'bg-muted/40 text-sub'
+              settings.soundEnabled
+                ? "bg-primary/15 text-primary"
+                : "bg-muted/40 text-sub"
             }`}
           >
-            {settings.soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-            Sound {settings.soundEnabled ? 'on' : 'off'}
+            {settings.soundEnabled ? (
+              <Volume2 size={20} />
+            ) : (
+              <VolumeX size={20} />
+            )}
+            Sound {settings.soundEnabled ? "on" : "off"}
           </button>
         </div>
         <p className="mt-2 text-xs text-sub">
-          Toggling sound on plays a test beep. iOS only allows audio while the app is open — the screen stays
-          awake during workouts so the timer keeps running.
+          Toggling sound on plays a test beep. iOS only allows audio while the
+          app is open — the screen stays awake during workouts so the timer
+          keeps running.
         </p>
       </Section>
 
@@ -199,16 +283,17 @@ export default function SettingsScreen() {
             type="file"
             accept="application/json"
             className="hidden"
-            onChange={e => {
-              const f = e.target.files?.[0]
-              if (f) void onImportFile(f)
-              e.target.value = ''
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onImportFile(f);
+              e.target.value = "";
             }}
           />
         </div>
         {importMsg && <p className="mt-2 text-sm text-sub">{importMsg}</p>}
         <p className="mt-2 text-xs text-sub">
-          All data lives on this device. Export a JSON backup now and then (share it to Files/iCloud).
+          All data lives on this device. Export a JSON backup now and then
+          (share it to Files/iCloud).
         </p>
       </Section>
 
@@ -221,16 +306,24 @@ export default function SettingsScreen() {
         </button>
       </Section>
 
-      <p className="py-6 text-center text-xs text-sub">GymTracker v1.0 — made for Federico 💪</p>
+      <p className="py-6 text-center text-xs text-sub">GymTracker v1.0</p>
     </div>
-  )
+  );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="mb-4 rounded-2xl border border-edge bg-card p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-sub">{title}</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-sub">
+        {title}
+      </h2>
       {children}
     </section>
-  )
+  );
 }

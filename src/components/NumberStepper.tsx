@@ -9,10 +9,15 @@ interface Props {
   max?: number
   unit?: string
   label?: string
+  /** Smaller touch targets for rows of 3+ steppers on narrow phones. */
+  compact?: boolean
 }
 
 /** Tap-first number input: big +/- targets, tap the value for keyboard entry. */
-export default function NumberStepper({ value, onChange, step, min = 0, max = 9999, unit, label }: Props) {
+export default function NumberStepper({ value, onChange, step, min = 0, max = 9999, unit, label, compact }: Props) {
+  const btnCls = compact
+    ? 'flex h-9 w-9 items-center justify-center rounded-lg bg-muted/40 active:bg-muted'
+    : 'flex h-11 w-11 items-center justify-center rounded-xl bg-muted/40 active:bg-muted'
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState('')
 
@@ -31,9 +36,9 @@ export default function NumberStepper({ value, onChange, step, min = 0, max = 99
         <button
           onClick={() => onChange(clamp(Math.round((value - step) * 100) / 100))}
           aria-label={`Decrease ${label ?? 'value'}`}
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/40 active:bg-muted"
+          className={btnCls}
         >
-          <Minus size={18} />
+          <Minus size={compact ? 16 : 18} />
         </button>
         {editing ? (
           <input
@@ -44,7 +49,7 @@ export default function NumberStepper({ value, onChange, step, min = 0, max = 99
             onChange={e => setText(e.target.value)}
             onBlur={commit}
             onKeyDown={e => e.key === 'Enter' && commit()}
-            className="num w-16 rounded-lg bg-card py-2 text-center text-base font-semibold"
+            className={`num rounded-lg bg-card py-2 text-center text-base font-semibold ${compact ? 'w-12' : 'w-16'}`}
           />
         ) : (
           <button
@@ -52,7 +57,9 @@ export default function NumberStepper({ value, onChange, step, min = 0, max = 99
               setText(display)
               setEditing(true)
             }}
-            className="num min-w-[64px] rounded-lg px-1 py-2 text-center font-display text-xl font-semibold active:bg-muted/40"
+            className={`num rounded-lg py-2 text-center font-display font-semibold active:bg-muted/40 ${
+              compact ? 'min-w-[44px] px-0.5 text-lg' : 'min-w-[64px] px-1 text-xl'
+            }`}
           >
             {display}
             {unit && <span className="ml-0.5 text-sm font-normal text-sub">{unit}</span>}
@@ -61,9 +68,9 @@ export default function NumberStepper({ value, onChange, step, min = 0, max = 99
         <button
           onClick={() => onChange(clamp(Math.round((value + step) * 100) / 100))}
           aria-label={`Increase ${label ?? 'value'}`}
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/40 active:bg-muted"
+          className={btnCls}
         >
-          <Plus size={18} />
+          <Plus size={compact ? 16 : 18} />
         </button>
       </div>
     </div>
