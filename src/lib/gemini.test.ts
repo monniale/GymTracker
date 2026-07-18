@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { parseCoachNote, generateCoachNote, validateKey, GeminiError } from './gemini'
+import { parseCoachNote, generateCoachNote, listModels, pickDefaultModel, GeminiError } from './gemini'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -129,14 +129,48 @@ describe('generateCoachNote', () => {
   })
 })
 
-describe('validateKey', () => {
-  it('resolves for a valid key', async () => {
-    stubFetch({ ok: true, status: 200, body: { candidates: [] } })
-    await expect(validateKey('good', 'gemini-2.5-flash')).resolves.toBeUndefined()
+describe('listModels', () => {
+  const MODELS_BODY = {
+    models: [
+      { name: 'models/embedding-001', supportedGenerationMethods: ['embedContent'] },
+      { name: 'models/gemini-3.1-flash-lite', displayName: 'Gemini 3.1 Flash-Lite', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-3.5-flash', displayName: 'Gemini 3.5 Flash', supportedGenerationMethods: ['generateContent', 'countTokens'] },
+      { name: 'models/gemini-2.5-pro', displayName: 'Gemini 2.5 Pro', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemma-3-27b', supportedGenerationMethods: ['generateContent'] },
+    ],
+  }
+
+  it('keeps only generateContent-capable gemini models, strips the prefix, and ranks flash first', async () => {
+    stubFetch({ ok: true, status: 200, body: MODELS_BODY })
+    const models = await listModels('key')
+    // embedding (no generateContent) and gemma (not gemini) dropped; flash < flash-lite < pro.
+    expect(models.map(m => m.id)).toEqual(['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro'])
+    expect(models[0].label).toBe('Gemini 3.5 Flash')
   })
 
-  it('rejects with auth for an unauthorized key', async () => {
-    stubFetch({ ok: false, status: 403, body: {} })
-    await expect(validateKey('bad', 'gemini-2.5-flash')).rejects.toMatchObject({ kind: 'auth' })
+  it('sends the key in the header', async () => {
+    const fn = stubFetch({ ok: true, status: 200, body: MODELS_BODY })
+    await listModels('secret-key')
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('secret-key')
+  })
+
+  it('maps an unauthorized key to an auth error', async () => {
+    stubFetch({ ok: false, status: 401, body: {} })
+    await expect(listModels('bad')).rejects.toMatchObject({ kind: 'auth' })
+  })
+
+  it('maps a fetch rejection to a network error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
+    await expect(listModels('k')).rejects.toMatchObject({ kind: 'network' })
+  })
+})
+
+describe('pickDefaultModel', () => {
+  it('returns the first (best-ranked) model id', () => {
+    expect(pickDefaultModel([{ id: 'gemini-3.5-flash', label: 'a' }, { id: 'gemini-2.5-pro', label: 'b' }])).toBe('gemini-3.5-flash')
+  })
+  it('returns empty string for no models', () => {
+    expect(pickDefaultModel([])).toBe('')
   })
 })

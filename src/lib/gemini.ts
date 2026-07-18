@@ -27,6 +27,21 @@ const CATEGORIES: CoachInsightCategory[] =
   ['verdict', 'pr', 'progression', 'balance', 'intensity', 'consistency', 'milestone']
 const TONES: CoachInsightTone[] = ['celebratory', 'positive', 'neutral', 'warning']
 
+/** A generateContent-capable model available to the user's key. */
+export interface AiModel {
+  id: string
+  label: string
+}
+
+function mapHttpError(status: number, detail: string): GeminiError {
+  const kind: GeminiErrorKind =
+    status === 400 ? 'bad-key'
+      : status === 401 || status === 403 ? 'auth'
+        : status === 429 ? 'rate-limit'
+          : 'other'
+  return new GeminiError(detail || `Gemini request failed (${status})`, kind, status)
+}
+
 /** Gemini structured-output schema (OpenAPI subset) mirroring CoachNote. */
 const COACH_NOTE_SCHEMA = {
   type: 'object',
@@ -84,21 +99,18 @@ async function post(body: unknown, opts: GenerateOpts): Promise<GeminiResponse> 
     throw new GeminiError('Network unreachable — check your connection.', 'network')
   }
   if (!res.ok) {
-    let detail = ''
-    try {
-      const err = (await res.json()) as { error?: { message?: string } }
-      detail = err?.error?.message ?? ''
-    } catch {
-      /* non-JSON error body */
-    }
-    const kind: GeminiErrorKind =
-      res.status === 400 ? 'bad-key'
-        : res.status === 401 || res.status === 403 ? 'auth'
-          : res.status === 429 ? 'rate-limit'
-            : 'other'
-    throw new GeminiError(detail || `Gemini request failed (${res.status})`, kind, res.status)
+    throw mapHttpError(res.status, await errorDetail(res))
   }
   return (await res.json()) as GeminiResponse
+}
+
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const err = (await res.json()) as { error?: { message?: string } }
+    return err?.error?.message ?? ''
+  } catch {
+    return ''
+  }
 }
 
 /** Ask Gemini to judge a workout, returning a validated CoachNote. */
@@ -159,14 +171,51 @@ export function parseCoachNote(text: string): CoachNote {
   }
 }
 
-/** Lightweight key check used on Connect: a tiny generation that surfaces
- * auth/bad-key errors immediately without requiring structured output. */
-export async function validateKey(apiKey: string, model: string, signal?: AbortSignal): Promise<void> {
-  await post(
-    {
-      contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
-      generationConfig: { maxOutputTokens: 5 },
-    },
-    { apiKey, model, signal },
-  )
+interface RawModel {
+  name: string
+  displayName?: string
+  supportedGenerationMethods?: string[]
+}
+
+/** Sort key: stable Flash first, then Flash-Lite, then Pro, previews/experimental last. */
+function modelRank(id: string): number {
+  const s = id.toLowerCase()
+  const preview = /preview|exp|thinking|image|tts|live|vision|-8b|latest/.test(s)
+  if (/flash/.test(s) && !/lite/.test(s) && !preview) return 0
+  if (/flash-lite/.test(s) && !preview) return 1
+  if (/pro/.test(s) && !preview) return 2
+  if (/flash/.test(s)) return 3
+  if (/pro/.test(s)) return 4
+  return 5
+}
+
+/**
+ * List the Gemini models the given key can call with generateContent. Used on
+ * Connect: it both validates the key (401/400 → typed error) AND discovers
+ * which models are actually available to THIS key/tier — so a model being
+ * retired for new free-tier users can never hard-code us into a broken state.
+ */
+export async function listModels(apiKey: string, signal?: AbortSignal): Promise<AiModel[]> {
+  let res: Response
+  try {
+    res = await fetch(`${ENDPOINT}?pageSize=1000`, { signal, headers: { 'x-goog-api-key': apiKey } })
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e
+    throw new GeminiError('Network unreachable — check your connection.', 'network')
+  }
+  if (!res.ok) throw mapHttpError(res.status, await errorDetail(res))
+  const data = (await res.json()) as { models?: RawModel[] }
+  return (data.models ?? [])
+    .filter(m => (m.supportedGenerationMethods ?? []).includes('generateContent'))
+    .filter(m => m.name.startsWith('models/gemini-'))
+    .map(m => {
+      const id = m.name.replace(/^models\//, '')
+      return { id, label: m.displayName || id }
+    })
+    .sort((a, b) => modelRank(a.id) - modelRank(b.id) || a.id.localeCompare(b.id))
+}
+
+/** Best default from an available-model list (the list is already rank-sorted). */
+export function pickDefaultModel(models: AiModel[]): string {
+  return models[0]?.id ?? ''
 }

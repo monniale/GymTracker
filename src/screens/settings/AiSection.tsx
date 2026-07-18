@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, ExternalLink, ShieldAlert } from 'lucide-react'
-import { useAiStore, AI_MODELS } from '../../lib/aiStore'
-import { validateKey, GeminiError } from '../../lib/gemini'
+import { useAiStore } from '../../lib/aiStore'
+import { listModels, pickDefaultModel, GeminiError } from '../../lib/gemini'
 
 export default function AiSection() {
   const connected = !!useAiStore(s => s.apiKey)
@@ -17,7 +17,9 @@ export default function AiSection() {
 
 function ModelSelect() {
   const model = useAiStore(s => s.model)
+  const models = useAiStore(s => s.models)
   const setModel = useAiStore(s => s.setModel)
+  const options = models.length ? models : model ? [{ id: model, label: model }] : []
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Model</span>
@@ -26,7 +28,7 @@ function ModelSelect() {
         onChange={e => setModel(e.target.value)}
         className="min-h-[48px] w-full rounded-xl bg-surface px-3 text-base"
       >
-        {AI_MODELS.map(m => (
+        {options.map(m => (
           <option key={m.id} value={m.id}>
             {m.label}
           </option>
@@ -71,8 +73,7 @@ function ConnectedView() {
 }
 
 function ConnectView() {
-  const setKey = useAiStore(s => s.setKey)
-  const model = useAiStore(s => s.model)
+  const connect = useAiStore(s => s.connect)
   const [key, setKeyInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,8 +82,12 @@ function ConnectView() {
     setBusy(true)
     setError(null)
     try {
-      await validateKey(key.trim(), model)
-      setKey(key.trim())
+      const models = await listModels(key.trim())
+      if (models.length === 0) {
+        setError('This key has no usable text models. Make sure it was created for the Gemini API.')
+        return
+      }
+      connect(key.trim(), models, pickDefaultModel(models))
     } catch (e) {
       setError(
         e instanceof GeminiError && (e.kind === 'auth' || e.kind === 'bad-key')
@@ -110,10 +115,8 @@ function ConnectView() {
           and sign in with a Google account (free, no card).
         </li>
         <li>Click “Create API key”, then copy it.</li>
-        <li>Paste it below (it stays on this device only).</li>
+        <li>Paste it below — we’ll detect which models your key can use.</li>
       </ol>
-
-      <ModelSelect />
 
       <label className="block">
         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Gemini API key</span>
