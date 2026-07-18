@@ -51,11 +51,25 @@ describe('parseCoachNote', () => {
     expect(n.insights[0].message).toBe('kept')
   })
 
-  it('degrades invalid JSON to a single neutral insight', () => {
+  it('degrades fully unparseable output to a salvage note', () => {
     const n = parseCoachNote('this is not json {')
     expect(n.tone).toBe('neutral')
+    expect(n.headline).toBe('Session reviewed')
     expect(n.insights).toHaveLength(1)
-    expect(n.insights[0].message).toContain('not json')
+    expect(n.insights[0].message).toMatch(/Regenerate/i)
+  })
+
+  it('salvages the headline from truncated JSON (no messages yet)', () => {
+    const n = parseCoachNote('{ "headline": "Short session, volume on track", "tone": "')
+    expect(n.headline).toBe('Short session, volume on track')
+    expect(n.insights).toHaveLength(1)
+    expect(n.insights[0].message).toMatch(/Regenerate/i)
+  })
+
+  it('salvages headline and complete messages from truncated JSON', () => {
+    const n = parseCoachNote('{"headline":"Solid day","insights":[{"message":"Add 2.5 kg next time"},{"message":"Nice streak"')
+    expect(n.headline).toBe('Solid day')
+    expect(n.insights.map(i => i.message)).toEqual(['Add 2.5 kg next time', 'Nice streak'])
   })
 
   it('defaults a missing headline', () => {
@@ -83,6 +97,9 @@ describe('generateCoachNote', () => {
     expect(body.contents[0].parts[0].text).toBe('the prompt text')
     expect(body.generationConfig.responseMimeType).toBe('application/json')
     expect(body.generationConfig.responseSchema).toBeTruthy()
+    // Thinking disabled + generous cap so structured output isn't truncated.
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
+    expect(body.generationConfig.maxOutputTokens).toBe(2048)
   })
 
   it('maps HTTP 401 to an auth error', async () => {

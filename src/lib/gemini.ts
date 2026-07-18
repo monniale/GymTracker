@@ -121,7 +121,12 @@ export async function generateCoachNote(prompt: string, opts: GenerateOpts): Pro
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.6,
-        maxOutputTokens: 900,
+        // Gemini 2.5/3 Flash count "thinking" tokens against maxOutputTokens and
+        // think by default; with structured output that starves the JSON and
+        // truncates it. Disable thinking for this short, well-specified task and
+        // keep a generous cap as a safety margin.
+        thinkingConfig: { thinkingBudget: 0 },
+        maxOutputTokens: 2048,
         responseMimeType: 'application/json',
         responseSchema: COACH_NOTE_SCHEMA,
       },
@@ -148,11 +153,9 @@ export function parseCoachNote(text: string): CoachNote {
   try {
     parsed = JSON.parse(text)
   } catch {
-    return {
-      headline: 'Coach note',
-      tone: 'neutral',
-      insights: [{ category: 'verdict', tone: 'neutral', message: text.trim().slice(0, 400) }],
-    }
+    // Truncated/invalid JSON (e.g. the model ran out of tokens mid-object):
+    // salvage the headline and any complete messages instead of dumping raw JSON.
+    return salvageCoachNote(text)
   }
   const p = (parsed ?? {}) as Partial<CoachNote>
   const insights: CoachInsight[] = Array.isArray(p.insights)
@@ -169,6 +172,29 @@ export function parseCoachNote(text: string): CoachNote {
     tone: TONES.includes(p.tone as CoachInsightTone) ? (p.tone as CoachInsightTone) : 'neutral',
     insights,
   }
+}
+
+/** Unescape a raw JSON string body (the capture between the quotes). */
+function jsonUnescape(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string
+  } catch {
+    return raw
+  }
+}
+
+/** Recover a usable note from truncated/invalid JSON by regex-extracting the
+ * headline and any complete "message" strings, rather than showing raw JSON. */
+function salvageCoachNote(text: string): CoachNote {
+  const h = text.match(/"headline"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+  const headline = h ? jsonUnescape(h[1]) : 'Session reviewed'
+  const messages = [...text.matchAll(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/g)]
+    .map(m => jsonUnescape(m[1]))
+    .filter(msg => msg.trim().length > 0)
+  const insights: CoachInsight[] = messages.length
+    ? messages.map(message => ({ category: 'verdict', tone: 'neutral', message }))
+    : [{ category: 'verdict', tone: 'neutral', message: 'The coach note was cut off — tap Regenerate.' }]
+  return { headline, tone: 'neutral', insights }
 }
 
 interface RawModel {
