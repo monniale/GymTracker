@@ -1,19 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Plus, X, Flag, StickyNote, Zap, Link2 } from 'lucide-react'
+import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { useNow, useWakeLock } from '../../lib/hooks'
 import { epley, SCORING } from '../../lib/scoring'
 import { suggestNext, type ProgressionSuggestion } from '../../lib/progression'
 import { platesPerSide, formatPlates, warmupRamp, DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
+import { useWorkoutPlan } from '../../lib/workoutSuggest'
 import { finishSession } from '../../lib/finishSession'
 import { fmtDuration } from '../../lib/dates'
 import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
-import type { Exercise, Id, SetRow, TemplateItem } from '../../types'
+import type { Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
 
 const WARMUP_REST_SEC = 30
 
@@ -45,6 +46,11 @@ export default function ActiveSession() {
   const now = useNow(1000)
 
   const exMap = useMemo(() => new Map(exercises.map(e => [e.id!, e])), [exercises])
+
+  // F2: at the start of a session, AI fills opening weights/reps. The offline
+  // progression engine is always the instant baseline; this only upgrades it,
+  // and silently no-ops with no key / offline / any error.
+  const { planByExercise, generating } = useWorkoutPlan(activeSessionId)
 
   // While finishing, activeSessionId is cleared before the summary navigation
   // lands — don't let the guard redirect to home in that window.
@@ -92,7 +98,14 @@ export default function ActiveSession() {
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="truncate font-display text-2xl font-bold">{session.name}</h1>
-          <p className="num text-sm text-sub">{fmtDuration(now - session.startedAt)}</p>
+          <p className="num flex items-center gap-2 text-sm text-sub">
+            {fmtDuration(now - session.startedAt)}
+            {generating && (
+              <span className="flex items-center gap-1 text-primary">
+                <Sparkles size={12} className="animate-pulse" /> planning…
+              </span>
+            )}
+          </p>
         </div>
         <button
           onClick={onFinish}
@@ -115,6 +128,7 @@ export default function ActiveSession() {
               defaultRestSec={settings?.defaultRestSec ?? 90}
               barKg={settings?.barWeightKg ?? DEFAULT_BAR_KG}
               plates={settings?.platesAvailable ?? DEFAULT_PLATES}
+              aiSets={planByExercise.get(String(item.exerciseId))}
               suppressRest={!!item.supersetWithNext && idx < items.length - 1}
             />
             {item.supersetWithNext && idx < items.length - 1 && (
@@ -149,11 +163,13 @@ interface CardProps {
   defaultRestSec: number
   barKg: number
   plates: number[]
+  /** AI-planned opening sets for this exercise (F2). Undefined → offline baseline. */
+  aiSets?: PlannedSet[]
   suppressRest: boolean
 }
 
 function ExerciseCard({
-  item, exercise, sessionId, sessionSets, bodyweightKg, defaultRestSec, barKg, plates, suppressRest,
+  item, exercise, sessionId, sessionSets, bodyweightKg, defaultRestSec, barKg, plates, aiSets, suppressRest,
 }: CardProps) {
   const startRest = useAppStore(s => s.startRest)
   const [extraRows, setExtraRows] = useState(0)
@@ -190,7 +206,17 @@ function ExerciseCard({
     [prevSets, item.targetReps, exercise?.progressionStepKg],
   )
 
+  // The AI-planned set for this row's work-set position (F2), if any.
+  function aiSetFor(index: number): PlannedSet | undefined {
+    if (!aiSets) return undefined
+    const workIndex = index - warmupCount
+    return workIndex >= 0 ? aiSets[workIndex] : undefined
+  }
+
   function draftFor(index: number): { weightKg: number; reps: number } {
+    // Prefer the AI plan; otherwise fall back to the offline prefill unchanged.
+    const ai = aiSetFor(index)
+    if (ai) return { weightKg: ai.weightKg, reps: ai.reps }
     // Match previous-session work sets by position among this session's work rows.
     const workIndex = index - warmupCount
     const byPosition = workIndex >= 0 ? prevSets[workIndex] : undefined
@@ -224,7 +250,7 @@ function ExerciseCard({
     else if (!suppressRest) startRest(restSec)
   }
 
-  const rampWeight = suggestion?.weightKg ?? draftFor(0).weightKg
+  const rampWeight = aiSets?.[0]?.weightKg ?? suggestion?.weightKg ?? draftFor(0).weightKg
   const showRamp = isBarbell && logged.length === 0 && rampWeight >= barKg * 1.5
 
   async function addRamp() {
@@ -325,12 +351,15 @@ function ExerciseCard({
             const draft = draftFor(i)
             return (
               <PendingRow
-                key={`pending-${item.exerciseId}-${i}-${draft.weightKg}-${draft.reps}`}
+                // Stable per row index: async prefill/AI values flow in via effects
+                // that only touch fields the user hasn't edited (no remount clobber).
+                key={`pending-${item.exerciseId}-${i}`}
                 setNumber={i + 1}
                 initWeight={draft.weightKg}
                 initReps={draft.reps}
                 bodyweightKg={bodyweightKg}
-                suggestion={workLogged === 0 ? suggestion : null}
+                suggestion={aiSets ? null : workLogged === 0 ? suggestion : null}
+                aiFilled={!!aiSetFor(i)}
                 platesFor={platesFor}
                 onLog={logSet}
               />
@@ -343,6 +372,7 @@ function ExerciseCard({
               <span className="num flex-1 text-base text-sub">
                 {ghost.weightKg > 0 ? `${ghost.weightKg} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
               </span>
+              {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label="AI suggestion" />}
             </div>
           )
         })}
@@ -417,16 +447,27 @@ interface PendingProps {
   initReps: number
   bodyweightKg: number
   suggestion: ProgressionSuggestion | null
+  /** This row's opening values came from the AI plan (F2). */
+  aiFilled?: boolean
   platesFor: (w: number) => string | null
   onLog: (weightKg: number, reps: number, isWarmup: boolean) => void
 }
 
-function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion, platesFor, onLog }: PendingProps) {
+function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion, aiFilled, platesFor, onLog }: PendingProps) {
   const [weight, setWeight] = useState(initWeight)
   const [reps, setReps] = useState(initReps)
   const [expanded, setExpanded] = useState(false)
   const [warmup, setWarmup] = useState(false)
   const [confirmHeavy, setConfirmHeavy] = useState(false)
+
+  // Once the user edits a field, async-arriving prefill/AI values must not clobber
+  // it — so we only re-seed fields the user hasn't touched (F2 "auto-fill untouched").
+  const touchedW = useRef(false)
+  const touchedR = useRef(false)
+  const editWeight = (v: number) => { touchedW.current = true; setWeight(v) }
+  const editReps = (v: number) => { touchedR.current = true; setReps(v) }
+  useEffect(() => { if (!touchedW.current) setWeight(initWeight) }, [initWeight])
+  useEffect(() => { if (!touchedR.current) setReps(initReps) }, [initReps])
 
   const tooHeavy = weight > bodyweightKg * SCORING.maxWeightBwMult
   const showSuggestion =
@@ -447,8 +488,8 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
       {showSuggestion && (
         <button
           onClick={() => {
-            setWeight(suggestion.weightKg)
-            setReps(suggestion.reps)
+            editWeight(suggestion.weightKg)
+            editReps(suggestion.reps)
           }}
           className="num mb-1.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary active:bg-primary/30"
         >
@@ -457,6 +498,11 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
             {suggestion.reason === 'weight-up' ? 'new weight' : 'one more rep'}
           </span>
         </button>
+      )}
+      {aiFilled && !showSuggestion && (
+        <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary">
+          <Sparkles size={12} /> AI suggested
+        </p>
       )}
       <div className="flex items-center gap-2">
         <span className="num w-6 text-sm font-semibold text-primary">{setNumber}</span>
@@ -488,8 +534,8 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
       {expanded && (
         <div className="mt-2 border-t border-edge/50 pt-2">
           <div className="flex justify-around">
-            <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={0} max={600} />
-            <NumberStepper label="reps" value={reps} onChange={setReps} step={1} min={1} max={100} />
+            <NumberStepper label="kg" value={weight} onChange={editWeight} step={2.5} min={0} max={600} />
+            <NumberStepper label="reps" value={reps} onChange={editReps} step={1} min={1} max={100} />
           </div>
           {plateHint && (
             <p className="num mt-1.5 text-center text-xs text-sub">Plates/side: {plateHint}</p>

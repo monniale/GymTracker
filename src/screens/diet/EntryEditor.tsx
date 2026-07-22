@@ -1,10 +1,15 @@
 import { useState } from 'react'
-import { Trash2, Pencil, RotateCcw } from 'lucide-react'
+import { Trash2, Pencil, RotateCcw, Sparkles, Loader2, AlertTriangle, RefreshCw, ArrowLeftRight } from 'lucide-react'
 import { db, deleteWithTombstone } from '../../db/db'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
+import { errMsg } from '../../components/AiReportCard'
 import { macrosFor } from '../../lib/nutrition'
-import type { Food, FoodLog } from '../../types'
+import { useAiStore } from '../../lib/aiStore'
+import { gatherSubstitutionBriefing, formatSubstitutionBriefing } from '../../lib/dietReport'
+import { generateSubstitution } from '../../lib/gemini'
+import { applySwap } from '../../lib/foodResolve'
+import type { Food, FoodLog, MacroSuggestionItem } from '../../types'
 
 interface Props {
   open: boolean
@@ -62,11 +67,134 @@ export default function EntryEditor({ open, onClose, log, food }: Props) {
               <Trash2 size={16} /> Remove entry
             </button>
           </div>
+          <SwapSuggestion log={log} onApplied={onClose} />
         </div>
       ) : (
         <FoodDataEditor food={food} onDone={() => setEditingFood(false)} />
       )}
     </Sheet>
+  )
+}
+
+/** F1b: ask the AI for a swap for this logged food and apply it in one tap. */
+function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => void }) {
+  const apiKey = useAiStore(s => s.apiKey)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const [headline, setHeadline] = useState('')
+  const [items, setItems] = useState<MacroSuggestionItem[]>([])
+  const [applying, setApplying] = useState<number | null>(null)
+
+  if (!apiKey) return null
+
+  async function run() {
+    if (!navigator.onLine) {
+      setError('Offline — connect to get a swap.')
+      setStatus('error')
+      return
+    }
+    setStatus('loading')
+    setError(null)
+    try {
+      const briefing = await gatherSubstitutionBriefing(log.id!)
+      if (!briefing) throw new Error('Could not read this entry.')
+      const { apiKey: key, model } = useAiStore.getState()
+      const res = await generateSubstitution(formatSubstitutionBriefing(briefing), { apiKey: key!, model })
+      setHeadline(res.headline)
+      setItems(res.items)
+      setStatus('done')
+    } catch (e) {
+      setError(errMsg(e))
+      setStatus('error')
+    }
+  }
+
+  async function apply(i: number, item: MacroSuggestionItem) {
+    setApplying(i)
+    try {
+      const id = await applySwap(log.id!, log.date, log.meal, item)
+      if (id != null) {
+        onApplied()
+        return
+      }
+      setError('Could not add that food — try another.')
+      setStatus('error')
+    } catch {
+      setError('Could not add that food — try another.')
+      setStatus('error')
+    } finally {
+      setApplying(null)
+    }
+  }
+
+  return (
+    <div className="border-t border-edge/50 pt-3">
+      {status === 'idle' && (
+        <button
+          onClick={() => void run()}
+          className="flex items-center gap-1.5 rounded-xl bg-primary/15 px-3 py-2 text-sm font-semibold text-primary active:bg-primary/30"
+        >
+          <Sparkles size={15} /> Suggest a swap
+        </button>
+      )}
+
+      {status === 'loading' && (
+        <p className="flex items-center gap-2 text-sm text-sub">
+          <Loader2 size={16} className="animate-spin" /> Finding a swap…
+        </p>
+      )}
+
+      {status === 'error' && (
+        <div>
+          <p className="flex items-start gap-1.5 text-sm text-danger">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
+          </p>
+          <button
+            onClick={() => void run()}
+            className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-sub active:text-ink"
+          >
+            <RefreshCw size={14} /> Try again
+          </button>
+        </div>
+      )}
+
+      {status === 'done' && (
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+            <ArrowLeftRight size={15} /> {headline}
+          </p>
+          {items.length === 0 ? (
+            <p className="mt-2 text-sm text-sub">No swap found — tap to retry.</p>
+          ) : (
+            <ul className="mt-2 space-y-2.5">
+              {items.map((item, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium">
+                      {item.food}
+                      {item.brand && <span className="text-sub"> · {item.brand}</span>}
+                      <span className="num text-sub"> · {item.grams} g</span>
+                    </p>
+                    <p className="num text-xs text-sub">
+                      {item.kcal} kcal · P {item.protein} · C {item.carbs} · F {item.fat}
+                    </p>
+                    {item.reason && <p className="mt-0.5 text-xs text-sub/80">{item.reason}</p>}
+                  </div>
+                  <button
+                    onClick={() => void apply(i, item)}
+                    disabled={applying !== null}
+                    className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-primary/15 px-2.5 text-xs font-bold text-primary active:bg-primary/30 disabled:opacity-50"
+                  >
+                    {applying === i ? <Loader2 size={14} className="animate-spin" /> : <ArrowLeftRight size={14} />}
+                    Swap
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

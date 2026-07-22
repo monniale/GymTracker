@@ -271,6 +271,65 @@ export interface DietNoteRow {
   updatedAt?: number
 }
 
+/* ---------- AI action suggestions (F1 diet macros, F2 workout weights) ---------- */
+
+/** One AI-suggested working set (already snapped to loadable increments). */
+export interface PlannedSet {
+  weightKg: number
+  reps: number
+}
+
+/** AI-suggested opening sets for one exercise, resolved to a real exerciseId. */
+export interface ExercisePlan {
+  exerciseId: Id
+  sets: PlannedSet[]
+  note?: string
+}
+
+/** A whole-session AI weight/rep plan. Device-local; F2 auto-fills the set
+ * fields from it and always falls back to the offline progression engine. */
+export interface WorkoutPlanRow {
+  sessionId: Id
+  plan: ExercisePlan[]
+  model: string
+  generatedAt: number
+  updatedAt?: number
+}
+
+/** One AI-suggested food to add or swap in, grounded in a real portion. */
+export interface MacroSuggestionItem {
+  /** String(foodId) of a food the user already tracks, when the model reused one. */
+  ref?: string
+  food: string
+  brand?: string
+  meal: MealType
+  grams: number
+  /** The model's macro contribution for this portion (recomputed on apply). */
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+  reason?: string
+}
+
+/** AI suggestions for completing the day's macros or swapping a food. */
+export interface MacroSuggestion {
+  headline: string
+  items: MacroSuggestionItem[]
+}
+
+/** Cached macro-completion suggestion, keyed by day. Device-local like DietNoteRow.
+ * `basis` is a signature of the remaining macros at generation time so the UI can
+ * flag the suggestion as stale once more food is logged. */
+export interface DietSuggestionRow {
+  date: string
+  basis: string
+  suggestion: MacroSuggestion
+  model: string
+  generatedAt: number
+  updatedAt?: number
+}
+
 /** Deletion marker so removals propagate across devices instead of resurrecting. */
 export interface Tombstone {
   id?: Id

@@ -7,6 +7,7 @@ import { macrosFor, totalsForLogs, logFood, dayTargets } from '../../lib/nutriti
 import { gatherWeekNutrition } from '../../lib/dietReport'
 import ProgressRing from '../../components/ProgressRing'
 import DietCoachCard from '../../components/DietCoachCard'
+import MacroCompletionCard from '../../components/MacroCompletionCard'
 import AddFoodSheet from './AddFoodSheet'
 import EntryEditor from './EntryEditor'
 import type { FoodLog, MealType } from '../../types'
@@ -51,6 +52,14 @@ export default function DietDay() {
   const foodsById = useMemo(() => new Map(foods.map(f => [f.id!, f])), [foods])
   const totals = totalsForLogs(logs, foodsById)
   const tg = settings ? dayTargets(settings, isTraining) : undefined
+  const remaining = tg
+    ? {
+        kcal: tg.kcal - totals.kcal,
+        protein: tg.protein - totals.protein,
+        carbs: tg.carbs - totals.carbs,
+        fat: tg.fat - totals.fat,
+      }
+    : undefined
 
   async function copyYesterday(meal: MealType) {
     for (const l of yLogs.filter(l => l.meal === meal)) {
@@ -192,6 +201,8 @@ export default function DietDay() {
           )
         })}
       </div>
+
+      {remaining && <MacroCompletionCard key={date} date={date} remaining={remaining} />}
 
       <WeekReport date={date} />
 

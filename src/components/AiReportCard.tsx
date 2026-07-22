@@ -23,7 +23,7 @@ function toneDot(t: CoachInsightTone): string {
   }
 }
 
-function errMsg(e: unknown): string {
+export function errMsg(e: unknown): string {
   if (e instanceof GeminiError) {
     switch (e.kind) {
       case 'auth':
@@ -39,16 +39,18 @@ function errMsg(e: unknown): string {
 
 const shell = 'mt-4 rounded-2xl border border-edge bg-card p-4 text-left'
 
-export interface AiReportCardProps {
+export interface AiReportCardProps<T> {
   title: string
   /** Resets per-report UI state (and re-arms one auto-generate) when it changes. */
   resetKey: string | number
-  /** undefined = cache still loading; null = no cached note; CoachNote = cached. */
-  cachedNote: CoachNote | null | undefined
-  /** Fetch a fresh note (gather briefing + call Gemini). */
-  generate: () => Promise<CoachNote>
-  /** Persist the generated note (device-local cache). */
-  save: (note: CoachNote) => Promise<void>
+  /** undefined = cache still loading; null = no cached note; T = cached payload. */
+  cachedNote: T | null | undefined
+  /** Fetch a fresh payload (gather briefing + call Gemini). */
+  generate: () => Promise<T>
+  /** Persist the generated payload (device-local cache). */
+  save: (note: T) => Promise<void>
+  /** Render the payload body (headline / list / etc.) inside the card shell. */
+  renderNote: (note: T) => ReactNode
   /** true → generate automatically on first view (finished workout); false → manual button (diet day). */
   autoGenerate: boolean
   /** Gate generation (e.g. a diet day with no logged food). Default true. */
@@ -57,22 +59,26 @@ export interface AiReportCardProps {
   noKeyHint: ReactNode
   /** Label for the manual generate button. */
   generateLabel?: string
+  /** Progress copy while generating. Default "Reviewing…". */
+  loadingLabel?: string
   /** Shown when generation isn't possible yet (no key path excluded). */
   emptyHint?: ReactNode
 }
 
-export default function AiReportCard({
+export default function AiReportCard<T>({
   title,
   resetKey,
   cachedNote,
   generate,
   save,
+  renderNote,
   autoGenerate,
   canGenerate = true,
   noKeyHint,
   generateLabel = 'Generate report',
+  loadingLabel = 'Reviewing…',
   emptyHint,
-}: AiReportCardProps) {
+}: AiReportCardProps<T>) {
   const apiKey = useAiStore(s => s.apiKey)
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -131,12 +137,20 @@ export default function AiReportCard({
   const canRun = !!apiKey && online && status !== 'loading' && canGenerate
 
   if (cachedNote) {
-    return <NoteView title={title} note={cachedNote} onRegenerate={canRun ? run : undefined} busy={status === 'loading'} />
+    return (
+      <NoteView
+        title={title}
+        note={cachedNote}
+        renderNote={renderNote}
+        onRegenerate={canRun ? run : undefined}
+        busy={status === 'loading'}
+      />
+    )
   }
   // Cache still loading (undefined) — never expose the manual Generate button
   // here, or a tap would fire a wasted call and clobber the note about to load.
-  if (cachedNote === undefined) return <LoadingView title={title} />
-  if (status === 'loading') return <LoadingView title={title} />
+  if (cachedNote === undefined) return <LoadingView title={title} label={loadingLabel} />
+  if (status === 'loading') return <LoadingView title={title} label={loadingLabel} />
   if (status === 'error') {
     return (
       <div className={shell}>
@@ -175,7 +189,7 @@ export default function AiReportCard({
       </div>
     )
   }
-  if (autoGenerate) return <LoadingView title={title} />
+  if (autoGenerate) return <LoadingView title={title} label={loadingLabel} />
   // Manual mode, ready to generate.
   return (
     <div className={shell}>
@@ -193,12 +207,12 @@ function Header({ title }: { title: string }) {
   )
 }
 
-function LoadingView({ title }: { title: string }) {
+function LoadingView({ title, label = 'Reviewing…' }: { title: string; label?: string }) {
   return (
     <div className={shell}>
       <Header title={title} />
       <p className="mt-2 flex items-center gap-2 text-sm text-sub">
-        <Loader2 size={16} className="animate-spin" /> Reviewing…
+        <Loader2 size={16} className="animate-spin" /> {label}
       </p>
     </div>
   )
@@ -235,14 +249,16 @@ function ActionButton({
   )
 }
 
-function NoteView({
+function NoteView<T>({
   title,
   note,
+  renderNote,
   onRegenerate,
   busy,
 }: {
   title: string
-  note: CoachNote
+  note: T
+  renderNote: (note: T) => ReactNode
   onRegenerate?: () => void
   busy: boolean
 }) {
@@ -252,6 +268,19 @@ function NoteView({
         <Header title={title} />
         {busy && <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin text-sub" />}
       </div>
+      {renderNote(note)}
+      {onRegenerate && !busy && (
+        <ActionButton onClick={onRegenerate} icon={<RefreshCw size={13} />} label="Regenerate" />
+      )}
+    </div>
+  )
+}
+
+/** Default renderer for a CoachNote body (headline + toned insights). Reused by
+ * the workout coach + diet report cards; new AI cards pass their own renderNote. */
+export function renderCoachNote(note: CoachNote): ReactNode {
+  return (
+    <>
       <p className={`mt-2 font-display text-lg font-semibold ${toneColor(note.tone)}`}>{note.headline}</p>
       <ul className="mt-2 space-y-1.5">
         {note.insights.map((ins, i) => (
@@ -261,9 +290,6 @@ function NoteView({
           </li>
         ))}
       </ul>
-      {onRegenerate && !busy && (
-        <ActionButton onClick={onRegenerate} icon={<RefreshCw size={13} />} label="Regenerate" />
-      )}
-    </div>
+    </>
   )
 }

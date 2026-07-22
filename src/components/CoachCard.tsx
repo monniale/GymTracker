@@ -4,7 +4,7 @@ import { db, withSyncTrackingSuspended } from '../db/db'
 import { useAiStore } from '../lib/aiStore'
 import { gatherWorkoutBriefing, formatBriefing } from '../lib/coachBriefing'
 import { generateCoachNote } from '../lib/gemini'
-import AiReportCard from './AiReportCard'
+import AiReportCard, { renderCoachNote } from './AiReportCard'
 import type { CoachNote, Id } from '../types'
 
 export default function CoachCard({ sessionId }: { sessionId: Id }) {
@@ -32,6 +32,7 @@ export default function CoachCard({ sessionId }: { sessionId: Id }) {
       cachedNote={cachedNote}
       generate={generate}
       save={save}
+      renderNote={renderCoachNote}
       autoGenerate
       noKeyHint={
         <>

@@ -4,7 +4,7 @@ import { db, withSyncTrackingSuspended } from '../db/db'
 import { useAiStore } from '../lib/aiStore'
 import { gatherDietBriefing, formatDietBriefing } from '../lib/dietReport'
 import { generateDietNote } from '../lib/gemini'
-import AiReportCard from './AiReportCard'
+import AiReportCard, { renderCoachNote } from './AiReportCard'
 import type { CoachNote } from '../types'
 
 export default function DietCoachCard({ date }: { date: string }) {
@@ -32,6 +32,7 @@ export default function DietCoachCard({ date }: { date: string }) {
       cachedNote={cachedNote}
       generate={generate}
       save={save}
+      renderNote={renderCoachNote}
       autoGenerate={false}
       generateLabel="Generate diet report"
       noKeyHint={
