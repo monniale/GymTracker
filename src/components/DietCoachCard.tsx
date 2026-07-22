@@ -2,40 +2,41 @@ import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, withSyncTrackingSuspended } from '../db/db'
 import { useAiStore } from '../lib/aiStore'
-import { gatherWorkoutBriefing, formatBriefing } from '../lib/coachBriefing'
-import { generateCoachNote } from '../lib/gemini'
+import { gatherDietBriefing, formatDietBriefing } from '../lib/dietReport'
+import { generateDietNote } from '../lib/gemini'
 import AiReportCard from './AiReportCard'
-import type { CoachNote, Id } from '../types'
+import type { CoachNote } from '../types'
 
-export default function CoachCard({ sessionId }: { sessionId: Id }) {
-  const cached = useLiveQuery(async () => (await db.coachNotes.get(sessionId)) ?? null, [sessionId])
+export default function DietCoachCard({ date }: { date: string }) {
+  const cached = useLiveQuery(async () => (await db.dietNotes.get(date)) ?? null, [date])
   const cachedNote = cached === undefined ? undefined : cached ? cached.note : null
 
   async function generate(): Promise<CoachNote> {
-    const briefing = await gatherWorkoutBriefing(sessionId)
-    if (!briefing) throw new Error('This session has no data to review.')
+    const briefing = await gatherDietBriefing(date)
+    if (!briefing) throw new Error('Log some food first to get a diet report.')
     const { apiKey, model } = useAiStore.getState()
-    return generateCoachNote(formatBriefing(briefing), { apiKey: apiKey!, model })
+    return generateDietNote(formatDietBriefing(briefing), { apiKey: apiKey!, model })
   }
 
   async function save(note: CoachNote) {
     const model = useAiStore.getState().model
     await withSyncTrackingSuspended(() =>
-      db.coachNotes.put({ sessionId, note, model, generatedAt: Date.now() }),
+      db.dietNotes.put({ date, note, model, generatedAt: Date.now() }),
     )
   }
 
   return (
     <AiReportCard
-      title="Coach’s note"
-      resetKey={String(sessionId)}
+      title="Diet report"
+      resetKey={date}
       cachedNote={cachedNote}
       generate={generate}
       save={save}
-      autoGenerate
+      autoGenerate={false}
+      generateLabel="Generate diet report"
       noKeyHint={
         <>
-          Get an AI coaching note on every workout.{' '}
+          Get AI feedback on your nutrition.{' '}
           <Link to="/settings" className="font-semibold text-primary">
             Add a free Gemini key
           </Link>{' '}

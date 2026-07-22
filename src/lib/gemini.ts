@@ -23,8 +23,12 @@ export class GeminiError extends Error {
   }
 }
 
-const CATEGORIES: CoachInsightCategory[] =
-  ['verdict', 'pr', 'progression', 'balance', 'intensity', 'consistency', 'milestone']
+const CATEGORIES: CoachInsightCategory[] = [
+  // workout categories
+  'verdict', 'pr', 'progression', 'balance', 'intensity', 'consistency', 'milestone',
+  // diet categories
+  'calories', 'protein', 'macros', 'hydration',
+]
 const TONES: CoachInsightTone[] = ['celebratory', 'positive', 'neutral', 'warning']
 
 /** A generateContent-capable model available to the user's key. */
@@ -71,6 +75,14 @@ Ground your reasoning in established principles: progressive overload, weekly vo
 Be concise, specific, and encouraging but honest — a lighter day is variation, not a failure; never scold.
 Return a short headline verdict (max ~8 words) plus 3–5 brief insights (each max ~24 words). Vary the categories across the insights.`
 
+export const DIET_SYSTEM_PROMPT =
+  `You are a sports-nutrition coach reviewing ONE day of eating for a lifter, in the context of their recent week.
+Judge intake using ONLY the numbers provided — never invent foods or amounts.
+Ground your reasoning in established principles: adequate protein for muscle (~1.6–2.2 g/kg bodyweight), calories relative to the day's target (training vs rest), a sensible carb/fat split, protein spread across meals, and hydration.
+Be concise, specific, and encouraging but honest — one off day is not a failure; never shame the user about food.
+Prefer the diet categories (calories, protein, macros, hydration, consistency, verdict).
+Return a short headline verdict (max ~8 words) plus 3–5 brief insights (each max ~24 words).`
+
 export interface GenerateOpts {
   apiKey: string
   model: string
@@ -113,11 +125,15 @@ async function errorDetail(res: Response): Promise<string> {
   }
 }
 
-/** Ask Gemini to judge a workout, returning a validated CoachNote. */
-export async function generateCoachNote(prompt: string, opts: GenerateOpts): Promise<CoachNote> {
+/** Shared engine: ask Gemini for a structured note under a given system prompt. */
+async function generateStructuredNote(
+  prompt: string,
+  systemPrompt: string,
+  opts: GenerateOpts,
+): Promise<CoachNote> {
   const data = await post(
     {
-      systemInstruction: { parts: [{ text: COACH_SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.6,
@@ -136,11 +152,21 @@ export async function generateCoachNote(prompt: string, opts: GenerateOpts): Pro
   const cand = data.candidates?.[0]
   const finish = cand?.finishReason
   if (finish && finish !== 'STOP' && finish !== 'MAX_TOKENS') {
-    throw new GeminiError('Gemini could not generate a note for this session.', 'blocked', 200)
+    throw new GeminiError('Gemini could not generate a note — try again.', 'blocked', 200)
   }
   const text = (cand?.content?.parts ?? []).map(p => p.text ?? '').join('')
   if (!text.trim()) throw new GeminiError('Gemini returned an empty response — try again.', 'other', 200)
   return parseCoachNote(text)
+}
+
+/** Ask Gemini to judge a workout, returning a validated CoachNote. */
+export function generateCoachNote(prompt: string, opts: GenerateOpts): Promise<CoachNote> {
+  return generateStructuredNote(prompt, COACH_SYSTEM_PROMPT, opts)
+}
+
+/** Ask Gemini to judge a day of eating, returning a validated CoachNote. */
+export function generateDietNote(prompt: string, opts: GenerateOpts): Promise<CoachNote> {
+  return generateStructuredNote(prompt, DIET_SYSTEM_PROMPT, opts)
 }
 
 /**

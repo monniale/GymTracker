@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronUp, Trash2, Sparkles } from 'lucide-react'
 import { db, tombstoneKeys } from '../../db/db'
 import { fmtDateTime, fmtDuration } from '../../lib/dates'
 import type { Session } from '../../types'
@@ -66,21 +66,33 @@ function SessionRow({ session }: { session: Session }) {
 
   return (
     <div className="rounded-2xl border border-edge bg-card">
-      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-3 p-4 text-left">
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-lg font-semibold">{session.name}</p>
-          <p className="text-sm text-sub">
-            {fmtDateTime(session.startedAt)}
-            {session.endedAt && ` · ${fmtDuration(session.endedAt - session.startedAt)}`}
-          </p>
-        </div>
-        {session.points !== undefined && (
-          <span className="num rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
-            +{session.points}
-          </span>
-        )}
-        {open ? <ChevronUp size={18} className="text-sub" /> : <ChevronDown size={18} className="text-sub" />}
-      </button>
+      <div className="flex items-center">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-lg font-semibold">{session.name}</p>
+            <p className="text-sm text-sub">
+              {fmtDateTime(session.startedAt)}
+              {session.endedAt && ` · ${fmtDuration(session.endedAt - session.startedAt)}`}
+            </p>
+          </div>
+          {session.points !== undefined && (
+            <span className="num rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
+              +{session.points}
+            </span>
+          )}
+          {open ? <ChevronUp size={18} className="text-sub" /> : <ChevronDown size={18} className="text-sub" />}
+        </button>
+        <Link
+          to={`/workout/summary/${session.id}?report=1`}
+          aria-label="View AI report"
+          className="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-primary active:bg-muted/40"
+        >
+          <Sparkles size={18} />
+        </Link>
+      </div>
 
       {open && detail && (
         <div className="border-t border-edge/60 px-4 py-3">

@@ -232,7 +232,10 @@ export interface QuestState {
 
 /** AI coach note categories/tones — mirrored by the Gemini response schema. */
 export type CoachInsightCategory =
+  // workout
   | 'verdict' | 'pr' | 'progression' | 'balance' | 'intensity' | 'consistency' | 'milestone'
+  // diet
+  | 'calories' | 'protein' | 'macros' | 'hydration'
 export type CoachInsightTone = 'celebratory' | 'positive' | 'neutral' | 'warning'
 
 export interface CoachInsight {
@@ -256,6 +259,15 @@ export interface CoachNoteRow {
   model: string
   generatedAt: number
   /** Stamped by the sync middleware on non-suspended writes; unused for sync. */
+  updatedAt?: number
+}
+
+/** Cached AI diet note, keyed by day (YYYY-MM-DD). Device-local like CoachNoteRow. */
+export interface DietNoteRow {
+  date: string
+  note: CoachNote
+  model: string
+  generatedAt: number
   updatedAt?: number
 }
 

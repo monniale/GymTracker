@@ -3,9 +3,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus, Dumbbell, BedDouble, ArrowLeftRight, Droplets, Minus, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { db, deleteWithTombstone } from '../../db/db'
 import { localDateStr, addDays, fmtDate, parseLocalDate } from '../../lib/dates'
-import { macrosFor, totalsForLogs, logFood, dayTargets, EMPTY_TOTALS } from '../../lib/nutrition'
-import type { Food, Id } from '../../types'
+import { macrosFor, totalsForLogs, logFood, dayTargets } from '../../lib/nutrition'
+import { gatherWeekNutrition } from '../../lib/dietReport'
 import ProgressRing from '../../components/ProgressRing'
+import DietCoachCard from '../../components/DietCoachCard'
 import AddFoodSheet from './AddFoodSheet'
 import EntryEditor from './EntryEditor'
 import type { FoodLog, MealType } from '../../types'
@@ -192,7 +193,9 @@ export default function DietDay() {
         })}
       </div>
 
-      <WeekReport date={date} foodsById={foodsById} />
+      <WeekReport date={date} />
+
+      {logs.length > 0 && <DietCoachCard date={date} />}
 
       {addMeal && (
         <AddFoodSheet open onClose={() => setAddMeal(null)} date={date} meal={addMeal} />
@@ -247,50 +250,12 @@ function WaterRow({ date, targetMl }: { date: string; targetMl: number }) {
   )
 }
 
-function WeekReport({ date, foodsById }: { date: string; foodsById: Map<Id, Food> }) {
+function WeekReport({ date }: { date: string }) {
   const [open, setOpen] = useState(false)
-  const days = Array.from({ length: 7 }, (_, i) => addDays(date, i - 6))
-
-  const report = useLiveQuery(async () => {
-    if (!open) return null
-    const settings = await db.settings.get(1)
-    if (!settings) return null
-    const logs = await db.foodLogs.where('date').anyOf(days).toArray()
-    const overrides = new Map(
-      (await db.dayTypes.where('date').anyOf(days).toArray()).map(d => [d.date, d.type]),
-    )
-    const rangeStart = parseLocalDate(days[0]).getTime()
-    const sessions = await db.sessions.where('startedAt').aboveOrEqual(rangeStart).toArray()
-    const trainedDates = new Set(sessions.map(s => localDateStr(new Date(s.startedAt))))
-
-    let loggedDays = 0
-    let kcalSum = 0
-    let proteinSum = 0
-    let adherent = 0
-    let trainingDays = 0
-    for (const d of days) {
-      const dayLogs = logs.filter(l => l.date === d)
-      const isTraining = overrides.has(d) ? overrides.get(d) === 'training' : trainedDates.has(d)
-      if (isTraining) trainingDays++
-      if (dayLogs.length === 0) continue
-      loggedDays++
-      const t = totalsForLogs(dayLogs, foodsById) ?? EMPTY_TOTALS
-      kcalSum += t.kcal
-      proteinSum += t.protein
-      const target = dayTargets(settings, isTraining).kcal
-      if (Math.abs(t.kcal - target) <= target * 0.1) adherent++
-    }
-    return {
-      loggedDays,
-      avgKcal: loggedDays ? Math.round(kcalSum / loggedDays) : 0,
-      avgProtein: loggedDays ? Math.round(proteinSum / loggedDays) : 0,
-      proteinPerKg: loggedDays
-        ? Math.round((proteinSum / loggedDays / settings.bodyweightKg) * 100) / 100
-        : 0,
-      adherent,
-      trainingDays,
-    }
-  }, [open, date, foodsById])
+  const report = useLiveQuery(
+    () => (open ? gatherWeekNutrition(date) : Promise.resolve(null)),
+    [open, date],
+  )
 
   return (
     <section className="mt-4 rounded-2xl border border-edge bg-card">

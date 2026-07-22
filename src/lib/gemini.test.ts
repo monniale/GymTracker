@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { parseCoachNote, generateCoachNote, listModels, pickDefaultModel, GeminiError } from './gemini'
+import { parseCoachNote, generateCoachNote, generateDietNote, listModels, pickDefaultModel, GeminiError } from './gemini'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -180,6 +180,18 @@ describe('listModels', () => {
   it('maps a fetch rejection to a network error', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     await expect(listModels('k')).rejects.toMatchObject({ kind: 'network' })
+  })
+})
+
+describe('generateDietNote', () => {
+  it('uses a nutrition-focused system prompt and the given prompt', async () => {
+    const fn = stubFetch(okResponse(VALID_NOTE))
+    await generateDietNote('diet prompt text', { apiKey: 'k', model: 'gemini-2.5-flash' })
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
+    expect(body.systemInstruction.parts[0].text).toMatch(/nutrition/i)
+    expect(body.contents[0].parts[0].text).toBe('diet prompt text')
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
   })
 })
 

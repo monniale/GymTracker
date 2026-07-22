@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { TrendingUp, Award, Medal, Target } from 'lucide-react'
 import { db } from '../../db/db'
@@ -10,22 +10,25 @@ import { evaluateQuests, QUEST_BONUS, type QuestDef } from '../../lib/quests'
 import RankBadge from '../../components/RankBadge'
 import Confetti from '../../components/Confetti'
 import CoachCard from '../../components/CoachCard'
-import { fmtDuration } from '../../lib/dates'
+import { fmtDuration, fmtDateTime } from '../../lib/dates'
 
 export default function SessionSummary() {
   const { id } = useParams()
+  const [params] = useSearchParams()
+  const isReport = params.get('report') === '1'
   const sid = parseRouteId(id)
   const [unlocked, setUnlocked] = useState<AchievementDef[]>([])
   const [questsDone, setQuestsDone] = useState<QuestDef[]>([])
 
   useEffect(() => {
+    if (isReport) return // viewing an old report: no celebratory side effects
     void (async () => {
       const fresh = await checkAchievements()
       const { fresh: quests } = await evaluateQuests()
       setUnlocked(u => (u.length ? u : fresh))
       setQuestsDone(q => (q.length ? q : quests))
     })()
-  }, [sid])
+  }, [sid, isReport])
   const session = useLiveQuery(() => db.sessions.get(sid), [sid])
   const event = useLiveQuery(() => db.scoreEvents.where('sessionId').equals(sid).first(), [sid])
   const sets = useLiveQuery(() => db.sets.where('sessionId').equals(sid).toArray(), [sid]) ?? []
@@ -43,36 +46,47 @@ export default function SessionSummary() {
 
   return (
     <div className="pt-6 text-center">
-      <Confetti fire={hasPr || rankedUp || unlocked.length > 0} />
-      <p className="font-display text-lg font-semibold text-sub">{session.name} complete</p>
-      <p className="num mt-1 font-display text-6xl font-bold text-primary">+{event.total}</p>
-      <p className="text-sm font-medium text-sub">points</p>
+      <Confetti fire={!isReport && (hasPr || rankedUp || unlocked.length > 0)} />
+      {isReport ? (
+        <>
+          <p className="font-display text-2xl font-bold">{session.name}</p>
+          <p className="mt-1 text-sm text-sub">{fmtDateTime(session.startedAt)}</p>
+        </>
+      ) : (
+        <>
+          <p className="font-display text-lg font-semibold text-sub">{session.name} complete</p>
+          <p className="num mt-1 font-display text-6xl font-bold text-primary">+{event.total}</p>
+          <p className="text-sm font-medium text-sub">points</p>
+        </>
+      )}
 
-      <div className="mt-4 flex flex-col items-center">
-        {rankedUp && (
-          <p className="mb-1 font-display text-xl font-bold uppercase tracking-wide text-accent">
-            Rank up!
-          </p>
-        )}
-        <RankBadge tier={after.tier} size={rankedUp ? 110 : 80} />
-        <p className="mt-1 font-display text-2xl font-bold" style={{ color: after.tier.color }}>
-          {rankLabel(after.tier)}
-        </p>
-        {after.next && (
-          <div className="mt-2 w-56">
-            <div className="h-2 overflow-hidden rounded-full bg-muted/40">
-              <div
-                className="h-full rounded-full bg-primary transition-[width] duration-700"
-                style={{ width: `${after.progress * 100}%` }}
-              />
-            </div>
-            <p className="num mt-1 text-xs text-sub">
-              {Math.max(0, Math.ceil(after.next.threshold - rankState.points))} pts to{' '}
-              {rankLabel(after.next)}
+      {!isReport && (
+        <div className="mt-4 flex flex-col items-center">
+          {rankedUp && (
+            <p className="mb-1 font-display text-xl font-bold uppercase tracking-wide text-accent">
+              Rank up!
             </p>
-          </div>
-        )}
-      </div>
+          )}
+          <RankBadge tier={after.tier} size={rankedUp ? 110 : 80} />
+          <p className="mt-1 font-display text-2xl font-bold" style={{ color: after.tier.color }}>
+            {rankLabel(after.tier)}
+          </p>
+          {after.next && (
+            <div className="mt-2 w-56">
+              <div className="h-2 overflow-hidden rounded-full bg-muted/40">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-700"
+                  style={{ width: `${after.progress * 100}%` }}
+                />
+              </div>
+              <p className="num mt-1 text-xs text-sub">
+                {Math.max(0, Math.ceil(after.next.threshold - rankState.points))} pts to{' '}
+                {rankLabel(after.next)}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="num mx-auto mt-5 flex max-w-xs justify-center gap-6 text-sm text-sub">
         <span>{sets.length} sets</span>
@@ -140,10 +154,10 @@ export default function SessionSummary() {
       </div>
 
       <Link
-        to="/workout"
+        to={isReport ? '/workout/history' : '/workout'}
         className="mt-6 block w-full rounded-2xl bg-primary py-4 text-center font-display text-xl font-bold text-bg active:opacity-90"
       >
-        Done
+        {isReport ? 'Back to history' : 'Done'}
       </Link>
     </div>
   )
