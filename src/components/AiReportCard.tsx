@@ -133,6 +133,9 @@ export default function AiReportCard({
   if (cachedNote) {
     return <NoteView title={title} note={cachedNote} onRegenerate={canRun ? run : undefined} busy={status === 'loading'} />
   }
+  // Cache still loading (undefined) — never expose the manual Generate button
+  // here, or a tap would fire a wasted call and clobber the note about to load.
+  if (cachedNote === undefined) return <LoadingView title={title} />
   if (status === 'loading') return <LoadingView title={title} />
   if (status === 'error') {
     return (
