@@ -1,16 +1,39 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronDown, ChevronUp, Trash2, Sparkles } from 'lucide-react'
-import { db, tombstoneKeys } from '../../db/db'
-import { fmtDateTime, fmtDuration } from '../../lib/dates'
+import { ChevronLeft, ChevronRight, Sparkles, ChevronRight as Caret } from 'lucide-react'
+import { db } from '../../db/db'
+import {
+  localDateStr, monthGrid, monthLabel, addMonths, sameMonth, startOfMonth,
+  fmtDate, fmtDateTime, fmtDuration, parseLocalDate, WEEKDAY_LABELS,
+} from '../../lib/dates'
 import type { Session } from '../../types'
 
 export default function History() {
+  const navigate = useNavigate()
+  const today = localDateStr()
+  const [month, setMonth] = useState(() => startOfMonth(today))
+  const [selected, setSelected] = useState<string | null>(null)
+
   const sessions = useLiveQuery(async () => {
     const all = await db.sessions.orderBy('startedAt').reverse().toArray()
     return all.filter(s => s.endedAt !== undefined)
   })
+
+  // Bucket finished sessions by their local date.
+  const byDay = useMemo(() => {
+    const map = new Map<string, Session[]>()
+    for (const s of sessions ?? []) {
+      const key = localDateStr(new Date(s.startedAt))
+      const list = map.get(key) ?? []
+      list.push(s)
+      map.set(key, list)
+    }
+    return map
+  }, [sessions])
+
+  const grid = useMemo(() => monthGrid(month), [month])
+  const listed = selected ? (byDay.get(selected) ?? []) : (sessions ?? [])
 
   return (
     <div className="pt-4">
@@ -22,96 +45,114 @@ export default function History() {
         >
           <ChevronLeft size={24} />
         </Link>
-        <h1 className="font-display text-3xl font-bold">History</h1>
+        <h1 className="font-display text-3xl font-bold">Past workouts</h1>
       </div>
 
-      {sessions?.length === 0 && (
-        <p className="py-10 text-center text-sub">No finished sessions yet. Go lift something!</p>
-      )}
-
-      <div className="space-y-2">
-        {sessions?.map(s => <SessionRow key={s.id} session={s} />)}
-      </div>
-    </div>
-  )
-}
-
-function SessionRow({ session }: { session: Session }) {
-  const [open, setOpen] = useState(false)
-  const detail = useLiveQuery(async () => {
-    if (!open) return null
-    const sets = await db.sets.where('sessionId').equals(session.id!).toArray()
-    const exIds = [...new Set(sets.map(s => s.exerciseId))]
-    const exercises = await db.exercises.bulkGet(exIds)
-    const names = new Map(exIds.map((id, i) => [id, exercises[i]?.name ?? 'Exercise']))
-    return exIds.map(id => ({
-      name: names.get(id)!,
-      sets: sets.filter(s => s.exerciseId === id).sort((a, b) => a.setNumber - b.setNumber),
-    }))
-  }, [open, session.id])
-
-  async function remove() {
-    if (!window.confirm('Delete this session? Its sets are removed too (earned points are kept).')) return
-    await db.transaction('rw', db.sets, db.sessions, db.scoreEvents, db.tombstones, async () => {
-      const setKeys = await db.sets.where('sessionId').equals(session.id!).primaryKeys()
-      const eventKeys = await db.scoreEvents.where('sessionId').equals(session.id!).primaryKeys()
-      await db.sets.where('sessionId').equals(session.id!).delete()
-      await db.scoreEvents.where('sessionId').equals(session.id!).delete()
-      await db.sessions.delete(session.id!)
-      await tombstoneKeys('sets', setKeys)
-      await tombstoneKeys('scoreEvents', eventKeys)
-      await tombstoneKeys('sessions', [session.id!])
-    })
-  }
-
-  return (
-    <div className="rounded-2xl border border-edge bg-card">
-      <div className="flex items-center">
-        <button
-          onClick={() => setOpen(o => !o)}
-          className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-lg font-semibold">{session.name}</p>
-            <p className="text-sm text-sub">
-              {fmtDateTime(session.startedAt)}
-              {session.endedAt && ` · ${fmtDuration(session.endedAt - session.startedAt)}`}
-            </p>
-          </div>
-          {session.points !== undefined && (
-            <span className="num rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
-              +{session.points}
-            </span>
-          )}
-          {open ? <ChevronUp size={18} className="text-sub" /> : <ChevronDown size={18} className="text-sub" />}
-        </button>
-        <Link
-          to={`/workout/summary/${session.id}?report=1`}
-          aria-label="View AI report"
-          className="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-primary active:bg-muted/40"
-        >
-          <Sparkles size={18} />
-        </Link>
-      </div>
-
-      {open && detail && (
-        <div className="border-t border-edge/60 px-4 py-3">
-          {detail.map(d => (
-            <div key={d.name} className="mb-2">
-              <p className="text-sm font-semibold">{d.name}</p>
-              <p className="num text-sm text-sub">
-                {d.sets.map(s => `${s.weightKg}×${s.reps}${s.isWarmup ? 'w' : ''}`).join('  ·  ')}
-              </p>
-            </div>
-          ))}
+      {/* Month calendar */}
+      <div className="mb-4 rounded-2xl border border-edge bg-card p-3">
+        <div className="mb-2 flex items-center justify-between">
           <button
-            onClick={remove}
-            className="mt-1 flex items-center gap-1.5 py-2 text-sm font-medium text-danger"
+            onClick={() => setMonth(m => addMonths(m, -1))}
+            aria-label="Previous month"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-sub active:bg-muted/40"
           >
-            <Trash2 size={16} /> Delete session
+            <ChevronLeft size={22} />
+          </button>
+          <button
+            onClick={() => setMonth(startOfMonth(today))}
+            className="font-display text-lg font-semibold active:opacity-70"
+          >
+            {monthLabel(month)}
+          </button>
+          <button
+            onClick={() => setMonth(m => addMonths(m, 1))}
+            aria-label="Next month"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-sub active:bg-muted/40"
+          >
+            <ChevronRight size={22} />
+          </button>
+        </div>
+
+        <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wide text-sub">
+          {WEEKDAY_LABELS.map(d => <span key={d}>{d}</span>)}
+        </div>
+
+        <div className="grid grid-cols-7 gap-0.5">
+          {grid.map(day => {
+            const inMonth = sameMonth(day, month)
+            const has = byDay.has(day)
+            const isToday = day === today
+            const isSelected = day === selected
+            return (
+              <button
+                key={day}
+                onClick={() => has && setSelected(isSelected ? null : day)}
+                disabled={!has}
+                aria-label={has ? `${fmtDate(day)}, ${byDay.get(day)!.length} workout(s)` : undefined}
+                aria-pressed={isSelected}
+                className={`num relative flex h-11 flex-col items-center justify-center rounded-lg text-sm ${
+                  isSelected ? 'bg-primary text-bg font-bold'
+                    : has ? 'bg-primary/15 font-semibold text-primary active:bg-primary/30'
+                      : inMonth ? 'text-ink' : 'text-sub/40'
+                } ${isToday && !isSelected ? 'ring-1 ring-inset ring-primary/60' : ''}`}
+              >
+                {parseLocalDate(day).getDate()}
+                {has && !isSelected && (
+                  <span className="absolute bottom-1 h-1 w-1 rounded-full bg-primary" aria-hidden />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Selected-day header / clear */}
+      {selected && (
+        <div className="mb-2 flex items-center justify-between">
+          <p className="font-display text-lg font-semibold">{fmtDate(selected)}</p>
+          <button onClick={() => setSelected(null)} className="text-sm font-medium text-sub active:text-ink">
+            Show all
           </button>
         </div>
       )}
+
+      {sessions !== undefined && listed.length === 0 && (
+        <p className="py-10 text-center text-sub">
+          {selected ? 'No workout on this day.' : 'No finished sessions yet. Go lift something!'}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {listed.map(s => (
+          <div key={s.id} className="flex items-center rounded-2xl border border-edge bg-card">
+            <button
+              onClick={() => navigate(`/workout/past/${s.id}`)}
+              className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-lg font-semibold">{s.name}</p>
+                <p className="text-sm text-sub">
+                  {fmtDateTime(s.startedAt)}
+                  {s.endedAt && ` · ${fmtDuration(s.endedAt - s.startedAt)}`}
+                </p>
+              </div>
+              {s.points !== undefined && (
+                <span className="num rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
+                  +{s.points}
+                </span>
+              )}
+              <Caret size={18} className="shrink-0 text-sub" />
+            </button>
+            <Link
+              to={`/workout/summary/${s.id}?report=1`}
+              aria-label="View AI report"
+              className="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-primary active:bg-muted/40"
+            >
+              <Sparkles size={18} />
+            </Link>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

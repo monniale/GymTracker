@@ -31,6 +31,43 @@ export function mondayOf(s: string): string {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+/** Weekday headers for a Monday-first month grid (matches `mondayOf`). */
+export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+/** First day of the month containing `s` (YYYY-MM-01). */
+export function startOfMonth(s: string): string {
+  const d = parseLocalDate(s)
+  return localDateStr(new Date(d.getFullYear(), d.getMonth(), 1))
+}
+
+/** First day of the month `n` months from the month containing `s`. */
+export function addMonths(s: string, n: number): string {
+  const d = parseLocalDate(s)
+  return localDateStr(new Date(d.getFullYear(), d.getMonth() + n, 1))
+}
+
+/** "July 2026" for the month containing `s`. */
+export function monthLabel(s: string): string {
+  const d = parseLocalDate(s)
+  return `${MONTH_FULL[d.getMonth()]} ${d.getFullYear()}`
+}
+
+/** True when `a` and `b` fall in the same calendar month. */
+export function sameMonth(a: string, b: string): boolean {
+  return a.slice(0, 7) === b.slice(0, 7)
+}
+
+/** 42 date strings (6 weeks, Monday-first) covering the month containing `s`,
+ * including the trailing/leading days of adjacent months to fill the grid. */
+export function monthGrid(s: string): string[] {
+  const gridStart = mondayOf(startOfMonth(s))
+  return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i))
+}
 
 export function fmtDate(s: string): string {
   const today = localDateStr()

@@ -1,8 +1,8 @@
 import { db } from './db'
 import { localDateStr } from '../lib/dates'
-import type { Exercise, MuscleGroup } from '../types'
+import type { Equipment, Exercise, MuscleGroup } from '../types'
 
-type SeedRow = [name: string, muscle: MuscleGroup, equipment: string, restSec: number]
+type SeedRow = [name: string, muscle: MuscleGroup, equipment: Equipment, restSec: number]
 
 const ROWS: SeedRow[] = [
   // Chest

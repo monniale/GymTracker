@@ -1,5 +1,5 @@
 import { db } from '../db/db'
-import { scoreSession } from './scoring'
+import { scoreSession, SCORING } from './scoring'
 import { registerSessionForStreak } from './season'
 import { localDateStr } from './dates'
 import { parseLocalDate } from './dates'
@@ -93,7 +93,10 @@ export async function finishSession(sessionId: Id): Promise<number | null> {
     await db.sessions.update(sessionId, { endedAt: now, points: result.total })
     await db.scoreEvents.add({
       sessionId,
-      date: localDateStr(new Date(now)),
+      // Bucket the event by the day the workout STARTED (stable, and identical to
+      // what rescoreSession uses) — not the finish instant, which can differ for
+      // a session that spans local midnight.
+      date: localDateStr(new Date(session.startedAt)),
       basePoints: result.basePoints,
       prBonus: result.prBonus,
       streakMult: result.streakMult,
@@ -104,6 +107,83 @@ export async function finishSession(sessionId: Id): Promise<number | null> {
     const rs = await db.rankState.get(1)
     if (rs) {
       rs.points = Math.max(0, Math.round(rs.points + result.total))
+      await db.rankState.put(rs)
+    }
+  })
+
+  return result.total
+}
+
+/**
+ * Re-score an ALREADY-finished session after its sets or details were edited.
+ * Unlike finishSession this is idempotent and safe to re-run: it UPDATES the
+ * existing score event (never adds a duplicate) and applies only the points
+ * DELTA to the rank.
+ *
+ * streakMult AND dayFactor are HISTORICAL finish-context — they depend on when
+ * the session happened relative to others, NOT on its (edited) set values — so
+ * they are CARRIED from the stored event. Recomputing dayFactor here would be
+ * wrong: at edit time every same-day session is already finished, so the "first
+ * session of the day" test collapses the day's primary session to 0.25 and
+ * silently craters the rank on any edit. Only basePoints/prBonus/breakdown
+ * (which depend on set values) are recomputed.
+ *
+ * KNOWN LIMITATION (accepted): PR bonuses are season-relative and only THIS
+ * session is re-evaluated, so editing an old session's e1RM/volume upward can
+ * leave a later session's already-granted PR bonus in place (rank drifts above a
+ * from-scratch recompute, bounded by prBonusCap). A full season-wide recompute
+ * would be needed to close this; matches the app's existing "points kept" stance.
+ */
+export async function rescoreSession(sessionId: Id): Promise<number | null> {
+  const session = await db.sessions.get(sessionId)
+  if (!session || session.endedAt === undefined) return null
+
+  const sets = await db.sets.where('sessionId').equals(sessionId).toArray()
+  const event = await db.scoreEvents.where('sessionId').equals(sessionId).first()
+
+  const { e1rm: priorBestE1rm, volume: priorBestVolume } = await gatherSeasonPriorBests(sessionId, sets)
+  const exerciseIds = [...new Set(sets.map(s => s.exerciseId))]
+  const exercises = await db.exercises.bulkGet(exerciseIds)
+  const exerciseNames = new Map<Id, string>()
+  exerciseIds.forEach((id, i) => exerciseNames.set(id, exercises[i]?.name ?? 'Exercise'))
+
+  // Carry the streak + first-of-day context from the stored event so scoring
+  // reproduces the same streakMult/dayFactor it originally earned.
+  const carriedStreakWeeks = event ? Math.round((event.streakMult - 1) / SCORING.streakStep) : 0
+  const carriedFirstOfDay = event ? event.dayFactor === 1 : true
+
+  const result = scoreSession({
+    sets,
+    bodyweightKg: session.bodyweightKg,
+    priorBestE1rm,
+    priorBestVolume,
+    streakWeeks: carriedStreakWeeks,
+    isFirstSessionOfDay: carriedFirstOfDay,
+    exerciseNames,
+  })
+
+  const eventDate = localDateStr(new Date(session.startedAt))
+
+  await db.transaction('rw', db.sessions, db.scoreEvents, db.rankState, async () => {
+    // Re-read the event INSIDE the txn so the rank delta stays atomic even if two
+    // rescores overlap (the later one sees the earlier one's committed total).
+    const ev = await db.scoreEvents.where('sessionId').equals(sessionId).first()
+    const oldTotal = ev?.total ?? session.points ?? 0
+    await db.sessions.update(sessionId, { points: result.total })
+    const fields = {
+      date: eventDate,
+      basePoints: result.basePoints,
+      prBonus: result.prBonus,
+      streakMult: result.streakMult,
+      dayFactor: result.dayFactor,
+      total: result.total,
+      breakdown: result.breakdown,
+    }
+    if (ev) await db.scoreEvents.update(ev.id!, fields)
+    else await db.scoreEvents.add({ sessionId, ...fields })
+    const rs = await db.rankState.get(1)
+    if (rs) {
+      rs.points = Math.max(0, Math.round(rs.points + (result.total - oldTotal)))
       await db.rankState.put(rs)
     }
   })

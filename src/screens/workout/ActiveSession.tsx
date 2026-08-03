@@ -11,10 +11,11 @@ import { platesPerSide, formatPlates, warmupRamp, DEFAULT_BAR_KG, DEFAULT_PLATES
 import { useWorkoutPlan } from '../../lib/workoutSuggest'
 import { finishSession } from '../../lib/finishSession'
 import { fmtDuration } from '../../lib/dates'
+import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
 import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
-import type { Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
+import type { Equipment, Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
 
 const WARMUP_REST_SEC = 30
 
@@ -289,6 +290,11 @@ function ExerciseCard({
         <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold">
           {exercise?.name ?? '…'}
         </p>
+        {exercise?.equipment && (
+          <span className="shrink-0 rounded-full bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sub">
+            {EQUIPMENT_LABEL[exercise.equipment]}
+          </span>
+        )}
         {showRamp && (
           <button
             onClick={addRamp}
@@ -399,11 +405,13 @@ function NoteSheet({ open, onClose, exercise }: {
 }) {
   const [text, setText] = useState(exercise.notes ?? '')
   const [step, setStep] = useState(exercise.progressionStepKg ?? 2.5)
+  const [equip, setEquip] = useState<Equipment>(exercise.equipment ?? 'other')
 
   async function save() {
     await db.exercises.update(exercise.id!, {
       notes: text.trim() || undefined,
       progressionStepKg: step,
+      equipment: equip,
     })
     onClose()
   }
@@ -420,6 +428,20 @@ function NoteSheet({ open, onClose, exercise }: {
         className="w-full rounded-xl bg-card p-3 text-base"
         placeholder="e.g. seat 4, grip at rings, elbows tucked"
       />
+      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Equipment</p>
+      <div className="flex flex-wrap gap-2">
+        {EQUIPMENTS.map(eq => (
+          <button
+            key={eq}
+            onClick={() => setEquip(eq)}
+            className={`min-h-[40px] rounded-full px-3 text-sm font-medium ${
+              equip === eq ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
+            }`}
+          >
+            {EQUIPMENT_LABEL[eq]}
+          </button>
+        ))}
+      </div>
       <div className="mt-3 flex items-center justify-between">
         <NumberStepper
           label="Progression step"

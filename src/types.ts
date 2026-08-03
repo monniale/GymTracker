@@ -6,12 +6,16 @@ export type MuscleGroup =
   | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps'
   | 'legs' | 'glutes' | 'core' | 'cardio' | 'other'
 
+/** Equipment a movement is performed with. Weight data is kept separate per
+ * exercise, so barbell/dumbbell/machine variants are distinct exercises. */
+export type Equipment = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'bodyweight' | 'other'
+
 export interface Exercise {
   id?: Id
   name: string
   nameLower: string
   muscleGroup: MuscleGroup
-  equipment?: string
+  equipment?: Equipment
   defaultRestSec: number
   isCustom: boolean
   notes?: string

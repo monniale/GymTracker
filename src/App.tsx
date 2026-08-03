@@ -12,6 +12,7 @@ import TemplateEditor from './screens/workout/TemplateEditor'
 import ActiveSession from './screens/workout/ActiveSession'
 import SessionSummary from './screens/workout/SessionSummary'
 import History from './screens/workout/History'
+import PastWorkout from './screens/workout/PastWorkout'
 import DietDay from './screens/diet/DietDay'
 import ProgressScreen from './screens/progress/ProgressScreen'
 import RankScreen from './screens/rank/RankScreen'
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/workout/session" element={<ActiveSession />} />
           <Route path="/workout/summary/:id" element={<SessionSummary />} />
           <Route path="/workout/history" element={<History />} />
+          <Route path="/workout/past/:id" element={<PastWorkout />} />
           <Route path="/diet" element={<DietDay />} />
           <Route path="/progress" element={<ProgressScreen />} />
           <Route path="/rank" element={<RankScreen />} />
