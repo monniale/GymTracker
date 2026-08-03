@@ -11,8 +11,7 @@ import {
 } from './dietReport'
 import { formatWorkoutPlanBriefing, type WorkoutPlanBriefing } from './coachBriefing'
 import { pickBestOff } from './foodResolve'
-import type { OffProduct } from './off'
-import type { MacroSuggestionItem } from '../types'
+import type { MacroSuggestionItem, RemoteFood } from '../types'
 
 /* ---------- parseWeightPlan (F2) ---------- */
 
@@ -181,8 +180,8 @@ describe('formatSubstitutionBriefing', () => {
 /* ---------- pickBestOff (F1 OFF grounding) ---------- */
 
 describe('pickBestOff', () => {
-  const off = (p: Partial<OffProduct>): OffProduct => ({
-    offId: '1', name: 'x', kcal100: 0, protein100: 0, carbs100: 0, fat100: 0, ...p,
+  const off = (p: Partial<RemoteFood>): RemoteFood => ({
+    source: 'off', sourceId: '1', name: 'x', kcal100: 0, protein100: 0, carbs100: 0, fat100: 0, ...p,
   })
   const item = (p: Partial<MacroSuggestionItem> = {}): MacroSuggestionItem => ({
     food: 'Greek yogurt', meal: 'snack', grams: 150, kcal: 160, protein: 30, carbs: 8, fat: 1, ...p,
@@ -190,21 +189,21 @@ describe('pickBestOff', () => {
 
   it('accepts a close macro match', () => {
     // 150g of a 100kcal/20g-protein product = 150kcal/30g protein ≈ the estimate
-    const match = pickBestOff([off({ offId: 'a', kcal100: 107, protein100: 20 })], item())
-    expect(match?.offId).toBe('a')
+    const match = pickBestOff([off({ sourceId: 'a', kcal100: 107, protein100: 20 })], item())
+    expect(match?.sourceId).toBe('a')
   })
 
   it('rejects a wildly-off top hit (→ caller uses the model estimate)', () => {
     // A dessert yogurt: 150g = 180kcal but only 6g protein vs the promised 30g
-    expect(pickBestOff([off({ offId: 'b', kcal100: 120, protein100: 4 })], item())).toBeNull()
+    expect(pickBestOff([off({ sourceId: 'b', kcal100: 120, protein100: 4 })], item())).toBeNull()
   })
 
   it('picks the closest of several results', () => {
     const results = [
-      off({ offId: 'far', kcal100: 250, protein100: 5 }),
-      off({ offId: 'near', kcal100: 107, protein100: 20 }),
+      off({ sourceId: 'far', kcal100: 250, protein100: 5 }),
+      off({ sourceId: 'near', kcal100: 107, protein100: 20 }),
     ]
-    expect(pickBestOff(results, item())?.offId).toBe('near')
+    expect(pickBestOff(results, item())?.sourceId).toBe('near')
   })
 
   it('returns null for an empty result set', () => {

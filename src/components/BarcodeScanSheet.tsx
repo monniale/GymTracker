@@ -2,15 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { Flashlight, Keyboard, Loader2 } from 'lucide-react'
 import Sheet from './Sheet'
 import { createDetector, prepareScanner, validEan } from '../lib/scanner'
-import { lookupBarcode, type OffProduct } from '../lib/off'
+import { lookupBarcodeChained } from '../lib/foodProviders'
 import { beep } from '../lib/audio'
+import type { RemoteFood } from '../types'
 
 type Mode = 'starting' | 'scanning' | 'lookup' | 'manual'
 
 interface Props {
   open: boolean
   onClose: () => void
-  onProduct: (p: OffProduct) => void
+  onProduct: (p: RemoteFood) => void
 }
 
 /**
@@ -34,7 +35,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
     setMode('lookup')
     setError(null)
     try {
-      const product = await lookupBarcode(code)
+      const product = await lookupBarcodeChained(code)
       if (product) {
         onProduct(product)
         return

@@ -3,3 +3,8 @@ dist
 dev-dist
 *.local
 .DS_Store
+
+# Local env (keys live here, never committed). .env.example is the template.
+.env
+.env.*
+!.env.example

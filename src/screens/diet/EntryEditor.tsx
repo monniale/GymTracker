@@ -220,7 +220,7 @@ export function FoodDataEditor({ food, onDone }: { food: Food; onDone: () => voi
       next.carbs100 !== food.carbs100 || next.fat100 !== food.fat100
     await db.foods.update(food.id!, {
       ...next,
-      userOverridden: food.userOverridden || (food.source === 'off' && changedMacros),
+      userOverridden: food.userOverridden || (food.source !== 'custom' && changedMacros),
     })
     onDone()
   }
@@ -246,12 +246,12 @@ export function FoodDataEditor({ food, onDone }: { food: Food; onDone: () => voi
       >
         Save food data
       </button>
-      {food.source === 'off' && food.userOverridden && food.offOriginal && (
+      {food.source !== 'custom' && food.userOverridden && food.offOriginal && (
         <button
           onClick={resetToApi}
           className="flex w-full items-center justify-center gap-1.5 py-2 text-sm font-medium text-sub active:text-ink"
         >
-          <RotateCcw size={15} /> Reset to Open Food Facts values
+          <RotateCcw size={15} /> Reset to database values
         </button>
       )}
     </div>

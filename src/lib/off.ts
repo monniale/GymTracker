@@ -1,22 +1,9 @@
-/** Open Food Facts search client. Free, no API key, CORS-enabled. */
-import { db } from '../db/db'
-import type { Id } from '../types'
-
-export interface OffProduct {
-  offId: string
-  name: string
-  brand?: string
-  kcal100: number
-  protein100: number
-  carbs100: number
-  fat100: number
-  servingG?: number
-  servingLabel?: string
-}
+/** Open Food Facts provider. Free, no API key, CORS-enabled. */
+import type { FoodProvider, RemoteFood } from '../types'
 
 const FIELDS = 'code,product_name,brands,nutriments,serving_size,serving_quantity'
 
-export async function searchOff(query: string, signal?: AbortSignal): Promise<OffProduct[]> {
+export async function searchOff(query: string, signal?: AbortSignal): Promise<RemoteFood[]> {
   const url =
     'https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&action=process&json=1' +
     `&page_size=25&fields=${FIELDS}&app_name=gymtracker&search_terms=${encodeURIComponent(query)}`
@@ -24,12 +11,12 @@ export async function searchOff(query: string, signal?: AbortSignal): Promise<Of
   if (!res.ok) throw new Error(`Open Food Facts search failed (${res.status})`)
   const data = await res.json()
   const products: unknown[] = Array.isArray(data.products) ? data.products : []
-  const mapped: OffProduct[] = []
+  const mapped: RemoteFood[] = []
   const seen = new Set<string>()
   for (const p of products) {
     const m = mapProduct(p as Record<string, unknown>)
-    if (m && !seen.has(m.offId)) {
-      seen.add(m.offId)
+    if (m && !seen.has(m.sourceId)) {
+      seen.add(m.sourceId)
       mapped.push(m)
     }
   }
@@ -37,7 +24,7 @@ export async function searchOff(query: string, signal?: AbortSignal): Promise<Of
 }
 
 /** Direct product lookup by scanned/typed EAN. Returns null when unknown. */
-export async function lookupBarcode(code: string, signal?: AbortSignal): Promise<OffProduct | null> {
+export async function lookupBarcode(code: string, signal?: AbortSignal): Promise<RemoteFood | null> {
   const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}` +
     `?fields=${FIELDS}&app_name=gymtracker`
   const res = await fetch(url, { signal })
@@ -48,35 +35,12 @@ export async function lookupBarcode(code: string, signal?: AbortSignal): Promise
   return mapProduct({ code, ...data.product })
 }
 
-/**
- * Insert an OFF product into the local foods table (or return the existing row
- * — a previously cached/user-edited food always wins over fresh API data).
- */
-export async function upsertOffProduct(p: OffProduct): Promise<Id> {
-  const existing = await db.foods.where('offId').equals(p.offId).first()
-  if (existing) return existing.id!
-  return db.foods.add({
-    source: 'off',
-    offId: p.offId,
-    name: p.name,
-    nameLower: p.name.toLowerCase(),
-    brand: p.brand,
-    kcal100: p.kcal100,
-    protein100: p.protein100,
-    carbs100: p.carbs100,
-    fat100: p.fat100,
-    servingG: p.servingG,
-    servingLabel: p.servingLabel,
-    userOverridden: false,
-    offOriginal: {
-      kcal100: p.kcal100,
-      protein100: p.protein100,
-      carbs100: p.carbs100,
-      fat100: p.fat100,
-    },
-    lastUsedAt: Date.now(),
-    useCount: 0,
-  })
+/** The Open Food Facts provider (packaged/global, barcode-strong). */
+export const offProvider: FoodProvider = {
+  id: 'off',
+  label: 'Open Food Facts',
+  search: searchOff,
+  lookupBarcode,
 }
 
 function num(v: unknown): number | undefined {
@@ -84,10 +48,10 @@ function num(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
-function mapProduct(p: Record<string, unknown>): OffProduct | null {
-  const offId = typeof p.code === 'string' ? p.code : String(p.code ?? '')
+function mapProduct(p: Record<string, unknown>): RemoteFood | null {
+  const code = typeof p.code === 'string' ? p.code : String(p.code ?? '')
   const name = typeof p.product_name === 'string' ? p.product_name.trim() : ''
-  if (!offId || !name) return null
+  if (!code || !name) return null
 
   const n = (p.nutriments ?? {}) as Record<string, unknown>
   let kcal = num(n['energy-kcal_100g'])
@@ -102,7 +66,9 @@ function mapProduct(p: Record<string, unknown>): OffProduct | null {
     : undefined
 
   return {
-    offId,
+    source: 'off',
+    sourceId: code,
+    barcode: code,
     name,
     brand,
     kcal100: round1(kcal),

@@ -6,8 +6,8 @@
  */
 import { db } from '../db/db'
 import { logFood } from './nutrition'
-import { searchOff, upsertOffProduct, type OffProduct } from './off'
-import type { Food, Id, MacroSuggestionItem, MealType } from '../types'
+import { searchFoods, upsertRemoteFood } from './foodProviders'
+import type { Food, Id, MacroSuggestionItem, MealType, RemoteFood } from '../types'
 
 /** Look up a food by the ref the model echoed back (String(food.id)). Handles
  * both UUID string ids and legacy integer ids. */
@@ -28,9 +28,9 @@ async function getFoodByRef(ref: string): Promise<Food | undefined> {
  * far from what the card promised. When nothing matches well, the caller uses
  * the model's own figures instead (which is exactly what the user saw).
  */
-export function pickBestOff(results: OffProduct[], item: MacroSuggestionItem): OffProduct | null {
+export function pickBestOff(results: RemoteFood[], item: MacroSuggestionItem): RemoteFood | null {
   const g = item.grams / 100
-  let best: OffProduct | null = null
+  let best: RemoteFood | null = null
   let bestScore = Infinity
   for (const p of results) {
     // Protein is usually the point of a suggestion — weight its error heavily.
@@ -76,16 +76,16 @@ export async function resolveSuggestedFood(item: MacroSuggestionItem): Promise<I
     const known = await getFoodByRef(item.ref)
     if (known?.id !== undefined) return known.id
   }
-  // 2) Open Food Facts (needs online) — real macros, but only if a result is a
+  // 2) Online databases (needs online) — real macros, but only if a result is a
   //    close match to what the model (and therefore the card) promised.
   try {
     const query = [item.brand, item.food].filter(Boolean).join(' ').trim()
     if (query) {
-      const match = pickBestOff(await searchOff(query), item)
-      if (match) return await upsertOffProduct(match)
+      const match = pickBestOff(await searchFoods(query), item)
+      if (match) return await upsertRemoteFood(match)
     }
   } catch {
-    // offline or OFF error — fall through to a custom food.
+    // offline or provider error — fall through to a custom food.
   }
   // 3) Custom food from the model's own per-portion estimate (matches the card).
   return createCustomFromItem(item)

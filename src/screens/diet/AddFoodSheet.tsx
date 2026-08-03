@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Search, Layers, Trash2, WifiOff, Loader2, ScanBarcode, X } from 'lucide-react'
 import { db, deleteWithTombstone } from '../../db/db'
@@ -6,8 +6,8 @@ import Sheet from '../../components/Sheet'
 import BarcodeScanSheet from '../../components/BarcodeScanSheet'
 import NumberStepper from '../../components/NumberStepper'
 import { logFood, recipePer100 } from '../../lib/nutrition'
-import { searchOff, upsertOffProduct, type OffProduct } from '../../lib/off'
-import type { Food, MealType, SavedMeal } from '../../types'
+import { searchFoods, upsertRemoteFood, remoteFoodKey, PROVIDERS } from '../../lib/foodProviders'
+import type { Food, MealType, RemoteFood, SavedMeal } from '../../types'
 
 type Tab = 'recent' | 'search' | 'custom'
 
@@ -22,8 +22,8 @@ export default function AddFoodSheet({ open, onClose, date, meal }: Props) {
   const [tab, setTab] = useState<Tab>('recent')
   const [scanOpen, setScanOpen] = useState(false)
 
-  async function onScannedProduct(p: OffProduct) {
-    const foodId = await upsertOffProduct(p)
+  async function onScannedProduct(p: RemoteFood) {
+    const foodId = await upsertRemoteFood(p)
     const food = await db.foods.get(foodId)
     await logFood(foodId, food ? defaultGrams(food) : 100, date, meal)
     setScanOpen(false)
@@ -184,14 +184,16 @@ function FoodRow({ food, onAdd }: { food: Food; onAdd: (grams: number) => void }
   )
 }
 
-/* ---------- Search (local + Open Food Facts) ---------- */
+/* ---------- Search (local + online databases) ---------- */
+
+const providerLabel = (source: RemoteFood['source']): string =>
+  PROVIDERS.find(p => p.id === source)?.label ?? source
 
 function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDone: () => void }) {
   const [q, setQ] = useState('')
-  const [offResults, setOffResults] = useState<OffProduct[]>([])
+  const [remote, setRemote] = useState<RemoteFood[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
 
   const local = useLiveQuery(async () => {
     const query = q.trim().toLowerCase()
@@ -203,31 +205,35 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
     const query = q.trim()
     setError(null)
     if (query.length < 3) {
-      setOffResults([])
+      setRemote([])
       setLoading(false)
       return
     }
     if (!navigator.onLine) {
       setError('Offline — showing your local foods only.')
+      setLoading(false)
       return
     }
     setLoading(true)
+    const controller = new AbortController()
     const timer = setTimeout(async () => {
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
       try {
-        const results = await searchOff(query, controller.signal)
-        setOffResults(results)
+        const results = await searchFoods(query, controller.signal)
+        if (controller.signal.aborted) return
+        setRemote(results)
         setLoading(false)
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
-          setError('Food database unreachable.')
-          setLoading(false)
-        }
+        if (controller.signal.aborted || (e as Error).name === 'AbortError') return
+        setError('Food database unreachable.')
+        setLoading(false)
       }
     }, 400)
-    return () => clearTimeout(timer)
+    // Cancel a pending timer AND any in-flight fetch on the next keystroke /
+    // early-return / unmount, and ignore its late result via signal.aborted.
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
   }, [q])
 
   async function addLocal(f: Food) {
@@ -235,15 +241,17 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
     onDone()
   }
 
-  async function addOff(p: OffProduct) {
-    // Upsert by barcode: an existing row (possibly user-edited) always wins.
-    const foodId = await upsertOffProduct(p)
+  async function addRemote(p: RemoteFood) {
+    // Upsert by generalized key: an existing row (possibly user-edited) always wins.
+    const foodId = await upsertRemoteFood(p)
     const food = await db.foods.get(foodId)
     await logFood(foodId, food ? defaultGrams(food) : 100, date, meal)
     onDone()
   }
 
-  const localIds = new Set(local.filter(f => f.offId).map(f => f.offId))
+  // Hide online results already saved locally (matched on the same cache key).
+  const localKeys = new Set(local.map(f => f.offId).filter(Boolean) as string[])
+  const online = remote.filter(p => !localKeys.has(remoteFoodKey(p)))
 
   return (
     <div>
@@ -284,30 +292,33 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
         </p>
       )}
 
-      {offResults.length > 0 && (
+      {online.length > 0 && (
         <>
           <p className="mb-1 mt-2 text-xs font-semibold uppercase tracking-wide text-sub">
-            Open Food Facts
+            Online databases
           </p>
-          {offResults
-            .filter(p => !localIds.has(p.offId))
-            .map(p => (
-              <button
-                key={p.offId}
-                onClick={() => addOff(p)}
-                className="flex min-h-[52px] w-full flex-col justify-center rounded-xl px-2 text-left active:bg-muted/30"
-              >
+          {online.map(p => (
+            <button
+              key={`${p.source}:${p.sourceId}`}
+              onClick={() => addRemote(p)}
+              className="flex min-h-[52px] w-full flex-col justify-center rounded-xl px-2 text-left active:bg-muted/30"
+            >
+              <span className="flex items-center gap-1.5">
                 <span className="truncate font-medium">{p.name}</span>
-                <span className="num text-xs text-sub">
-                  {p.brand ? `${p.brand} · ` : ''}
-                  {p.kcal100} kcal/100g · P {p.protein100} C {p.carbs100} F {p.fat100}
+                <span className="shrink-0 rounded bg-muted/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sub">
+                  {providerLabel(p.source)}
                 </span>
-              </button>
-            ))}
+              </span>
+              <span className="num text-xs text-sub">
+                {p.brand ? `${p.brand} · ` : ''}
+                {p.kcal100} kcal/100g · P {p.protein100} C {p.carbs100} F {p.fat100}
+              </span>
+            </button>
+          ))}
         </>
       )}
 
-      {q.trim().length >= 3 && !loading && offResults.length === 0 && local.length === 0 && !error && (
+      {q.trim().length >= 3 && !loading && online.length === 0 && local.length === 0 && !error && (
         <p className="py-6 text-center text-sm text-sub">No results — try the Custom tab.</p>
       )}
     </div>

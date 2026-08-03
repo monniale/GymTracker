@@ -72,9 +72,34 @@ export interface MacroSet {
   fat100: number
 }
 
+/** Online food databases the app can pull products from. */
+export type FoodSource = 'off' | 'usda'
+
+/** A product normalized from any online database, before it is cached as a Food.
+ * `sourceId` is the provider's own id (EAN for OFF, fdcId for USDA); `barcode`
+ * is set when known (the EAN, or a USDA branded gtinUpc). */
+export interface RemoteFood extends MacroSet {
+  source: FoodSource
+  sourceId: string
+  barcode?: string
+  name: string
+  brand?: string
+  servingG?: number
+  servingLabel?: string
+}
+
+/** A pluggable online food database. Providers are tried in registry order for
+ * both text search (fallback when the primary is thin) and barcode (first hit). */
+export interface FoodProvider {
+  id: FoodSource
+  label: string
+  search(query: string, signal?: AbortSignal): Promise<RemoteFood[]>
+  lookupBarcode(code: string, signal?: AbortSignal): Promise<RemoteFood | null>
+}
+
 export interface Food extends MacroSet {
   id?: Id
-  source: 'off' | 'custom'
+  source: FoodSource | 'custom'
   offId?: string
   name: string
   nameLower: string
