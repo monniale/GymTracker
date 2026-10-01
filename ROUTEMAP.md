@@ -24,7 +24,7 @@ Build/verify: `npm run build` (= `tsc --noEmit && vite build`) · `npm test` (vi
 | **AI diet coach / macro suggestions** | `src/lib/dietReport.ts`, `foodResolve.ts`, `src/components/DietCoachCard.tsx`, `MacroCompletionCard.tsx` |
 | **Sync / backup / merge** | `src/lib/sync.ts`, `merge.ts`, `githubApi.ts`, `src/db/backup.ts`, `src/screens/settings/SyncSection.tsx` |
 | **Charts / progress** | `src/screens/progress/ProgressScreen.tsx`, `src/components/Charts.tsx`, `src/lib/muscleVolume.ts`, `standards.ts` |
-| **Settings** | `src/screens/settings/SettingsScreen.tsx`, `AiSection.tsx`, `SyncSection.tsx` |
+| **Settings** | `src/screens/settings/SettingsScreen.tsx`, `AiSection.tsx`, `SyncSection.tsx` (+ `vite.config.ts` for the version footer's build stamp) |
 
 Cross-cutting rules live in **Invariants** at the bottom — read those before any schema/sync/scoring change.
 
@@ -56,12 +56,12 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/screens/workout/ActiveSession.tsx` (574) — **live session.** `ExerciseCard` (prevSets, `draftFor` prefill, suggestion chip, warm-up ramp, `PendingRow`), `logSet`/`deleteSet`, `NoteSheet` (notes + progression step + **equipment**), AI opening weights via `useWorkoutPlan`, equipment badge, plate/ramp gated on `equipment==='barbell'`.
 - `src/screens/workout/SessionSummary.tsx` (173) — post-workout summary; **report mode** (`?report=1`) suppresses confetti/rank/achievement side-effects for viewing old sessions. Requires a `scoreEvent` to render.
 - `src/screens/workout/History.tsx` (158) — **month calendar** of past workouts (dots on workout days); tap a day → its sessions; tap a session → editor.
-- `src/screens/workout/PastWorkout.tsx` (317) — **edit a finished workout**: per-set weight/reps/warm-up, add/remove sets, session details (name/bodyweight/date); every change calls `rescoreSession`.
+- `src/screens/workout/PastWorkout.tsx` (357) — **edit a finished workout**: per-set weight/reps/warm-up, add/remove sets, session details (name/bodyweight/date); every change calls `rescoreSession`.
 - `src/screens/workout/ExercisePicker.tsx` (185) — pick/create exercise; equipment filter chips + badges; create sets muscle + equipment.
 - `src/lib/progression.ts` (44) — `suggestNext` double-progression (the offline weight/rep baseline).
 - `src/lib/plates.ts` (52) — `platesPerSide`, `warmupRamp` (barbell only).
 - `src/lib/scoring.ts` (165) — `scoreSession` (base points, PR bonuses, streak mult, day factor), `epley`, `SCORING` constants.
-- `src/lib/finishSession.ts` (184) — `finishSession` (first close; non-idempotent), `gatherSeasonPriorBests`, **`rescoreSession`** (idempotent re-score for edits: updates existing scoreEvent, applies rank delta, carries streak).
+- `src/lib/finishSession.ts` (192) — `finishSession` (first close; non-idempotent), `gatherSeasonPriorBests`, **`rescoreSession`** (idempotent re-score for edits: updates existing scoreEvent, applies rank delta, carries streak).
 - `src/lib/season.ts` (129) — season lifecycle: `registerSessionForStreak`, `runDailyChecks`, idle-decay.
 - `src/lib/standards.ts` (53) — strength standards per lift; `standardFor`/`levelFor` (matched by `nameLower`).
 - `src/lib/muscleVolume.ts` (58) — weekly hard-set volume per muscle group.
@@ -97,12 +97,12 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/lib/quests.ts` (189) — weekly quests + bonus awards (add-only).
 - `src/screens/rank/RankScreen.tsx` (280) — rank/season screen; `src/components/RankBadge.tsx` (45), `Confetti.tsx` (55).
 - `src/screens/progress/ProgressScreen.tsx` (262) — e1RM trends / PR wall / muscle volume; `src/components/Charts.tsx` (197) — SVG chart primitives (no CDN).
-- `src/screens/settings/SettingsScreen.tsx` (332) — targets, bodyweight, bar/plates, sound, sub-sections.
+- `src/screens/settings/SettingsScreen.tsx` (347) — targets, bodyweight, bar/plates, sound, sub-sections; `VersionFooter` (app version, build SHA + time, Dexie schema `db.verno`).
 - Shared UI: `src/components/Sheet.tsx` (35, bottom sheet), `NumberStepper.tsx` (78), `ProgressRing.tsx` (35).
 - Shared libs: `src/lib/dates.ts` (93, local-date + month-calendar helpers), `hooks.ts` (54, `useNow`/`useWakeLock`), `audio.ts` (51, beep/unlock).
 
 ## Tests
-`*.test.ts` next to their lib (vitest, node env, no jsdom). Pure functions only. ~154 tests: `scoring`, `progression`, `merge`, `gemini`, `dietReport`, `coachBriefing`, `nutrition`, `muscleVolume`, `gamification`, `idbKeys`, `aiSuggest`, `foodProviders`, `dates`.
+`*.test.ts` next to their lib (vitest, node env, no jsdom). Pure functions only. ~158 tests: `scoring`, `progression`, `merge`, `gemini`, `dietReport`, `coachBriefing`, `nutrition`, `muscleVolume`, `gamification`, `idbKeys`, `aiSuggest`, `foodProviders`, `dates`, `rescore`.
 
 ---
 
@@ -118,7 +118,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 9. **Deletes that must propagate** use `deleteWithTombstone`/`tombstoneKeys`; device-local cache deletes use a plain suspended `delete()`.
 10. **Routing:** `HashRouter`; parse ids with `parseRouteId`, never `Number()`. **Ordering:** `orderBy('date'/'startedAt')`, not `orderBy('id')` (UUID strings don't sort chronologically).
 11. **Report mode** (`?report=1`) must skip `checkAchievements`/`evaluateQuests`/confetti/rank-up (side-effects wrong for old sessions).
-12. **Env/CI:** Node 18 floor / CI Node 22; `workbox-build` 7.1.1 override; self-hosted assets only (no CDN — zxing wasm + fonts bundled). USDA key: `VITE_USDA_KEY` (inlined into the public bundle at build — only OK because it's a free per-IP-rate-limited key).
+12. **Env/CI:** Node 18 floor / CI Node 22; `workbox-build` 7.1.1 override; self-hosted assets only (no CDN — zxing wasm + fonts bundled). USDA key: `VITE_USDA_KEY` (inlined into the public bundle at build — only OK because it's a free per-IP-rate-limited key). Build stamp: `vite.config.ts` `define`s `__APP_VERSION__` (package.json), `__BUILD_SHA__` (`GITHUB_SHA` → local git), `__BUILD_TIME__`; typed in `src/vite-env.d.ts`.
 
 ---
 

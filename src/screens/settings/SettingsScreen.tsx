@@ -309,8 +309,23 @@ export default function SettingsScreen() {
         </button>
       </Section>
 
-      <p className="py-6 text-center text-xs text-sub">GymTracker v1.0</p>
+      <VersionFooter />
     </div>
+  );
+}
+
+/** Build stamp, so you can tell which deploy the installed PWA is running. */
+function VersionFooter() {
+  const built = new Date(__BUILD_TIME__);
+  return (
+    <footer className="space-y-0.5 py-6 text-center text-xs text-sub">
+      <p>GymTracker v{__APP_VERSION__}</p>
+      <p>
+        Build {__BUILD_SHA__} · {localDateStr(built)}{" "}
+        {built.toTimeString().slice(0, 5)}
+      </p>
+      <p>Database schema v{db.verno}</p>
+    </footer>
   );
 }
 
