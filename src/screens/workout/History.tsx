@@ -131,7 +131,7 @@ export default function History() {
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display text-lg font-semibold">{s.name}</p>
-                <p className="text-sm text-sub">
+                <p className="truncate text-sm text-sub">
                   {fmtDateTime(s.startedAt)}
                   {s.endedAt && ` · ${fmtDuration(s.endedAt - s.startedAt)}`}
                 </p>

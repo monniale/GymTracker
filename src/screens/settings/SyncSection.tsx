@@ -29,12 +29,12 @@ function ConnectedView() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <div className="min-w-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">
             {store.owner}/{store.repo}
           </p>
-          <p className="text-xs text-sub">
+          <p className="truncate text-xs text-sub">
             {store.syncing
               ? 'Syncing…'
               : store.lastSyncAt
@@ -45,7 +45,7 @@ function ConnectedView() {
         <button
           onClick={() => void syncNow('manual')}
           disabled={store.syncing}
-          className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary/15 px-4 text-sm font-semibold text-primary active:bg-primary/30 disabled:opacity-50"
+          className="flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-primary/15 px-4 text-sm font-semibold text-primary active:bg-primary/30 disabled:opacity-50"
         >
           {store.syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
           Sync now

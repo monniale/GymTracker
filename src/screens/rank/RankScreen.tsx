@@ -87,14 +87,19 @@ export default function RankScreen() {
           </div>
         )}
 
-        <div className="mt-4 flex gap-3 text-sm font-medium">
-          <span className="flex items-center gap-1.5 rounded-full bg-muted/40 px-3 py-1.5">
-            <Flame size={15} className="text-primary" />
-            <span className="num">{rankState.streakWeeks}</span> wk streak
+        {/* Chips never break inside; on narrow phones the second one drops below. */}
+        <div className="mt-4 flex flex-wrap justify-center gap-2 text-sm font-medium">
+          <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-muted/40 px-3 py-1.5">
+            <Flame size={15} className="shrink-0 text-primary" />
+            <span>
+              <span className="num">{rankState.streakWeeks}</span> wk streak
+            </span>
           </span>
-          <span className="flex items-center gap-1.5 rounded-full bg-muted/40 px-3 py-1.5">
-            <CalendarDays size={15} className="text-sub" />
-            Season {rankState.seasonId} · <span className="num">{daysLeft}</span>d left
+          <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-muted/40 px-3 py-1.5">
+            <CalendarDays size={15} className="shrink-0 text-sub" />
+            <span>
+              Season {rankState.seasonId} · <span className="num">{daysLeft}</span>d left
+            </span>
           </span>
         </div>
 
@@ -189,11 +194,11 @@ export default function RankScreen() {
               {e.label ?? fmtDate(e.date)}
             </span>
             {e.prBonus > 0 && (
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+              <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
                 PR +{e.prBonus}
               </span>
             )}
-            <span className="num font-display text-lg font-bold text-primary">+{e.total}</span>
+            <span className="num shrink-0 font-display text-lg font-bold text-primary">+{e.total}</span>
           </div>
         ))}
       </div>

@@ -139,16 +139,16 @@ export default function SessionSummary() {
           <div key={b.exerciseId} className="flex items-center gap-2 rounded-xl bg-card px-4 py-2.5">
             <span className="min-w-0 flex-1 truncate font-medium">{b.exerciseName}</span>
             {b.e1rmPr && (
-              <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+              <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
                 <Award size={12} /> e1RM PR
               </span>
             )}
             {b.volumePr && (
-              <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
+              <span className="shrink-0 whitespace-nowrap rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
                 Vol PR
               </span>
             )}
-            <span className="num text-sm font-semibold text-sub">{b.setPoints.toFixed(1)}</span>
+            <span className="num shrink-0 text-sm font-semibold text-sub">{b.setPoints.toFixed(1)}</span>
           </div>
         ))}
       </div>

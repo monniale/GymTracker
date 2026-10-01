@@ -286,36 +286,39 @@ function ExerciseCard({
 
   return (
     <div className="rounded-2xl border border-edge bg-card p-3">
-      <div className="mb-1 flex items-center justify-between gap-1">
+      {/* Name gets its own row: on 360px phones the badges left it ~45px. */}
+      <div className="flex items-center gap-1">
         <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold">
           {exercise?.name ?? '…'}
         </p>
-        {exercise?.equipment && (
-          <span className="shrink-0 rounded-full bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sub">
-            {EQUIPMENT_LABEL[exercise.equipment]}
-          </span>
-        )}
-        {showRamp && (
-          <button
-            onClick={addRamp}
-            aria-label="Add warm-up ramp"
-            className="flex h-9 items-center gap-1 rounded-lg bg-muted/40 px-2 text-xs font-semibold text-sub active:bg-muted"
-          >
-            <Zap size={14} /> Ramp
-          </button>
-        )}
         <button
           onClick={() => setNoteOpen(true)}
           aria-label={`Notes for ${exercise?.name}`}
-          className={`flex h-9 w-9 items-center justify-center rounded-lg active:bg-muted ${
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg active:bg-muted ${
             exercise?.notes ? 'text-primary' : 'text-sub'
           }`}
         >
           <StickyNote size={16} />
         </button>
-        <span className="num shrink-0 rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
+      </div>
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        {exercise?.equipment && (
+          <span className="whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sub">
+            {EQUIPMENT_LABEL[exercise.equipment]}
+          </span>
+        )}
+        <span className="num whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
           {item.targetSets}×{item.targetReps} · {restSec}s
         </span>
+        {showRamp && (
+          <button
+            onClick={addRamp}
+            aria-label="Add warm-up ramp"
+            className="ml-auto flex h-8 items-center gap-1 whitespace-nowrap rounded-lg bg-muted/40 px-2 text-xs font-semibold text-sub active:bg-muted"
+          >
+            <Zap size={14} /> Ramp
+          </button>
+        )}
       </div>
       {exercise?.notes && (
         <button
@@ -555,9 +558,9 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
       </div>
       {expanded && (
         <div className="mt-2 border-t border-edge/50 pt-2">
-          <div className="flex justify-around">
-            <NumberStepper label="kg" value={weight} onChange={editWeight} step={2.5} min={0} max={600} />
-            <NumberStepper label="reps" value={reps} onChange={editReps} step={1} min={1} max={100} />
+          <div className="flex flex-wrap justify-around gap-2">
+            <NumberStepper label="kg" value={weight} onChange={editWeight} step={2.5} min={0} max={600} compact="narrow" />
+            <NumberStepper label="reps" value={reps} onChange={editReps} step={1} min={1} max={100} compact="narrow" />
           </div>
           {plateHint && (
             <p className="num mt-1.5 text-center text-xs text-sub">Plates/side: {plateHint}</p>

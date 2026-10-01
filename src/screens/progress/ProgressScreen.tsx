@@ -145,30 +145,33 @@ function BodyweightTile() {
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-edge bg-card p-4">
-      <Scale size={20} className="shrink-0 text-sub" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <p className="num font-display text-2xl font-bold">
-          {current !== undefined ? `${current} kg` : '—'}
+    <div className="rounded-2xl border border-edge bg-card p-4">
+      {/* Caption on its own row, so the value, sparkline and + share the full width. */}
+      <p className="mb-1 flex items-center gap-1.5 text-xs text-sub">
+        <Scale size={14} className="shrink-0" aria-hidden />
+        <span className="truncate">Bodyweight (feeds your rank score)</span>
+      </p>
+      <div className="flex items-center gap-3">
+        <p className="num flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 font-display text-2xl font-bold">
+          <span className="whitespace-nowrap">{current !== undefined ? `${current} kg` : '—'}</span>
           {delta !== null && (
-            <span className={`ml-2 text-sm font-semibold ${delta <= 0 ? 'text-accent' : 'text-sub'}`}>
+            <span className={`whitespace-nowrap text-sm font-semibold ${delta <= 0 ? 'text-accent' : 'text-sub'}`}>
               {delta > 0 ? '+' : ''}{delta} / 30d
             </span>
           )}
         </p>
-        <p className="text-xs text-sub">Bodyweight (feeds your rank score)</p>
+        <Sparkline values={log.slice(-30).map(l => l.weightKg)} color={GREEN} />
+        <button
+          onClick={() => {
+            setDraft(current ?? 75)
+            setLogOpen(true)
+          }}
+          aria-label="Log bodyweight"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary active:bg-primary/30"
+        >
+          <Plus size={18} />
+        </button>
       </div>
-      <Sparkline values={log.slice(-30).map(l => l.weightKg)} color={GREEN} />
-      <button
-        onClick={() => {
-          setDraft(current ?? 75)
-          setLogOpen(true)
-        }}
-        aria-label="Log bodyweight"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary active:bg-primary/30"
-      >
-        <Plus size={18} />
-      </button>
 
       <Sheet open={logOpen} onClose={() => setLogOpen(false)} title="Log bodyweight">
         <div className="flex justify-center">

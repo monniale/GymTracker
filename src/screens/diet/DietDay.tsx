@@ -117,7 +117,7 @@ export default function DietDay() {
           <ArrowLeftRight size={11} className="opacity-60" />
         </button>
         <div className="flex items-center justify-around">
-          <ProgressRing size={92} stroke={9} progress={tg ? totals.kcal / tg.kcal : 0} color="#F97316">
+          <ProgressRing size={92} boxSize="clamp(76px, 25vw, 92px)" stroke={9} progress={tg ? totals.kcal / tg.kcal : 0} color="#F97316">
             <span className="num font-display text-xl font-bold">{Math.round(totals.kcal)}</span>
             <span className="text-[10px] font-medium uppercase text-sub">/ {tg?.kcal} kcal</span>
           </ProgressRing>
@@ -310,7 +310,7 @@ function MacroRing({ label, value, target, color }: {
   label: string; value: number; target?: number; color: string
 }) {
   return (
-    <ProgressRing size={64} stroke={6} progress={target ? value / target : 0} color={color}>
+    <ProgressRing size={64} boxSize="clamp(54px, 17.5vw, 64px)" stroke={6} progress={target ? value / target : 0} color={color}>
       <span className="num font-display text-base font-bold">{Math.round(value)}</span>
       <span className="text-[9px] font-medium uppercase text-sub">
         {label} / {target ?? '—'}

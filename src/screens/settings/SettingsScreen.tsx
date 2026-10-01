@@ -56,9 +56,10 @@ export default function SettingsScreen() {
       <h1 className="mb-4 font-display text-3xl font-bold">Settings</h1>
 
       <Section title="Profile">
-        <div className="flex justify-around">
+        <div className="flex flex-wrap justify-around gap-3">
           <NumberStepper
             label="Bodyweight"
+            compact="narrow"
             value={settings.bodyweightKg}
             onChange={(v) => {
               void update({ bodyweightKg: v });
@@ -71,6 +72,7 @@ export default function SettingsScreen() {
           />
           <NumberStepper
             label="Sessions / week"
+            compact="narrow"
             value={settings.weeklySessionTarget}
             onChange={(v) => update({ weeklySessionTarget: Math.round(v) })}
             step={1}
@@ -88,6 +90,7 @@ export default function SettingsScreen() {
         <div className="grid grid-cols-2 gap-y-4">
           <NumberStepper
             label="kcal"
+            compact="narrow"
             value={settings.kcalTarget}
             onChange={(v) => update({ kcalTarget: Math.round(v) })}
             step={50}
@@ -96,6 +99,7 @@ export default function SettingsScreen() {
           />
           <NumberStepper
             label="Protein g"
+            compact="narrow"
             value={settings.proteinTarget}
             onChange={(v) => update({ proteinTarget: Math.round(v) })}
             step={5}
@@ -104,6 +108,7 @@ export default function SettingsScreen() {
           />
           <NumberStepper
             label="Carbs g"
+            compact="narrow"
             value={settings.carbsTarget}
             onChange={(v) => update({ carbsTarget: Math.round(v) })}
             step={5}
@@ -112,6 +117,7 @@ export default function SettingsScreen() {
           />
           <NumberStepper
             label="Fat g"
+            compact="narrow"
             value={settings.fatTarget}
             onChange={(v) => update({ fatTarget: Math.round(v) })}
             step={2}
@@ -125,6 +131,7 @@ export default function SettingsScreen() {
         <div className="grid grid-cols-2 gap-y-4">
           <NumberStepper
             label="kcal"
+            compact="narrow"
             value={settings.restKcalTarget ?? settings.kcalTarget}
             onChange={(v) => update({ restKcalTarget: Math.round(v) })}
             step={50}
@@ -133,6 +140,7 @@ export default function SettingsScreen() {
           />
           <NumberStepper
             label="Protein g"
+            compact="narrow"
             value={settings.restProteinTarget ?? settings.proteinTarget}
             onChange={(v) => update({ restProteinTarget: Math.round(v) })}
             step={5}
@@ -141,6 +149,7 @@ export default function SettingsScreen() {
           />
           <NumberStepper
             label="Carbs g"
+            compact="narrow"
             value={settings.restCarbsTarget ?? settings.carbsTarget}
             onChange={(v) => update({ restCarbsTarget: Math.round(v) })}
             step={5}
@@ -149,6 +158,7 @@ export default function SettingsScreen() {
           />
           <NumberStepper
             label="Fat g"
+            compact="narrow"
             value={settings.restFatTarget ?? settings.fatTarget}
             onChange={(v) => update({ restFatTarget: Math.round(v) })}
             step={2}
@@ -178,6 +188,7 @@ export default function SettingsScreen() {
         <div className="flex items-start justify-between gap-3">
           <NumberStepper
             label="Bar weight"
+            compact="narrow"
             value={settings.barWeightKg ?? DEFAULT_BAR_KG}
             onChange={(v) => update({ barWeightKg: v })}
             step={2.5}
@@ -224,9 +235,10 @@ export default function SettingsScreen() {
       </Section>
 
       <Section title="Rest timer">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <NumberStepper
             label="Default rest"
+            compact="narrow"
             value={settings.defaultRestSec}
             onChange={(v) => update({ defaultRestSec: Math.round(v) })}
             step={15}

@@ -244,9 +244,9 @@ function SetSheet({
   return (
     <Sheet open onClose={onClose} title={`${exercise?.name ?? 'Set'} · set ${set.setNumber}`}>
       <div className="space-y-4">
-        <div className="flex justify-around">
-          <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={0} max={600} />
-          <NumberStepper label="reps" value={reps} onChange={setReps} step={1} min={0} max={100} />
+        <div className="flex flex-wrap justify-around gap-2">
+          <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={0} max={600} compact="narrow" />
+          <NumberStepper label="reps" value={reps} onChange={setReps} step={1} min={0} max={100} compact="narrow" />
         </div>
         <button
           onClick={() => setWarmup(w => !w)}

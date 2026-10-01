@@ -471,6 +471,7 @@ function RecipeBuilder({ date, meal, onDone, onBack }: {
         <div key={`${it.food.id}-${idx}`} className="flex items-center gap-2 rounded-xl bg-card px-3 py-1.5">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{it.food.name}</span>
           <NumberStepper
+            compact
             value={it.grams}
             onChange={v => setItems(list => list.map((x, i) => (i === idx ? { ...x, grams: v } : x)))}
             step={10}

@@ -53,7 +53,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 ## Workout
 - `src/screens/workout/WorkoutHome.tsx` (144) — landing: template list, `startWorkout`, stopwatch.
 - `src/screens/workout/TemplateEditor.tsx` (175) — edit a template's `TemplateItem`s (sets/reps/rest/superset).
-- `src/screens/workout/ActiveSession.tsx` (574) — **live session.** `ExerciseCard` (prevSets, `draftFor` prefill, suggestion chip, warm-up ramp, `PendingRow`), `logSet`/`deleteSet`, `NoteSheet` (notes + progression step + **equipment**), AI opening weights via `useWorkoutPlan`, equipment badge, plate/ramp gated on `equipment==='barbell'`.
+- `src/screens/workout/ActiveSession.tsx` (577) — **live session.** `ExerciseCard` (prevSets, `draftFor` prefill, suggestion chip, warm-up ramp, `PendingRow`), `logSet`/`deleteSet`, `NoteSheet` (notes + progression step + **equipment**), AI opening weights via `useWorkoutPlan`, equipment badge, plate/ramp gated on `equipment==='barbell'`.
 - `src/screens/workout/SessionSummary.tsx` (173) — post-workout summary; **report mode** (`?report=1`) suppresses confetti/rank/achievement side-effects for viewing old sessions. Requires a `scoreEvent` to render.
 - `src/screens/workout/History.tsx` (158) — **month calendar** of past workouts (dots on workout days); tap a day → its sessions; tap a session → editor.
 - `src/screens/workout/PastWorkout.tsx` (357) — **edit a finished workout**: per-set weight/reps/warm-up, add/remove sets, session details (name/bodyweight/date); every change calls `rescoreSession`.
@@ -69,7 +69,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 
 ## Diet & nutrition
 - `src/screens/diet/DietDay.tsx` (320) — the day screen: macro rings vs targets, per-meal lists, water, week report; mounts `DietCoachCard` + `MacroCompletionCard`; derives `remaining` macros.
-- `src/screens/diet/AddFoodSheet.tsx` (531) — add-food UI: recent / search (local + online via `searchFoods`) / custom / recipe / barcode.
+- `src/screens/diet/AddFoodSheet.tsx` (532) — add-food UI: recent / search (local + online via `searchFoods`) / custom / recipe / barcode.
 - `src/screens/diet/EntryEditor.tsx` (279) — edit one logged entry (grams / food macros / reset) + AI "Suggest a swap".
 - `src/lib/nutrition.ts` (103) — `macrosFor`, `totalsForLogs`, `dayTargets`, `logFood` (single write path), `recipePer100`, `MacroTotals`/`DayTargets`.
 - `src/lib/foodProviders.ts` (139) — provider **registry + orchestrator**: `searchFoods` (fallback), `lookupBarcodeChained` (chain), `upsertRemoteFood`, `remoteFoodKey`.
@@ -95,10 +95,10 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/lib/ranks.ts` (71) — rank tiers/thresholds; `rankFor`.
 - `src/lib/achievements.ts` (92) — achievement unlocks (`computeAchievementStats`, `checkAchievements` — add-only).
 - `src/lib/quests.ts` (189) — weekly quests + bonus awards (add-only).
-- `src/screens/rank/RankScreen.tsx` (280) — rank/season screen; `src/components/RankBadge.tsx` (45), `Confetti.tsx` (55).
-- `src/screens/progress/ProgressScreen.tsx` (262) — e1RM trends / PR wall / muscle volume; `src/components/Charts.tsx` (197) — SVG chart primitives (no CDN).
-- `src/screens/settings/SettingsScreen.tsx` (347) — targets, bodyweight, bar/plates, sound, sub-sections; `VersionFooter` (app version, build SHA + time, Dexie schema `db.verno`).
-- Shared UI: `src/components/Sheet.tsx` (35, bottom sheet), `NumberStepper.tsx` (78), `ProgressRing.tsx` (35).
+- `src/screens/rank/RankScreen.tsx` (285) — rank/season screen; `src/components/RankBadge.tsx` (45), `Confetti.tsx` (55).
+- `src/screens/progress/ProgressScreen.tsx` (265) — e1RM trends / PR wall / muscle volume; `src/components/Charts.tsx` (197) — SVG chart primitives (no CDN).
+- `src/screens/settings/SettingsScreen.tsx` (359) — targets, bodyweight, bar/plates, sound, sub-sections; `VersionFooter` (app version, build SHA + time, Dexie schema `db.verno`).
+- Shared UI: `src/components/Sheet.tsx` (35, bottom sheet), `NumberStepper.tsx` (87; `compact` true | `'narrow'` = small only under 380px), `ProgressRing.tsx` (41; `boxSize` for fluid rings).
 - Shared libs: `src/lib/dates.ts` (93, local-date + month-calendar helpers), `hooks.ts` (54, `useNow`/`useWakeLock`), `audio.ts` (51, beep/unlock).
 
 ## Tests
@@ -119,6 +119,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 10. **Routing:** `HashRouter`; parse ids with `parseRouteId`, never `Number()`. **Ordering:** `orderBy('date'/'startedAt')`, not `orderBy('id')` (UUID strings don't sort chronologically).
 11. **Report mode** (`?report=1`) must skip `checkAchievements`/`evaluateQuests`/confetti/rank-up (side-effects wrong for old sessions).
 12. **Env/CI:** Node 18 floor / CI Node 22; `workbox-build` 7.1.1 override; self-hosted assets only (no CDN — zxing wasm + fonts bundled). USDA key: `VITE_USDA_KEY` (inlined into the public bundle at build — only OK because it's a free per-IP-rate-limited key). Build stamp: `vite.config.ts` `define`s `__APP_VERSION__` (package.json), `__BUILD_SHA__` (`GITHUB_SHA` → local git), `__BUILD_TIME__`; typed in `src/vite-env.d.ts`.
+13. **Phone widths:** every screen must hold at **360px** (Galaxy S25) and **320px** with no overflow. Two+ `NumberStepper`s in one row → `compact="narrow"` + `flex-wrap`; chips/badges/short buttons get `whitespace-nowrap` (+ `shrink-0` in flex rows) so they move as a unit instead of breaking onto 2 lines; names `truncate`. Fixed-px widths in a row must sum under ~290px.
 
 ---
 

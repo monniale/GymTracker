@@ -66,7 +66,7 @@ export default function TemplateEditor() {
           value={template.name}
           onChange={e => update({ name: e.target.value })}
           aria-label="Workout name"
-          className="min-w-0 w-full border-b border-transparent font-display text-2xl font-bold focus:border-primary"
+          className="min-w-0 w-full truncate border-b border-transparent font-display text-2xl font-bold focus:border-primary"
         />
       </div>
 
