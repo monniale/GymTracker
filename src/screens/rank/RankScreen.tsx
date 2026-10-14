@@ -24,8 +24,9 @@ const ICONS: Record<AchievementDef['icon'], typeof Dumbbell> = {
 
 export default function RankScreen() {
   const rankState = useLiveQuery(() => db.rankState.get(1))
+  // Newest first by day (invariant 10: UUID ids don't sort by time).
   const events = useLiveQuery(() =>
-    db.scoreEvents.orderBy('id').reverse().limit(20).toArray(),
+    db.scoreEvents.orderBy('date').reverse().limit(20).toArray(),
   ) ?? []
   const pastSeasons = useLiveQuery(() => db.seasons.orderBy('startDate').reverse().toArray()) ?? []
   const [showInfo, setShowInfo] = useState(false)

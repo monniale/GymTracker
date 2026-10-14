@@ -30,9 +30,12 @@ export default function ProgressScreen() {
 
   // Default to the most recently trained exercise.
   const defaultExId = useLiveQuery(async () => {
-    // 'completedAt' alone is not indexed; insertion order (id) tracks recency.
-    const last = await db.sets.orderBy('id').last()
-    return last?.exerciseId ?? null
+    // Last set of the newest session that has one (invariant 10: UUID set ids don't sort by time).
+    for (const session of await db.sessions.orderBy('startedAt').reverse().limit(5).toArray()) {
+      const sets = await db.sets.where('sessionId').equals(session.id!).toArray()
+      if (sets.length > 0) return sets.reduce((a, b) => (b.completedAt > a.completedAt ? b : a)).exerciseId
+    }
+    return null
   })
   const activeExId = exerciseId ?? defaultExId ?? null
   const activeEx = activeExId ? exMap.get(activeExId) : undefined
