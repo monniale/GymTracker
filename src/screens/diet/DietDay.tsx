@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus, Dumbbell, BedDouble, ArrowLeftRight, Droplets, Minus, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { db, deleteWithTombstone } from '../../db/db'
 import { localDateStr, addDays, fmtDate, parseLocalDate } from '../../lib/dates'
 import { macrosFor, totalsForLogs, logFood, dayTargets } from '../../lib/nutrition'
 import { gatherWeekNutrition } from '../../lib/dietReport'
+import { useLocalToday } from '../../lib/hooks'
+import { haptic } from '../../native/haptics'
 import ProgressRing from '../../components/ProgressRing'
 import DietCoachCard from '../../components/DietCoachCard'
 import MacroCompletionCard from '../../components/MacroCompletionCard'
@@ -20,7 +22,17 @@ const MEALS: { key: MealType; label: string }[] = [
 ]
 
 export default function DietDay() {
-  const [date, setDate] = useState(localDateStr())
+  const today = useLocalToday()
+  const [date, setDate] = useState(today)
+  // Follow "today" across a day rollover (the app resumed the next morning, e.g. from a meal
+  // reminder), but leave a day the user navigated to alone.
+  const prevToday = useRef(today)
+  useEffect(() => {
+    if (today === prevToday.current) return
+    const was = prevToday.current
+    prevToday.current = today
+    setDate(d => (d === was ? today : d))
+  }, [today])
   const [addMeal, setAddMeal] = useState<MealType | null>(null)
   const [editLog, setEditLog] = useState<FoodLog | null>(null)
 
@@ -70,10 +82,13 @@ export default function DietDay() {
   async function saveAsMeal(meal: MealType) {
     const entries = logs.filter(l => l.meal === meal)
     if (entries.length === 0) return
-    const name = window.prompt('Name this meal:', MEALS.find(m => m.key === meal)?.label)
-    if (!name?.trim()) return
+    const label = MEALS.find(m => m.key === meal)?.label ?? 'Meal'
+    const raw = window.prompt('Name this meal:', label)
+    if (raw === null) return // cancelled
+    // The Android WebView prompt ignores the default value, so OK on an empty field = default name.
+    const name = raw.trim() || label
     await db.savedMeals.add({
-      name: name.trim(),
+      name,
       items: entries.map(e => ({ foodId: e.foodId, grams: e.grams })),
       lastUsedAt: Date.now(),
     })
@@ -223,6 +238,7 @@ function WaterRow({ date, targetMl }: { date: string; targetMl: number }) {
   const total = logs.reduce((a, l) => a + l.ml, 0)
 
   async function add() {
+    haptic('tap')
     await db.waterLogs.add({ date, ml: 250 })
   }
   async function undo() {

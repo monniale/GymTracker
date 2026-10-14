@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Volume2,
@@ -16,14 +17,49 @@ import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
 import NumberStepper from "../../components/NumberStepper";
 import SyncSection from "./SyncSection";
 import AiSection from "./AiSection";
+import { isNative } from "../../native/platform";
 import type { Settings } from "../../types";
 
 const PLATE_CATALOG = [25, 20, 15, 10, 5, 2.5, 1.25, 1, 0.5];
+
+// Android-only sections. `isNative` is a build-time false in the Pages build, so Rollup drops
+// these chunks (and the plugins they import) from the PWA.
+const NotificationsSection = isNative
+  ? lazy(() => import("../../native/ui/NotificationsSection"))
+  : null;
+const RestTimerNativeSettings = isNative
+  ? lazy(() => import("../../native/ui/RestTimerNativeSettings"))
+  : null;
 
 export default function SettingsScreen() {
   const settings = useLiveQuery(() => db.settings.get(1));
   const fileRef = useRef<HTMLInputElement>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Android's first-run card links here with `state.focus` ("sync" | "data").
+  const focus = (location.state as { focus?: string } | null)?.focus;
+  const loaded = !!settings;
+  useEffect(() => {
+    if (!loaded || !focus) return;
+    const show = () =>
+      document
+        .getElementById(`settings-${focus}`)
+        ?.scrollIntoView({ block: "start" });
+    show();
+    // The lazy native sections above the target finish loading after this
+    // first paint; keep the target in view while the page settles.
+    const ro = new ResizeObserver(show);
+    ro.observe(document.body);
+    const done = setTimeout(() => {
+      ro.disconnect();
+      navigate(location.pathname, { replace: true, state: null });
+    }, 1500);
+    return () => {
+      clearTimeout(done);
+      ro.disconnect();
+    };
+  }, [loaded, focus]);
 
   if (!settings) return null;
   const update = (patch: Partial<Settings>) => db.settings.update(1, patch);
@@ -269,20 +305,38 @@ export default function SettingsScreen() {
           </button>
         </div>
         <p className="mt-2 text-xs text-sub">
-          Toggling sound on plays a test beep. iOS only allows audio while the
-          app is open — the screen stays awake during workouts so the timer
-          keeps running.
+          {isNative
+            ? "Sound is the in-app beep when a rest ends while GymTracker is on screen. Toggling it on plays a test beep."
+            : "Toggling sound on plays a test beep. iOS only allows audio while the app is open — the screen stays awake during workouts so the timer keeps running."}
         </p>
+        {RestTimerNativeSettings && (
+          <Suspense fallback={null}>
+            <RestTimerNativeSettings />
+          </Suspense>
+        )}
       </Section>
 
-      <SyncSection />
+      {NotificationsSection && (
+        <Suspense fallback={null}>
+          <NotificationsSection />
+        </Suspense>
+      )}
+
+      <div id="settings-sync" className={SCROLL_MARGIN}>
+        <SyncSection />
+      </div>
 
       <AiSection />
 
-      <Section title="Data">
+      <Section title="Data" id="settings-data">
         <div className="flex gap-2">
           <button
-            onClick={() => exportBackup()}
+            onClick={() =>
+              // Android rethrows share failures (e.g. a second tap while the sheet is open).
+              exportBackup().catch((e) =>
+                setImportMsg(`Export failed: ${(e as Error).message}`),
+              )
+            }
             className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-muted/40 font-semibold active:bg-muted"
           >
             <Download size={18} /> Export
@@ -296,7 +350,8 @@ export default function SettingsScreen() {
           <input
             ref={fileRef}
             type="file"
-            accept="application/json"
+            // Native file pickers may label .json as octet-stream; import validates the content.
+            accept={isNative ? undefined : "application/json"}
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -307,8 +362,9 @@ export default function SettingsScreen() {
         </div>
         {importMsg && <p className="mt-2 text-sm text-sub">{importMsg}</p>}
         <p className="mt-2 text-xs text-sub">
-          All data lives on this device. Export a JSON backup now and then
-          (share it to Files/iCloud).
+          {isNative
+            ? "Export opens the share sheet — save it to Drive or Files. Uninstalling the app deletes its data: keep GitHub Sync on or export regularly."
+            : "All data lives on this device. Export a JSON backup now and then (share it to Files/iCloud)."}
         </p>
       </Section>
 
@@ -329,9 +385,33 @@ export default function SettingsScreen() {
 /** Build stamp, so you can tell which deploy the installed PWA is running. */
 function VersionFooter() {
   const built = new Date(__BUILD_TIME__);
+  // Android: the APK's versionName + versionCode (App.getInfo()), via a gated dynamic import.
+  const [android, setAndroid] = useState<{
+    version: string;
+    build: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!isNative) return;
+    let alive = true;
+    void import("../../native/appInfo")
+      .then((m) => m.getAppInfo())
+      .then((info) => {
+        if (alive) setAndroid(info);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   return (
     <footer className="space-y-0.5 py-6 text-center text-xs text-sub">
       <p>GymTracker v{__APP_VERSION__}</p>
+      {android && (
+        <p>
+          Android {android.version}
+          {android.build && ` (${android.build})`}
+        </p>
+      )}
       <p>
         Build {__BUILD_SHA__} · {localDateStr(built)}{" "}
         {built.toTimeString().slice(0, 5)}
@@ -341,15 +421,23 @@ function VersionFooter() {
   );
 }
 
+/** Keeps a section scrolled into view clear of the status bar (Android draws edge to edge). */
+const SCROLL_MARGIN = "scroll-mt-[calc(var(--safe-area-inset-top,0px)+1rem)]";
+
 function Section({
   title,
+  id,
   children,
 }: {
   title: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="mb-4 rounded-2xl border border-edge bg-card p-4">
+    <section
+      id={id}
+      className={`mb-4 rounded-2xl border border-edge bg-card p-4 ${SCROLL_MARGIN}`}
+    >
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-sub">
         {title}
       </h2>

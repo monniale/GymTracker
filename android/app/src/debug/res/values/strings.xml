@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug build (applicationId …gymtracker.debug): its own launcher label so it is never mistaken for the
+     real app. The LAUNCHER activity label (title_activity_main) is what launchers show. -->
+<resources>
+    <string name="app_name">GymTracker (debug)</string>
+    <string name="title_activity_main">GymTracker (debug)</string>
+</resources>

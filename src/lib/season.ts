@@ -88,10 +88,28 @@ export async function runDailyChecks(): Promise<void> {
     }
   }
 
-  if (changed || state.lastDecayCheckDate !== today) {
+  // A bookkeeping-only write must not stamp the untouched seed row (updatedAt 0, seed.ts): it
+  // would then win a sync merge against the real rank state of another device.
+  if (changed || (state.lastDecayCheckDate !== today && state.updatedAt !== 0)) {
     state.lastDecayCheckDate = today
     await db.rankState.put(state)
   }
+}
+
+let dailyChecksInFlight: Promise<void> | null = null
+
+/**
+ * Single-flight `runDailyChecks`: callers that overlap (launch, Android resume, the midnight tick)
+ * share one run instead of racing its non-transactional read-modify-write (a season rollover
+ * twice would archive two `seasons` rows). Sequential calls still each run (it is idempotent).
+ */
+export function runDailyChecksOnce(): Promise<void> {
+  if (!dailyChecksInFlight) {
+    dailyChecksInFlight = runDailyChecks().finally(() => {
+      dailyChecksInFlight = null
+    })
+  }
+  return dailyChecksInFlight
 }
 
 /**

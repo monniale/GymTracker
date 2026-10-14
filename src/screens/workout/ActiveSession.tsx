@@ -12,6 +12,7 @@ import { useWorkoutPlan } from '../../lib/workoutSuggest'
 import { finishSession } from '../../lib/finishSession'
 import { fmtDuration } from '../../lib/dates'
 import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
+import { haptic } from '../../native/haptics'
 import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
@@ -69,6 +70,28 @@ export default function ActiveSession() {
     }
   }
 
+  // Work sets done per exercise: drives the rest-timer "what's next" label (Android lock screen).
+  const workDone = new Map<Id, number>()
+  for (const s of sets) if (!s.isWarmup) workDone.set(s.exerciseId, (workDone.get(s.exerciseId) ?? 0) + 1)
+  const hasSetsLeft = (it: TemplateItem) => (workDone.get(it.exerciseId) ?? 0) < it.targetSets
+
+  /** The next exercise (in order, wrapping) that still has sets left, other than items[idx]. */
+  function nextExerciseName(idx: number): string | undefined {
+    for (let k = 1; k < items.length; k++) {
+      const it = items[(idx + k) % items.length]
+      if (hasSetsLeft(it)) return exMap.get(it.exerciseId)?.name ?? '…'
+    }
+    return undefined
+  }
+
+  /** Last exercise of a superset chain: the next set is back at the first chain exercise with sets left. */
+  function supersetNextName(idx: number): string | undefined {
+    let head = idx
+    while (head > 0 && items[head - 1].supersetWithNext) head--
+    for (let k = head; k < idx; k++) if (hasSetsLeft(items[k])) return exMap.get(items[k].exerciseId)?.name ?? '…'
+    return undefined
+  }
+
   async function addExercise(e: Exercise) {
     if (!session || itemIds.has(e.id!)) return
     await db.sessions.update(session.id!, {
@@ -89,6 +112,7 @@ export default function ActiveSession() {
     setFinishing(true)
     const sid = session.id!
     await finishSession(sid)
+    haptic('success')
     setActiveSessionId(null)
     clearRest()
     navigate(`/workout/summary/${sid}`, { replace: true })
@@ -131,6 +155,8 @@ export default function ActiveSession() {
               plates={settings?.platesAvailable ?? DEFAULT_PLATES}
               aiSets={planByExercise.get(String(item.exerciseId))}
               suppressRest={!!item.supersetWithNext && idx < items.length - 1}
+              nextExerciseName={nextExerciseName(idx)}
+              supersetNextName={supersetNextName(idx)}
             />
             {item.supersetWithNext && idx < items.length - 1 && (
               <div className="relative z-10 -my-2.5 flex justify-center">
@@ -167,10 +193,15 @@ interface CardProps {
   /** AI-planned opening sets for this exercise (F2). Undefined → offline baseline. */
   aiSets?: PlannedSet[]
   suppressRest: boolean
+  /** Next exercise with sets left (rest label once this one is done); undefined → last exercise. */
+  nextExerciseName?: string
+  /** Set when this card closes a superset whose earlier exercise still has sets left. */
+  supersetNextName?: string
 }
 
 function ExerciseCard({
   item, exercise, sessionId, sessionSets, bodyweightKg, defaultRestSec, barKg, plates, aiSets, suppressRest,
+  nextExerciseName, supersetNextName,
 }: CardProps) {
   const startRest = useAppStore(s => s.startRest)
   const [extraRows, setExtraRows] = useState(0)
@@ -215,13 +246,19 @@ function ExerciseCard({
   }
 
   function draftFor(index: number): { weightKg: number; reps: number } {
+    return draftForWork(index - warmupCount, logged.filter(s => !s.isWarmup).slice(-1)[0])
+  }
+
+  /** Prefill for the work set at `workIndex` (0-based among work rows), given this session's last work set. */
+  function draftForWork(
+    workIndex: number,
+    lastCurrent: { weightKg: number; reps: number } | undefined,
+  ): { weightKg: number; reps: number } {
     // Prefer the AI plan; otherwise fall back to the offline prefill unchanged.
-    const ai = aiSetFor(index)
+    const ai = workIndex >= 0 ? aiSets?.[workIndex] : undefined
     if (ai) return { weightKg: ai.weightKg, reps: ai.reps }
     // Match previous-session work sets by position among this session's work rows.
-    const workIndex = index - warmupCount
     const byPosition = workIndex >= 0 ? prevSets[workIndex] : undefined
-    const lastCurrent = logged.filter(s => !s.isWarmup).slice(-1)[0]
     const lastPrev = prevSets[prevSets.length - 1]
     const source = byPosition ?? lastCurrent ?? lastPrev
     return {
@@ -236,6 +273,23 @@ function ExerciseCard({
     return r ? formatPlates(r) : null
   }
 
+  /**
+   * What comes after the set just logged — the Android lock-screen rest countdown body: this
+   * exercise's next set target, else (superset partner or) the next exercise with sets left.
+   */
+  function restLabel(weightKg: number, reps: number, isWarmup: boolean): string {
+    if (!isWarmup && supersetNextName) return `Next: ${supersetNextName}`
+    const done = workLogged + (isWarmup ? 0 : 1)
+    const planned = item.targetSets + extraRows
+    if (done < planned) {
+      const lastWork = isWarmup ? logged.filter(s => !s.isWarmup).slice(-1)[0] : { weightKg, reps }
+      const next = draftForWork(done, lastWork)
+      const target = next.weightKg > 0 ? `${next.weightKg} kg × ${next.reps}` : `${next.reps} reps`
+      return `${exercise?.name ?? 'Next set'} · set ${done + 1}/${planned} · ${target}`
+    }
+    return nextExerciseName ? `Next: ${nextExerciseName}` : 'Last exercise — finish when ready'
+  }
+
   async function logSet(weightKg: number, reps: number, isWarmup: boolean) {
     await db.sets.add({
       sessionId,
@@ -247,8 +301,9 @@ function ExerciseCard({
       completedAt: Date.now(),
       e1rm: epley(weightKg, reps),
     })
-    if (isWarmup) startRest(WARMUP_REST_SEC)
-    else if (!suppressRest) startRest(restSec)
+    if (isWarmup) startRest(WARMUP_REST_SEC, restLabel(weightKg, reps, true), { warmup: true })
+    else if (!suppressRest) startRest(restSec, restLabel(weightKg, reps, false))
+    haptic('set')
   }
 
   const rampWeight = aiSets?.[0]?.weightKg ?? suggestion?.weightKg ?? draftFor(0).weightKg

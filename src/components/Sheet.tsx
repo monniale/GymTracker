@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { pushBack } from '../lib/backStack'
 
 interface SheetProps {
   open: boolean
@@ -10,6 +12,15 @@ interface SheetProps {
 
 /** Bottom sheet — every picker/editor uses this so actions stay in thumb reach. */
 export default function Sheet({ open, onClose, title, children }: SheetProps) {
+  // Android back closes the top-most open sheet first (NativeShell pops; inert on the web).
+  // Hooks stay above the early return; the ref lets callers pass inline arrows.
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    if (!open) return
+    return pushBack(() => closeRef.current())
+  }, [open])
+
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50">

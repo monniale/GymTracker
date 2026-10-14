@@ -122,6 +122,17 @@ export function syncNow(reason: string): Promise<SyncOutcome> {
   return run
 }
 
+/**
+ * Runs `fn` on the same serialization chain as `syncNow`, so it never overlaps a sync pass (and its
+ * suspended `applyTables` during a pull/merge). Used for the Android resume/midnight daily checks.
+ * `fn` must not itself await `syncNow` (it would wait for itself). The chain never rejects.
+ */
+export function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = syncChain.then(() => fn())
+  syncChain = run.then((): SyncOutcome => 'up-to-date', (): SyncOutcome => 'error')
+  return run
+}
+
 async function doSync(reason: string): Promise<SyncOutcome> {
   const config = cfg()
   if (!config) return 'disconnected'

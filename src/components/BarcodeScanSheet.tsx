@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Flashlight, Keyboard, Loader2 } from 'lucide-react'
+import { Flashlight, Keyboard, Loader2, ScanBarcode } from 'lucide-react'
 import Sheet from './Sheet'
-import { createDetector, prepareScanner, validEan } from '../lib/scanner'
+import { createDetector, prepareScanner } from '../lib/scanner'
+import { normalizeScannedEan, validEan } from '../lib/ean'
 import { lookupBarcodeChained } from '../lib/foodProviders'
 import { beep } from '../lib/audio'
+import { isNative } from '../native/platform'
+import { haptic } from '../native/haptics'
 import type { RemoteFood } from '../types'
 
 type Mode = 'starting' | 'scanning' | 'lookup' | 'manual'
@@ -19,6 +22,8 @@ interface Props {
  * platform brief: `ideal` facingMode (never `exact`), stream restart on
  * foreground (iOS kills tracks on backgrounding), permission prompt appears
  * roughly once per launch in standalone mode, playsInline+muted required.
+ * Android app: the Google code scanner (ML Kit, src/native/barcode.ts) first;
+ * the zxing camera path is the fallback when it is unavailable.
  */
 export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -29,6 +34,13 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
   const [torchOn, setTorchOn] = useState(false)
   const [hasTorch, setHasTorch] = useState(false)
   const [manualCode, setManualCode] = useState('')
+  // Android: ML Kit engine until it proves unavailable (then zxing for this sheet's lifetime).
+  const fallbackRef = useRef(false)
+  const [webFallback, setWebFallback] = useState(false)
+  const nativeEngine = isNative && !webFallback
+  const nativeAbandoned = useRef(false) // "Type the barcode instead" while the scanner was starting
+  const [installing, setInstalling] = useState(false)
+  const [attempt, setAttempt] = useState(0) // "Scan again" re-runs the open effect
 
   async function accept(code: string) {
     stopStream()
@@ -60,12 +72,49 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
     if (!open) return
     let cancelled = false
     let interval: ReturnType<typeof setInterval> | undefined
-    prepareScanner()
+    if (!isNative || fallbackRef.current) prepareScanner()
     setMode('starting')
     setError(null)
     lastCode.current = null
+    nativeAbandoned.current = false
+
+    /** true = handled by the native scanner; false = fall through to the zxing path. */
+    async function startNative(): Promise<boolean> {
+      if (!isNative) return false // compile-time dead on the web: keeps the plugin chunk out of dist/
+      const { scanBarcodeNative } = await import('../native/barcode')
+      const r = await scanBarcodeNative(s => {
+        if (!cancelled) setInstalling(s === 'installing')
+      })
+      if (cancelled || nativeAbandoned.current) return true
+      setInstalling(false)
+      if (r.kind === 'canceled') {
+        setMode('manual') // offers "Scan again" + typing the number
+        return true
+      }
+      if (r.kind === 'code') {
+        haptic('scan')
+        const ean = normalizeScannedEan(r.code)
+        if (ean) {
+          void accept(ean)
+        } else {
+          setManualCode(r.code.replace(/\D/g, '').slice(0, 13))
+          setError('Unrecognised barcode — check the number.')
+          setMode('manual')
+        }
+        return true
+      }
+      console.warn('[scanner] native scanner unavailable, using the camera fallback:', r.reason)
+      fallbackRef.current = true
+      setWebFallback(true)
+      prepareScanner()
+      // Let the <video> element of the camera view mount before the stream is attached.
+      for (let i = 0; !videoRef.current && i < 20 && !cancelled; i++) await new Promise(res => setTimeout(res, 50))
+      return false
+    }
 
     async function start() {
+      if (isNative && !fallbackRef.current && (await startNative())) return
+      if (cancelled) return
       if (!navigator.mediaDevices?.getUserMedia) {
         setMode('manual')
         setError('Camera not available here — type the barcode instead.')
@@ -126,7 +175,9 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
         setMode('manual')
         setError(
           name === 'NotAllowedError'
-            ? 'Camera permission denied — type the barcode below. (iOS asks again after you close and reopen the app.)'
+            ? isNative
+              ? 'Camera permission denied — type the barcode below.'
+              : 'Camera permission denied — type the barcode below. (iOS asks again after you close and reopen the app.)'
             : 'Camera unavailable — type the barcode below.',
         )
       }
@@ -134,6 +185,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
 
     void start()
     const onVisibility = () => {
+      if (isNative && !fallbackRef.current) return // the ML Kit scanner is its own activity
       if (document.visibilityState === 'hidden') stopStream()
       else if (!cancelled) void start()
     }
@@ -146,7 +198,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
       stopStream()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, attempt])
 
   async function toggleTorch() {
     const track = streamRef.current?.getVideoTracks()[0]
@@ -164,7 +216,13 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
 
   return (
     <Sheet open={open} onClose={onClose} title="Scan barcode">
-      {(mode === 'starting' || mode === 'scanning') && (
+      {nativeEngine && mode === 'starting' && (
+        <div className="flex flex-col items-center justify-center gap-2 py-10 text-sub">
+          <Loader2 size={24} className="animate-spin" />
+          <p className="text-sm">{installing ? 'Downloading scanner (one time)…' : 'Opening scanner…'}</p>
+        </div>
+      )}
+      {!nativeEngine && (mode === 'starting' || mode === 'scanning') && (
         <div className="relative overflow-hidden rounded-2xl bg-black">
           <video ref={videoRef} playsInline muted autoPlay className="h-64 w-full object-cover" />
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -203,12 +261,23 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
       {mode !== 'manual' && mode !== 'lookup' && (
         <button
           onClick={() => {
+            nativeAbandoned.current = true
+            setInstalling(false)
             stopStream()
             setMode('manual')
           }}
           className="mt-3 flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-sub active:text-ink"
         >
           <Keyboard size={16} /> Type the barcode instead
+        </button>
+      )}
+
+      {mode === 'manual' && nativeEngine && (
+        <button
+          onClick={() => setAttempt(a => a + 1)}
+          className="mb-3 flex min-h-[48px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-primary/15 font-display text-lg font-bold text-primary active:bg-primary/30"
+        >
+          <ScanBarcode size={20} /> Scan again
         </button>
       )}
 
@@ -226,7 +295,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
               onChange={e => setManualCode(e.target.value.replace(/\D/g, ''))}
               placeholder="e.g. 3017620422003"
               className="num min-h-[48px] w-full rounded-xl bg-card px-3 text-base"
-              autoFocus
+              autoFocus={!nativeEngine}
             />
           </label>
           {manualCode.length >= 8 && !manualValid && (

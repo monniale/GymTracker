@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight } from 'lucide-react'
@@ -6,7 +7,12 @@ import { useAppStore } from '../../store'
 import { unlockAudio } from '../../lib/audio'
 import { useNow } from '../../lib/hooks'
 import { fmtDuration } from '../../lib/dates'
+import { useNotifyStore } from '../../lib/notifyStore'
+import { isNative } from '../../native/platform'
 import type { WorkoutTemplate } from '../../types'
+
+// Android only: `isNative` is a build-time false in the Pages build, so Rollup drops the chunk.
+const RestoreCard = isNative ? lazy(() => import('../../native/ui/RestoreCard')) : null
 
 export default function WorkoutHome() {
   const navigate = useNavigate()
@@ -18,6 +24,14 @@ export default function WorkoutHome() {
     async () => (activeSessionId ? await db.sessions.get(activeSessionId) : undefined),
     [activeSessionId],
   )
+  // First-run "Restore your data" card (Android): an empty install that hasn't chosen "Start fresh".
+  const restoreDismissed = useNotifyStore(s => s.restoreDismissed)
+  const emptyInstall = useLiveQuery(
+    async () =>
+      isNative && !restoreDismissed && (await db.sessions.count()) === 0 && (await db.foodLogs.count()) === 0,
+    [restoreDismissed],
+  )
+  const showRestore = isNative && !restoreDismissed && emptyInstall === true
 
   async function startWorkout(template?: WorkoutTemplate) {
     unlockAudio() // user gesture: unlock iOS audio for the rest timer beep
@@ -30,6 +44,9 @@ export default function WorkoutHome() {
     })
     setActiveSessionId(id)
     navigate('/workout/session')
+    // Android: ask for notifications once, on the first workout — not while the restore card is up.
+    if (isNative && !showRestore && !useNotifyStore.getState().permissionAsked)
+      void import('../../native/notifications').then(m => m.maybeAskOnFirstWorkout()).catch(() => {})
   }
 
   async function newTemplate() {
@@ -53,6 +70,12 @@ export default function WorkoutHome() {
           <HistoryIcon size={18} /> History
         </Link>
       </div>
+
+      {showRestore && RestoreCard && (
+        <Suspense fallback={null}>
+          <RestoreCard />
+        </Suspense>
+      )}
 
       {activeSession && !activeSession.endedAt && (
         <button

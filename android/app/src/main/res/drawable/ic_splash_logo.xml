@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash icon (styles.xml windowSplashScreenAnimatedIcon): the PWA dumbbell (public/icons/icon-512.png),
+     512-unit design centred in a 640 viewport so it sits inside the 2/3 circle mask. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="640"
+    android:viewportHeight="640">
+    <group android:translateX="64" android:translateY="64">
+        <path
+            android:fillColor="#FFF97316"
+            android:pathData="M81,188 h10 a17,17 0 0,1 17,17 v102 a17,17 0 0,1 -17,17 h-10 a17,17 0 0,1 -17,-17 v-102 a17,17 0 0,1 17,-17 z M421,188 h10 a17,17 0 0,1 17,17 v102 a17,17 0 0,1 -17,17 h-10 a17,17 0 0,1 -17,-17 v-102 a17,17 0 0,1 17,-17 z M137,156 h14 a21,21 0 0,1 21,21 v158 a21,21 0 0,1 -21,21 h-14 a21,21 0 0,1 -21,-21 v-158 a21,21 0 0,1 21,-21 z M361,156 h14 a21,21 0 0,1 21,21 v158 a21,21 0 0,1 -21,21 h-14 a21,21 0 0,1 -21,-21 v-158 a21,21 0 0,1 21,-21 z M182,236 h148 a10,10 0 0,1 10,10 v20 a10,10 0 0,1 -10,10 h-148 a10,10 0 0,1 -10,-10 v-20 a10,10 0 0,1 10,-10 z" />
+    </group>
+</vector>

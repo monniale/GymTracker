@@ -27,13 +27,5 @@ export function createDetector(): BarcodeDetector {
   return new BarcodeDetector({ formats: ['ean_13', 'ean_8'] })
 }
 
-/** EAN-8/EAN-13 checksum validation for manual entry. */
-export function validEan(code: string): boolean {
-  if (!/^(\d{8}|\d{13})$/.test(code)) return false
-  const digits = code.split('').map(Number)
-  const check = digits.pop()!
-  const sum = digits
-    .reverse()
-    .reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0)
-  return (10 - (sum % 10)) % 10 === check
-}
+/** Moved to the pure `ean.ts` (unit-tested); re-exported for existing callers. */
+export { validEan } from './ean'

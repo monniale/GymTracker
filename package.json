@@ -6,11 +6,26 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:android": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit && vite build --mode android",
+    "cap:sync": "npm run build:android && cap sync android",
+    "android:debug": "npm run cap:sync && . scripts/android/env.sh && cd android && ./gradlew assembleDebug",
+    "android:release": "npm run cap:sync && . scripts/android/env.sh && cd android && ./gradlew assembleRelease",
+    "android:open": "cap open android",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "TZ=Europe/Rome vitest run",
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
+    "@capacitor-community/keep-awake": "8.0.1",
+    "@capacitor-mlkit/barcode-scanning": "8.2.1",
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/filesystem": "8.1.4",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/local-notifications": "8.3.1",
+    "@capacitor/share": "8.0.3",
+    "@capacitor/splash-screen": "8.0.2",
     "@fontsource/barlow": "^5.1.0",
     "@fontsource/barlow-condensed": "^5.1.0",
     "barcode-detector": "^3.2.0",
@@ -27,6 +42,7 @@
     "workbox-build": "7.1.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
     "@types/node": "^20.16.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

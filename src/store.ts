@@ -5,6 +5,10 @@ import { persist } from 'zustand/middleware'
 export interface RestTimer {
   endsAt: number
   totalSec: number
+  /** What comes next (e.g. "Squat · set 3/4 · 100 kg × 5"); the Android lock-screen countdown body. */
+  label?: string
+  /** Rest after a warm-up set: no native "Rest over" alert unless the user opted in. */
+  warmup?: boolean
 }
 
 interface StopwatchState {
@@ -17,7 +21,7 @@ interface AppStore {
   setActiveSessionId: (id: Id | null) => void
 
   rest: RestTimer | null
-  startRest: (sec: number) => void
+  startRest: (sec: number, label?: string, opts?: { warmup?: boolean }) => void
   adjustRest: (deltaSec: number) => void
   clearRest: () => void
 
@@ -38,12 +42,20 @@ export const useAppStore = create<AppStore>()(
       setActiveSessionId: id => set({ activeSessionId: id }),
 
       rest: null,
-      startRest: sec => set({ rest: { endsAt: Date.now() + sec * 1000, totalSec: sec } }),
+      startRest: (sec, label, opts) =>
+        set({
+          rest: {
+            endsAt: Date.now() + sec * 1000,
+            totalSec: sec,
+            ...(label ? { label } : {}),
+            ...(opts?.warmup ? { warmup: true } : {}),
+          },
+        }),
       adjustRest: deltaSec => {
         const rest = get().rest
         if (!rest) return
         const endsAt = Math.max(Date.now() + 1000, rest.endsAt + deltaSec * 1000)
-        set({ rest: { endsAt, totalSec: Math.max(5, rest.totalSec + deltaSec) } })
+        set({ rest: { ...rest, endsAt, totalSec: Math.max(5, rest.totalSec + deltaSec) } })
       },
       clearRest: () => set({ rest: null }),
 

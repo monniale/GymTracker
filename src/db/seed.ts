@@ -1,4 +1,4 @@
-import { db } from './db'
+import { db, withSyncTrackingSuspended } from './db'
 import { localDateStr } from '../lib/dates'
 import type { Equipment, Exercise, MuscleGroup } from '../types'
 
@@ -99,6 +99,12 @@ export const DEFAULT_SETTINGS = {
   weeklySessionTarget: 3,
 }
 
+/**
+ * Seed rows are written with sync tracking suspended and `updatedAt: 0`: they are defaults, not
+ * edits, so any real row from another device wins a sync merge (and a remote tombstone still
+ * deletes a catalog exercise). Runs before any UI (App.tsx awaits it), so nothing else writes
+ * while tracking is suspended.
+ */
 export async function ensureSeeded(): Promise<void> {
   const count = await db.exercises.count()
   if (count === 0) {
@@ -113,12 +119,13 @@ export async function ensureSeeded(): Promise<void> {
       equipment,
       defaultRestSec,
       isCustom: false,
+      updatedAt: 0,
     }))
-    await db.exercises.bulkAdd(rows)
+    await withSyncTrackingSuspended(() => db.exercises.bulkAdd(rows))
   }
   const settings = await db.settings.get(1)
   if (!settings) {
-    await db.settings.add(DEFAULT_SETTINGS)
+    await withSyncTrackingSuspended(() => db.settings.add({ ...DEFAULT_SETTINGS, updatedAt: 0 }))
   } else if (settings.restKcalTarget === undefined) {
     // v1 -> v2: start rest-day targets as a copy of the existing targets.
     await db.settings.update(1, {
@@ -131,7 +138,7 @@ export async function ensureSeeded(): Promise<void> {
   const rank = await db.rankState.get(1)
   if (!rank) {
     const today = localDateStr()
-    await db.rankState.add({
+    await withSyncTrackingSuspended(() => db.rankState.add({
       id: 1,
       seasonId: 1,
       seasonStart: today,
@@ -140,6 +147,7 @@ export async function ensureSeeded(): Promise<void> {
       lastStreakWeek: '',
       idleDecayTaken: 0,
       lastDecayCheckDate: today,
-    })
+      updatedAt: 0,
+    }))
   }
 }

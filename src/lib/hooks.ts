@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { isNative } from '../native/platform'
+import { localDateStr } from './dates'
 
 /**
  * Ticking clock. All timers render from timestamp diffs against this value, so
@@ -24,10 +26,12 @@ export function useNow(intervalMs = 250): number {
 /**
  * Keeps the screen on while `active` (supported on iOS 16.4+). iOS releases
  * the lock on backgrounding, so it is re-requested when the app returns.
+ * No-op in the Android app: keep-awake there is NativeShell's rule (screen on
+ * while a session is active and its screen is open or a rest is running).
  */
 export function useWakeLock(active: boolean): void {
   useEffect(() => {
-    if (!active || !('wakeLock' in navigator)) return
+    if (!active || isNative || !('wakeLock' in navigator)) return
     let lock: WakeLockSentinel | null = null
     let cancelled = false
 
@@ -51,4 +55,35 @@ export function useWakeLock(active: boolean): void {
       void lock?.release().catch(() => {})
     }
   }, [active])
+}
+
+/**
+ * Today's local date (YYYY-MM-DD) that follows a day rollover: re-read when the
+ * app becomes visible, on the native `gt:resume` event, and by a timer just
+ * after local midnight while the screen stays open.
+ */
+export function useLocalToday(): string {
+  const [today, setToday] = useState(() => localDateStr())
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const refresh = () => {
+      setToday(localDateStr())
+      if (timer !== undefined) clearTimeout(timer)
+      const now = new Date()
+      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1)
+      timer = setTimeout(refresh, Math.max(1000, next.getTime() - now.getTime()))
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    refresh()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('gt:resume', refresh)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('gt:resume', refresh)
+    }
+  }, [])
+  return today
 }

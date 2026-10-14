@@ -6,6 +6,11 @@ import { useAppStore } from '../store'
 import { useNow } from '../lib/hooks'
 import { beep } from '../lib/audio'
 import { fmtDuration } from '../lib/dates'
+import { haptic } from '../native/haptics'
+import { isNative } from '../native/platform'
+
+/** Only alert for an expiry seen live: no stale beep when the app comes back from the background. */
+const STALE_ALERT_MS = 3000
 
 export default function RestTimerBar() {
   const rest = useAppStore(s => s.rest)
@@ -22,7 +27,12 @@ export default function RestTimerBar() {
     if (!rest || !done) return
     if (firedFor.current !== rest.endsAt) {
       firedFor.current = rest.endsAt
-      if (settings?.soundEnabled) beep()
+      // Android in the background: the native "Rest over" notification is the alert (no double alert).
+      const background = isNative && document.visibilityState === 'hidden'
+      if (Date.now() - rest.endsAt < STALE_ALERT_MS && !background) {
+        if (settings?.soundEnabled) beep()
+        haptic('warning')
+      }
     }
     const id = setTimeout(clearRest, 4000)
     return () => clearTimeout(id)
@@ -50,19 +60,28 @@ export default function RestTimerBar() {
           </span>
         )}
         <button
-          onClick={() => adjustRest(-15)}
+          onClick={() => {
+            haptic('tap')
+            adjustRest(-15)
+          }}
           className="num min-h-[44px] rounded-lg bg-muted/40 px-3 font-semibold text-sub active:bg-muted"
         >
           −15s
         </button>
         <button
-          onClick={() => adjustRest(15)}
+          onClick={() => {
+            haptic('tap')
+            adjustRest(15)
+          }}
           className="num min-h-[44px] rounded-lg bg-muted/40 px-3 font-semibold text-sub active:bg-muted"
         >
           +15s
         </button>
         <button
-          onClick={clearRest}
+          onClick={() => {
+            haptic('tap')
+            clearRest()
+          }}
           aria-label="Skip rest"
           className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-sub active:bg-muted"
         >

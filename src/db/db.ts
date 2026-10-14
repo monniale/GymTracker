@@ -47,6 +47,28 @@ function markDirty(): void {
   dirtyListeners.forEach(l => l())
 }
 
+/* ---------- data-replaced notifications (imports / sync pulls) ---------- */
+
+const replacedListeners = new Set<() => void>()
+
+/** Called after a wholesale replace of the synced tables (`applyTables`: backup import, sync
+ * pull/merge). Those writes are suspended, so `onSyncDirty` never sees them. */
+export function onDataReplaced(listener: () => void): () => void {
+  replacedListeners.add(listener)
+  return () => replacedListeners.delete(listener)
+}
+
+/** Emitted by `applyTables` once its transaction has committed. A failing listener never fails the import. */
+export function emitDataReplaced(): void {
+  replacedListeners.forEach(l => {
+    try {
+      l()
+    } catch {
+      /* listeners must not break the import/sync that replaced the data */
+    }
+  })
+}
+
 /** Run fn with sync tracking off (snapshot imports must not stamp/mark dirty). */
 export async function withSyncTrackingSuspended<T>(fn: () => Promise<T>): Promise<T> {
   suspended = true

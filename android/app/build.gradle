@@ -1,0 +1,134 @@
+apply plugin: 'com.android.application'
+
+// ---- GymTracker: signing, versioning, release guards --------------------------------------------
+// The release key lives OUTSIDE the repo (ROUTEMAP invariant 15): same key forever, or every update
+// needs an uninstall (= all data lost). Path from $KEYSTORE_PROPERTIES, else the default below.
+def keystorePropsFile = file(System.getenv('KEYSTORE_PROPERTIES')
+        ?: "${System.getProperty('user.home')}/.android-keys/gymtracker/keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+// versionName = package.json "version"; versionCode = git commit count (override: -PgtVersionCode=N).
+def pkgJson = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
+def gitCommitCount = { ->
+    try {
+        return providers.exec { commandLine 'git', 'rev-list', '--count', 'HEAD' }
+                .standardOutput.asText.get().trim().toInteger()
+    } catch (ignored) {
+        logger.warn('GymTracker: git rev-list failed, versionCode falls back to 1 (pass -PgtVersionCode=N)')
+        return 1
+    }
+}
+def appVersionCode = (project.findProperty('gtVersionCode') ?: gitCommitCount()) as int
+// --------------------------------------------------------------------------------------------------
+
+android {
+    namespace = "io.github.monniale.gymtracker"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "io.github.monniale.gymtracker"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode appVersionCode
+        versionName pkgJson.version as String
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+                enableV2Signing = true
+                enableV3Signing = true   // off by default with minSdk 24; enables future key rotation
+                enableV4Signing = true   // .idsig next to the APK -> incremental adb install
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            // Coexists with the release app on the phone and never touches its data.
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+// app/build/outputs/apk/<type>/gymtracker-<versionName>-<versionCode>-<type>.apk
+base {
+    archivesName = "gymtracker-${pkgJson.version}-${appVersionCode}"
+}
+
+// Never produce an unsigned (uninstallable) release.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.project == project && it.name.contains('Release') } && !keystorePropsFile.exists()) {
+        throw new GradleException("Missing ${keystorePropsFile} — refusing to build an unsigned release")
+    }
+}
+
+// Release guard on the config that `cap sync` copied in: a leftover live-reload `server` block (other
+// origin = the app looks empty) or an inspectable WebView (PAT + Gemini key readable over USB) must not
+// ship. An inspectable release on purpose: CAP_WEBVIEW_DEBUG=1 + -PallowInspectableRelease.
+tasks.configureEach { task ->
+    if (task.name == 'preReleaseBuild') {
+        task.doFirst {
+            def capConfigFile = file('src/main/assets/capacitor.config.json')
+            if (!capConfigFile.exists()) {
+                throw new GradleException("${capConfigFile} missing — run `npm run cap:sync` first")
+            }
+            def capConfig = new groovy.json.JsonSlurper().parse(capConfigFile)
+            if (capConfig.server != null) {
+                throw new GradleException("capacitor.config.json has a `server` block (live reload?) — refusing a release build; re-run `npm run cap:sync`")
+            }
+            if (capConfig.android?.webContentsDebuggingEnabled == true && !project.hasProperty('allowInspectableRelease')) {
+                throw new GradleException('capacitor.config.json sets android.webContentsDebuggingEnabled — pass -PallowInspectableRelease to build an inspectable release on purpose')
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // NotificationCompat / NotificationManagerCompat are used directly by the local plugins.
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

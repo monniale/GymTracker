@@ -1,5 +1,6 @@
-import { db, withSyncTrackingSuspended, setSyncDirty } from './db'
+import { db, withSyncTrackingSuspended, setSyncDirty, emitDataReplaced } from './db'
 import { localDateStr } from '../lib/dates'
+import { isNative } from '../native/platform'
 
 export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
@@ -27,7 +28,9 @@ export async function collectTables(): Promise<TableDump> {
 }
 
 /** Wholesale replace of all tables. Sync tracking suspended so the import
- * itself doesn't stamp updatedAt or mark the device dirty. */
+ * itself doesn't stamp updatedAt or mark the device dirty. Covers both
+ * `importBackup` and the sync pull/merge, so it announces the replacement
+ * (`onDataReplaced`) to listeners the suspended writes bypass. */
 export async function applyTables(tables: Partial<TableDump>): Promise<void> {
   await withSyncTrackingSuspended(() =>
     db.transaction('rw', TABLES.map(t => db.table(t)), async () => {
@@ -40,6 +43,7 @@ export async function applyTables(tables: Partial<TableDump>): Promise<void> {
       }
     }),
   )
+  emitDataReplaced()
 }
 
 export async function exportBackup(): Promise<void> {
@@ -51,6 +55,15 @@ export async function exportBackup(): Promise<void> {
   }
   const json = JSON.stringify(payload)
   const fileName = `gymtracker-backup-${localDateStr()}.json`
+
+  // Android app: the WebView has no file share and ignores <a download> —
+  // write to the cache and open the system share sheet (Drive, Files…).
+  if (isNative) {
+    const { shareTextFile } = await import('../native/files')
+    await shareTextFile(fileName, json)
+    return
+  }
+
   const file = new File([json], fileName, { type: 'application/json' })
 
   // Share sheet on iOS (lets the user save to Files/iCloud); download elsewhere.

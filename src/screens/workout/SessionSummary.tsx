@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { TrendingUp, Award, Medal, Target } from 'lucide-react'
@@ -11,6 +11,8 @@ import RankBadge from '../../components/RankBadge'
 import Confetti from '../../components/Confetti'
 import CoachCard from '../../components/CoachCard'
 import { fmtDuration, fmtDateTime } from '../../lib/dates'
+import { haptic } from '../../native/haptics'
+import type { Id } from '../../types'
 
 export default function SessionSummary() {
   const { id } = useParams()
@@ -33,6 +35,22 @@ export default function SessionSummary() {
   const event = useLiveQuery(() => db.scoreEvents.where('sessionId').equals(sid).first(), [sid])
   const sets = useLiveQuery(() => db.sets.where('sessionId').equals(sid).toArray(), [sid]) ?? []
   const rankState = useLiveQuery(() => db.rankState.get(1))
+
+  // Android: a success buzz for a PR or rank-up, judged on first load (never in report mode).
+  // Delayed so it lands as its own buzz after Finish's, which would otherwise supersede it.
+  // The timer is cleared only on unmount: the live queries re-fire (quest bonus points) meanwhile.
+  const buzzedFor = useRef<Id | null>(null)
+  const buzzTimer = useRef<ReturnType<typeof setTimeout>>()
+  useEffect(() => () => clearTimeout(buzzTimer.current), [])
+  useEffect(() => {
+    if (isReport || !event || !rankState || buzzedFor.current === sid) return
+    buzzedFor.current = sid
+    const up =
+      rankForPoints(rankState.points).index > rankForPoints(Math.max(0, rankState.points - event.total)).index
+    if (up || event.breakdown.some(b => b.e1rmPr || b.volumePr)) {
+      buzzTimer.current = setTimeout(() => haptic('success'), 600)
+    }
+  }, [sid, isReport, event, rankState])
 
   if (!session || !event || !rankState) return null
 

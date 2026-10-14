@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ensureSeeded } from './db/seed'
-import { runDailyChecks } from './lib/season'
+import { runDailyChecksOnce } from './lib/season'
 import { checkAchievements } from './lib/achievements'
 import { installSyncTriggers, syncNow, isConnected } from './lib/sync'
 import { evaluateQuests } from './lib/quests'
@@ -17,6 +17,11 @@ import DietDay from './screens/diet/DietDay'
 import ProgressScreen from './screens/progress/ProgressScreen'
 import RankScreen from './screens/rank/RankScreen'
 import SettingsScreen from './screens/settings/SettingsScreen'
+import { isNative } from './native/platform'
+
+// Android-only router companion (back button, notification taps, keep-awake). Gated at module
+// level so Rollup drops the chunk from the Pages build (ROUTEMAP invariant 14).
+const NativeShell = isNative ? lazy(() => import('./native/NativeShell')) : null
 
 export default function App() {
   const [ready, setReady] = useState(false)
@@ -24,8 +29,13 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       await ensureSeeded()
-      await runDailyChecks()
+      await runDailyChecksOnce()
       setReady(true)
+      if (isNative) {
+        void import('./native/init')
+          .then(m => m.initNative())
+          .catch(e => console.error('[native] init failed', e))
+      }
       // Post-launch, non-blocking: catch up on unlocks/quest awards + sync.
       void checkAchievements()
       void evaluateQuests()
@@ -64,6 +74,11 @@ export default function App() {
         <RestTimerBar />
         <TabBar />
       </div>
+      {NativeShell && (
+        <Suspense fallback={null}>
+          <NativeShell />
+        </Suspense>
+      )}
     </HashRouter>
   )
 }

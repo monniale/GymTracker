@@ -1,22 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { Dumbbell, UtensilsCrossed, TrendingUp, Trophy, Settings } from 'lucide-react'
-
-const TABS = [
-  { to: '/workout', icon: Dumbbell, label: 'Workout' },
-  { to: '/diet', icon: UtensilsCrossed, label: 'Diet' },
-  { to: '/progress', icon: TrendingUp, label: 'Progress' },
-  { to: '/rank', icon: Trophy, label: 'Rank' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-]
+import { TAB_ROUTES } from '../routes'
 
 export default function TabBar() {
   return (
     <nav className="border-t border-edge bg-surface/95 pb-safe backdrop-blur">
       <div className="mx-auto flex max-w-lg">
-        {TABS.map(({ to, icon: Icon, label }) => (
+        {TAB_ROUTES.map(({ path, icon: Icon, label }) => (
           <NavLink
-            key={to}
-            to={to}
+            key={path}
+            to={path}
             className={({ isActive }) =>
               `flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
                 isActive ? 'text-primary' : 'text-sub active:text-ink'

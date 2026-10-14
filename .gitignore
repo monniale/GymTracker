@@ -8,3 +8,11 @@ dev-dist
 .env
 .env.*
 !.env.example
+
+# Android (Capacitor) build output, signing material and test artefacts — never committed.
+dist-android
+*.jks
+*.keystore
+keystore.properties
+.android-test
+gymtracker-backup-*.json

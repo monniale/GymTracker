@@ -1,0 +1,29 @@
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
+
+/** Cache sub-folder for exports (covered by the template FileProvider's `cache-path` root). */
+const EXPORT_DIR = 'exports'
+
+/**
+ * Hands a text file (the JSON backup) to the Android share sheet: Drive, Files › "Save to
+ * device", mail… The WebView has no `navigator.share` for files and ignores `<a download>`.
+ * Returns 'canceled' when the user closes the chooser; other failures throw.
+ */
+export async function shareTextFile(fileName: string, text: string, dialogTitle?: string): Promise<'shared' | 'canceled'> {
+  // Clean up the previous export here, not right after sharing: receivers read the file lazily.
+  await Filesystem.rmdir({ path: EXPORT_DIR, directory: Directory.Cache, recursive: true }).catch(() => {})
+  const { uri } = await Filesystem.writeFile({
+    path: `${EXPORT_DIR}/${fileName}`,
+    data: text,
+    directory: Directory.Cache, // cacheDir: shareable; Directory.Data has no FileProvider root
+    encoding: Encoding.UTF8, // mandatory: without it `data` is treated as base64
+    recursive: true,
+  })
+  try {
+    await Share.share({ title: fileName, files: [uri], dialogTitle: dialogTitle ?? 'Save GymTracker backup' })
+    return 'shared'
+  } catch (e) {
+    if (/cancel/i.test(String((e as Error)?.message ?? e))) return 'canceled'
+    throw e
+  }
+}
