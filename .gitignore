@@ -16,3 +16,6 @@ dist-android
 keystore.properties
 .android-test
 gymtracker-backup-*.json
+
+# graphify knowledge-graph output (not used for this repo)
+graphify-out/
