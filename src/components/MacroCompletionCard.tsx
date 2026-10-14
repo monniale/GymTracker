@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, Check, Loader2 } from 'lucide-react'
 import { db, withSyncTrackingSuspended } from '../db/db'
-import { useAiStore } from '../lib/aiStore'
+import { useAiStore, aiRequestOpts } from '../lib/aiStore'
 import {
   gatherMacroCompletionBriefing,
   formatMacroCompletionBriefing,
@@ -35,16 +35,20 @@ export default function MacroCompletionCard({ date, remaining }: { date: string;
   // Bumped on every fresh suggestion so a slow add() that resolves after a
   // Regenerate can't mislabel a now-different item (its indices are stale).
   const genRef = useRef(0)
+  // The model that answered (the chosen one or a free fallback), recorded with the suggestion.
+  const usedModel = useRef('')
 
   async function generate(): Promise<MacroSuggestion> {
     const briefing = await gatherMacroCompletionBriefing(date)
     if (!briefing) throw new Error('Set your macro targets in Settings first.')
-    const { apiKey, model } = useAiStore.getState()
-    return generateMacroSuggestion(formatMacroCompletionBriefing(briefing), { apiKey: apiKey!, model })
+    return generateMacroSuggestion(
+      formatMacroCompletionBriefing(briefing),
+      aiRequestOpts(m => { usedModel.current = m }),
+    )
   }
 
   async function save(note: MacroSuggestion) {
-    const model = useAiStore.getState().model
+    const model = usedModel.current || useAiStore.getState().model
     genRef.current += 1
     setStatus({}) // fresh suggestion → reset per-item add state
     await withSyncTrackingSuspended(() =>

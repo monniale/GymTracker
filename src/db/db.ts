@@ -3,14 +3,14 @@ import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
   SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
   BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone,
-  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, Id,
+  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Id,
 } from '../types'
 
 /** Tables with '++id' primary keys: new rows get UUID string ids so inserts
  * made on different devices can never collide (legacy integer ids remain). */
 const UUID_TABLES = new Set([
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
-  'savedMeals', 'scoreEvents', 'seasons', 'waterLogs', 'tombstones',
+  'savedMeals', 'scoreEvents', 'seasons', 'waterLogs', 'tombstones', 'coachHistory',
 ])
 
 /* ---------- sync tracking (dirty flag + suspension during imports) ---------- */
@@ -105,6 +105,8 @@ export class GymDB extends Dexie {
   workoutSuggestions!: Table<WorkoutPlanRow, Id>
   /** Device-local AI macro-completion suggestion, keyed by day. Excluded from sync/backups. */
   dietSuggestions!: Table<DietSuggestionRow, string>
+  /** Stored AI coach verdicts (workout + diet), append-only. Synced user data, unlike the caches. */
+  coachHistory!: Table<CoachJudgement, Id>
 
   constructor() {
     super('gymtracker')
@@ -148,6 +150,11 @@ export class GymDB extends Dexie {
     this.version(7).stores({
       workoutSuggestions: 'sessionId',
       dietSuggestions: 'date',
+    })
+    // Stored AI coach verdicts. UUID ids (UUID_TABLES) and in backup.ts TABLES, so they
+    // sync and back up like real data; the caches above stay device-local.
+    this.version(8).stores({
+      coachHistory: '++id, sessionId, date, generatedAt',
     })
 
     // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking.

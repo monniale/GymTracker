@@ -19,11 +19,13 @@ Build/verify: `npm run build` (= `tsc --noEmit && vite build`) + `node scripts/c
 | **Exercises / equipment** | `src/screens/workout/ExercisePicker.tsx`, `src/lib/equipment.ts`, `src/db/seed.ts`, `Exercise`/`Equipment` in `types.ts` |
 | **Diet: logging / macros UI** | `src/screens/diet/DietDay.tsx`, `AddFoodSheet.tsx`, `EntryEditor.tsx`, `src/lib/nutrition.ts` |
 | **Food databases (search/barcode)** | `src/lib/foodProviders.ts`, `off.ts`, `usda.ts`, `foodResolve.ts`, `scanner.ts`, `src/components/BarcodeScanSheet.tsx` |
-| **AI (any feature)** | `src/lib/gemini.ts`, `aiStore.ts`, `src/components/AiReportCard.tsx` (+ the feature's briefing in `coachBriefing.ts`/`dietReport.ts`) |
-| **AI workout coach / weight suggestions** | `src/lib/coachBriefing.ts`, `workoutSuggest.ts`, `src/components/CoachCard.tsx` |
+| **AI (any feature)** | `src/lib/gemini.ts` (incl. the free-model fallback chain), `aiStore.ts` (`aiRequestOpts`), `src/components/AiReportCard.tsx` (+ the feature's briefing in `coachBriefing.ts`/`dietReport.ts`) |
+| **AI workout coach / weight suggestions** | `src/lib/coachBriefing.ts`, `workoutSuggest.ts`, `src/components/CoachCard.tsx`, `src/lib/coachHistory.ts` |
+| **Stored coach verdicts (history)** | `src/lib/coachHistory.ts`, `src/screens/progress/CoachHistory.tsx`, `CoachJudgement` in `types.ts`, `src/db/db.ts` (v8), `src/db/backup.ts` (`LATE_TABLES`), `src/lib/merge.ts` |
 | **AI diet coach / macro suggestions** | `src/lib/dietReport.ts`, `foodResolve.ts`, `src/components/DietCoachCard.tsx`, `MacroCompletionCard.tsx` |
 | **Sync / backup / merge** | `src/lib/sync.ts`, `merge.ts`, `githubApi.ts`, `src/db/backup.ts`, `src/screens/settings/SyncSection.tsx` |
 | **Charts / progress** | `src/screens/progress/ProgressScreen.tsx`, `src/components/Charts.tsx`, `src/lib/muscleVolume.ts`, `standards.ts` |
+| **Bodyweight history** | `src/screens/progress/WeightHistory.tsx`, `src/lib/bodyweight.ts`, `BodyweightTile` in `ProgressScreen.tsx`, `src/components/Charts.tsx` |
 | **Settings** | `src/screens/settings/SettingsScreen.tsx`, `AiSection.tsx`, `SyncSection.tsx` (+ `vite.config.ts` for the version footer's build stamp) |
 | **Android shell / back / keep-awake / haptics** | `src/native/platform.ts`, `init.ts`, `NativeShell.tsx`, `navigation.ts`, `haptics.ts`, `src/lib/backStack.ts`, `src/routes.ts`, `capacitor.config.ts`, `android/app/src/main/java/io/github/monniale/gymtracker/MainActivity.java` |
 | **Notifications / reminders (Android)** | `src/lib/notifyPlanner.ts`, `notifyPrefs.ts`, `notifyStore.ts`, `notifyData.ts`, `src/native/notifications.ts`, `status.ts`, `deviceSettings.ts`, `src/native/ui/NotificationsSection.tsx`, `notifyHealth.ts` |
@@ -36,22 +38,22 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 
 ## App shell & routing
 - `src/main.tsx` (18) — entry; mounts `<App/>`; Android: `initNativeEarly()` (tap-route listeners) before the first render.
-- `src/App.tsx` (84) — `HashRouter` + all routes; on launch: `ensureSeeded`, `runDailyChecksOnce`, catch-up achievements/quests, install sync, first sync; Android: gated `initNative()` + lazy `NativeShell`. Routes: `/workout`, `/workout/template/:id`, `/workout/session`, `/workout/summary/:id`, `/workout/history`, `/workout/past/:id`, `/diet`, `/progress`, `/rank`, `/settings`.
-- `src/routes.ts` (31) — `TAB_ROUTES` (path/label/icon, shared by TabBar, back handler, deep links) + `KNOWN_ROUTES` (every App.tsx pattern; test: `ALLOWED_ROUTES ⊆ KNOWN_ROUTES`).
+- `src/App.tsx` (92) — `HashRouter` + all routes; on launch: `ensureSeeded`, `runDailyChecksOnce`, catch-up achievements/quests, coach-history backfill (on the sync lock), install sync, first sync; Android: gated `initNative()` + lazy `NativeShell`. Routes: `/workout`, `/workout/template/:id`, `/workout/session`, `/workout/summary/:id`, `/workout/history`, `/workout/past/:id`, `/diet`, `/progress`, `/progress/bodyweight`, `/progress/coach`, `/rank`, `/settings`.
+- `src/routes.ts` (33) — `TAB_ROUTES` (path/label/icon, shared by TabBar, back handler, deep links) + `KNOWN_ROUTES` (every App.tsx pattern; test: `ALLOWED_ROUTES ⊆ KNOWN_ROUTES`).
 - `src/store.ts` (75) — Zustand app store: `activeSessionId`, rest timer (`startRest(sec, label?, { warmup? })`; `label` = Android lock-screen "what's next"), stopwatch (persisted to localStorage).
 - `src/components/TabBar.tsx` (25) — bottom nav from `TAB_ROUTES`.
 - `src/components/RestTimerBar.tsx` (93) — fixed rest-countdown bar (store timer + `audio.ts`); beep/haptic only for an expiry seen live (<3 s) and, on Android, not while hidden (the native alert covers it); tap haptics.
 
 ## Data model & persistence
-- `src/types.ts` (369) — **all interfaces.** Key: `Exercise`(+`Equipment`), `TemplateItem`, `WorkoutTemplate`, `Session`, `SetRow`, `Food`/`MacroSet`/`FoodLog`/`SavedMeal`, `Settings`, `RankState`/`ScoreEvent`/`Season`, `DayType`/`BodyLogEntry`/`WaterLog`, `CoachNote`/`CoachInsight`, AI payloads (`RemoteFood`, `FoodProvider`, `MacroSuggestion`, `WorkoutPlanRow`, `DietSuggestionRow`, `PlannedSet`/`ExercisePlan`), cache rows (`CoachNoteRow`/`DietNoteRow`), `Tombstone`. `Id = number|string`.
-- `src/db/db.ts` (201) — Dexie `GymDB` (**version 7**), the sync middleware (UUID ids, `updatedAt` stamp, dirty flag, `onSyncDirty`), `withSyncTrackingSuspended`, `onDataReplaced`/`emitDataReplaced` (wholesale replaces the suspended writes hide), `deleteWithTombstone`/`tombstoneKeys`, `UUID_TABLES`. Device-local AI caches: `coachNotes`, `dietNotes`, `workoutSuggestions`, `dietSuggestions`.
-- `src/db/backup.ts` (100) — `TABLES` **sync/backup allow-list** (the single source of truth for what serializes), `collectTables`/`applyTables` (emits `onDataReplaced` after commit), export (Android: cache file + share sheet via `native/files.ts`)/import.
+- `src/types.ts` (392) — **all interfaces.** Key: `Exercise`(+`Equipment`), `TemplateItem`, `WorkoutTemplate`, `Session`, `SetRow`, `Food`/`MacroSet`/`FoodLog`/`SavedMeal`, `Settings`, `RankState`/`ScoreEvent`/`Season`, `DayType`/`BodyLogEntry`/`WaterLog`, `CoachNote`/`CoachInsight`, AI payloads (`RemoteFood`, `FoodProvider`, `MacroSuggestion`, `WorkoutPlanRow`, `DietSuggestionRow`, `PlannedSet`/`ExercisePlan`), cache rows (`CoachNoteRow`/`DietNoteRow`), stored verdicts (`CoachJudgement`), `Tombstone`. `Id = number|string`.
+- `src/db/db.ts` (208) — Dexie `GymDB` (**version 8**: + `coachHistory`), the sync middleware (UUID ids, `updatedAt` stamp, dirty flag, `onSyncDirty`), `withSyncTrackingSuspended`, `onDataReplaced`/`emitDataReplaced` (wholesale replaces the suspended writes hide), `deleteWithTombstone`/`tombstoneKeys`, `UUID_TABLES`. Device-local AI caches: `coachNotes`, `dietNotes` (legacy: no longer written, copied into `coachHistory` once), `workoutSuggestions`, `dietSuggestions`.
+- `src/db/backup.ts` (116) — `TABLES` **sync/backup allow-list** (the single source of truth for what serializes), `LATE_TABLES` (tables newer than snapshot v2: a snapshot without one keeps the local rows), `collectTables`/`applyTables` (emits `onDataReplaced` after commit; resolves true when it kept late-table rows), export (Android: cache file + share sheet via `native/files.ts`)/import.
 - `src/db/seed.ts` (153) — exercise catalog (`ROWS`, deterministic ids), default `Settings`, `ensureSeeded` (seed rows suspended, `updatedAt: 0`).
-- `src/lib/merge.ts` (269) — row-level merge of local+remote snapshots (updatedAt-wins; foods dedup by `offId` + FK remap into foodLogs/savedMeals); `SnapshotTables`.
+- `src/lib/merge.ts` (275) — row-level merge of local+remote snapshots (updatedAt-wins; foods dedup by `offId` + FK remap into foodLogs/savedMeals; `coachHistory` union, optional per side); `SnapshotTables`.
 - `src/lib/ids.ts` (7) — `parseRouteId` (handles number|string route ids; never `Number()`).
 
 ## Sync (GitHub snapshot)
-- `src/lib/sync.ts` (328) — `buildPayload` (TABLES-only), `syncNow`, `withSyncLock` (runs work on the sync chain, never overlapping a pull), `installSyncTriggers` (8s debounced dirty push; `visibilitychange` sync also covers Android resume), `isConnected`.
+- `src/lib/sync.ts` (329) — `buildPayload` (TABLES-only), `syncNow` (a pull that kept late-table rows leaves the device dirty), `withSyncLock` (runs work on the sync chain, never overlapping a pull), `installSyncTriggers` (8s debounced dirty push; `visibilitychange` sync also covers Android resume), `isConnected`.
 - `src/lib/githubApi.ts` (140) — GitHub REST wrapper `gh()` (PAT auth, error mapping).
 - `src/screens/settings/SyncSection.tsx` (213) — connect PAT + repo, manual sync UI.
 
@@ -59,7 +61,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/screens/workout/WorkoutHome.tsx` (167) — landing: template list, `startWorkout`, stopwatch; Android: first-run `RestoreCard` (empty install) and the one-time notification prompt on the first workout.
 - `src/screens/workout/TemplateEditor.tsx` (175) — edit a template's `TemplateItem`s (sets/reps/rest/superset).
 - `src/screens/workout/ActiveSession.tsx` (632) — **live session.** `ExerciseCard` (prevSets, `draftFor`/`draftForWork` prefill, suggestion chip, warm-up ramp, `PendingRow`), `logSet`/`deleteSet`, rest label (`restLabel`: next set target, `nextExerciseName`/`supersetNextName`; warm-up rests flagged), `NoteSheet` (notes + progression step + **equipment**), AI opening weights via `useWorkoutPlan`, equipment badge, plate/ramp gated on `equipment==='barbell'`, set/finish haptics.
-- `src/screens/workout/SessionSummary.tsx` (191) — post-workout summary; **report mode** (`?report=1`) suppresses confetti/rank/achievement side-effects (and the PR/rank-up haptic) for viewing old sessions. Requires a `scoreEvent` to render.
+- `src/screens/workout/SessionSummary.tsx` (191) — post-workout summary; **report mode** (`?report=1`) suppresses confetti/rank/achievement side-effects (and the PR/rank-up haptic, and the coach note's auto-generation) for viewing old sessions. Requires a `scoreEvent` to render.
 - `src/screens/workout/History.tsx` (158) — **month calendar** of past workouts (dots on workout days); tap a day → its sessions; tap a session → editor.
 - `src/screens/workout/PastWorkout.tsx` (357) — **edit a finished workout**: per-set weight/reps/warm-up, add/remove sets, session details (name/bodyweight/date); every change calls `rescoreSession`.
 - `src/screens/workout/ExercisePicker.tsx` (185) — pick/create exercise; equipment filter chips + badges; create sets muscle + equipment.
@@ -73,7 +75,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/lib/equipment.ts` (13) — `EQUIPMENTS` list + `EQUIPMENT_LABEL`.
 
 ## Diet & nutrition
-- `src/screens/diet/DietDay.tsx` (336) — the day screen: macro rings vs targets, per-meal lists, water, week report; mounts `DietCoachCard` + `MacroCompletionCard`; derives `remaining` macros; follows a day rollover (`useLocalToday`); "Save as meal" defaults the name.
+- `src/screens/diet/DietDay.tsx` (340) — the day screen: macro rings vs targets, per-meal lists, water, week report; mounts `DietCoachCard` + `MacroCompletionCard`; derives `remaining` macros; follows a day rollover (`useLocalToday`); opens on `location.state.date` (from Coach history); "Save as meal" defaults the name.
 - `src/screens/diet/AddFoodSheet.tsx` (532) — add-food UI: recent / search (local + online via `searchFoods`) / custom / recipe / barcode.
 - `src/screens/diet/EntryEditor.tsx` (279) — edit one logged entry (grams / food macros / reset) + AI "Suggest a swap".
 - `src/lib/nutrition.ts` (103) — `macrosFor`, `totalsForLogs`, `dayTargets`, `logFood` (single write path), `recipePer100`, `MacroTotals`/`DayTargets`.
@@ -86,23 +88,26 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/components/BarcodeScanSheet.tsx` (317) — scan → `lookupBarcodeChained` → product. Android: ML Kit (`native/barcode.ts`) first, zxing camera fallback; a cancelled native scan switches to manual entry + "Scan again".
 
 ## AI layer (Gemini, device-local BYO key)
-- `src/lib/gemini.ts` (475) — Gemini client: generic `generateStructured<T>` engine (`thinkingBudget:0`), `generateCoachNote`/`generateDietNote`/`generateWeightPlan`/`generateMacroSuggestion`/`generateSubstitution`, schemas + parsers (`parseCoachNote`/`parseWeightPlan`/`parseMacroSuggestion`), `GeminiError`, `listModels`/`pickDefaultModel`.
-- `src/lib/aiStore.ts` (39) — Zustand store for `apiKey`/`model`/`models` (localStorage `gymtracker-ai`; **never Dexie**).
-- `src/components/AiReportCard.tsx` (295) — generic `AiReportCard<T>` state machine (cache 3-state, auto/manual generate, offline/no-key/error, regenerate) + `renderCoachNote` + `errMsg`.
-- `src/components/CoachCard.tsx` (48) — workout coach note (auto-gen, cached by sessionId).
-- `src/components/DietCoachCard.tsx` (49) — diet report (manual, cached by date).
+- `src/lib/gemini.ts` (543) — Gemini client: generic `generateStructured<T>` engine (`thinkingBudget:0`; on a retryable failure — quota, overload, retired model, rejected request shape, empty/blocked answer — retries `opts.fallbacks` in order and reports the answering model via `onModel`), `fallbackModels` (free Flash/Flash-Lite only, never Pro, ≤ `MAX_FALLBACKS`), `generateCoachNote`/`generateDietNote`/`generateWeightPlan`/`generateMacroSuggestion`/`generateSubstitution`, schemas + parsers (`parseCoachNote`/`parseWeightPlan`/`parseMacroSuggestion`), `GeminiError`, `listModels`/`pickDefaultModel`.
+- `src/lib/aiStore.ts` (50) — Zustand store for `apiKey`/`model`/`models` (localStorage `gymtracker-ai`; **never Dexie**); `aiRequestOpts(onModel?)` = key + model + fallback chain for every call site.
+- `src/components/AiReportCard.tsx` (328) — generic `AiReportCard<T>` state machine (cache 3-state, auto/manual generate, offline/no-key/error, regenerate, optional `footer`) + `renderCoachNote` + `errMsg` + `HistoryLink`.
+- `src/components/CoachCard.tsx` (52) — workout coach note (auto-generated only on the fresh post-workout summary, a manual button in report mode, so an old report never spends quota or re-creates a deleted verdict; shows the newest stored verdict; every generation is appended to `coachHistory` with the answering model).
+- `src/components/DietCoachCard.tsx` (49) — diet report (manual; newest stored report for the day, appended to `coachHistory`).
+- `src/lib/coachHistory.ts` (134) — stored verdicts: `saveJudgement` (append, tracked write), `currentNote` (newest, else legacy cache), `judgementsFor`, `deleteJudgement` (tombstone + matching cache row), one-time `backfillCoachHistory` from the legacy caches.
 - `src/components/MacroCompletionCard.tsx` (145) — "complete your macros" suggestions with tap-to-Add.
 - `src/lib/coachBriefing.ts` (306) — `gatherWorkoutBriefing`/`formatBriefing` (post-workout) + `gatherWorkoutPlanBriefing`/`formatWorkoutPlanBriefing` (pre-workout AI weights).
 - `src/lib/dietReport.ts` (383) — diet briefings: `gatherDietBriefing` (report), `gatherWeekNutrition`, `gatherMacroCompletionBriefing`, `gatherSubstitutionBriefing`, `macroBasisSig`, candidate-food assembly.
 - `src/lib/workoutSuggest.ts` (115) — `useWorkoutPlan` hook (fire-once-per-session AI weights, cached, silent offline fallback) + `snapWeight`.
-- `src/screens/settings/AiSection.tsx` (147) — paste Gemini key → validate + model picker.
+- `src/screens/settings/AiSection.tsx` (171) — paste Gemini key → validate + model picker + the fallback chain it retries on.
 
 ## Gamification, progress, misc
 - `src/lib/ranks.ts` (71) — rank tiers/thresholds; `rankFor`.
 - `src/lib/achievements.ts` (92) — achievement unlocks (`computeAchievementStats`, `checkAchievements` — add-only).
 - `src/lib/quests.ts` (189) — weekly quests + bonus awards (add-only).
 - `src/screens/rank/RankScreen.tsx` (285) — rank/season screen; `src/components/RankBadge.tsx` (45), `Confetti.tsx` (55).
-- `src/screens/progress/ProgressScreen.tsx` (265) — e1RM trends / PR wall / muscle volume; `src/components/Charts.tsx` (197) — SVG chart primitives (no CDN).
+- `src/screens/progress/ProgressScreen.tsx` (300) — bodyweight tile (→ history), Coach history tile, e1RM trends / PR wall / muscle volume; `src/components/Charts.tsx` (230) — SVG chart primitives (no CDN; `LineChart` optional dashed `trend` series, x labels, tap selects the nearest point, markers hidden past 40 points).
+- `src/screens/progress/WeightHistory.tsx` (358) — `/progress/bodyweight`: stats (since start, 4-week kg/week, lowest/highest), range chart + 7-day average, month-by-month story (older months collapsed) with badges; add (any past day)/edit/delete weigh-ins (tombstoned; the newest one sets `settings.bodyweightKg`). Logic in `src/lib/bodyweight.ts` (160: `inRange`, `movingAverage`, `weeklyRate`, `buildWeightStory`).
+- `src/screens/progress/CoachHistory.tsx` (208) — `/progress/coach`: every stored verdict by month, filter All/Workouts/Diet (`?kind=`), earlier verdicts marked, expand → insights, model, Open workout / Open day, delete.
 - `src/screens/settings/SettingsScreen.tsx` (447) — targets, bodyweight, bar/plates, sound, sub-sections; Android: lazy `RestTimerNativeSettings` (in Rest timer) + `NotificationsSection`, `location.state.focus` scroll targets (`settings-sync`/`settings-data`, from RestoreCard); `VersionFooter` (app version, build SHA + time, Dexie schema `db.verno`; Android versionName/versionCode).
 - Shared UI: `src/components/Sheet.tsx` (46, bottom sheet; registers with `backStack` while open), `NumberStepper.tsx` (87; `compact` true | `'narrow'` = small only under 380px), `ProgressRing.tsx` (41; `boxSize` for fluid rings).
 - Shared libs: `src/lib/dates.ts` (93, local-date + month-calendar helpers), `hooks.ts` (89, `useNow`/`useWakeLock` (no-op on Android)/`useLocalToday` (day rollover)), `audio.ts` (51, beep/unlock).
@@ -132,19 +137,19 @@ Only reachable through `isNative` (invariant 14). Runbook: `ANDROID.md`.
 - Scripts: `scripts/check-pwa-dist.mjs` (62, Pages bundle has no native plugin), `scripts/android/env.sh` (19), `icons.sh` (71), `release.sh` (110, guarded signed build + `--verify`), `smoke.sh` (705, emulator checks 1–10; aborts on the real sync repo), `cdp-eval.mjs` (167, WebView DevTools eval).
 
 ## Tests
-`*.test.ts` next to their module (vitest, node env, no jsdom, `TZ=Europe/Rome`). Pure functions (+ fake-indexeddb). ~334 tests: `scoring`, `progression`, `merge`, `gemini`, `dietReport`, `coachBriefing`, `nutrition`, `muscleVolume`, `gamification`, `idbKeys`, `aiSuggest`, `foodProviders`, `dates`, `rescore`, `notifyPrefs`, `notifyPlanner` (incl. DST), `notifyData`, `syncLock`, `seed` (fake-indexeddb), `backStack`, `ean`, `nativeBoundary` (invariant 14), `routes`, `native/navigation`, `native/restTimerBridge`, `native/notifications`, `native/ui/notifyHealth`.
+`*.test.ts` next to their module (vitest, node env, no jsdom, `TZ=Europe/Rome`). Pure functions (+ fake-indexeddb). ~364 tests: `scoring`, `progression`, `merge`, `gemini` (incl. fallback chain), `dietReport`, `coachBriefing`, `nutrition`, `muscleVolume`, `gamification`, `idbKeys`, `aiSuggest`, `foodProviders`, `dates`, `rescore`, `notifyPrefs`, `notifyPlanner` (incl. DST), `coachHistory` (fake-indexeddb, incl. old-build snapshots), `bodyweight`, `notifyData`, `syncLock`, `seed` (fake-indexeddb), `backStack`, `ean`, `nativeBoundary` (invariant 14), `routes`, `native/navigation`, `native/restTimerBridge`, `native/notifications`, `native/ui/notifyHealth`.
 
 ---
 
 ## Invariants (read before schema / sync / scoring / AI changes)
-1. **Sync allow-list is `backup.ts` TABLES** (mirrored in `merge.ts` `SnapshotTables`). A table syncs **iff** it's listed there. Device-local AI caches (`coachNotes`, `dietNotes`, `workoutSuggestions`, `dietSuggestions`) are **deliberately excluded** — never add them.
-2. **AI cache writes** must be wrapped in `withSyncTrackingSuspended` and use natural keys (not in `UUID_TABLES`). Real user-data writes (sessions/sets/foods/rank…) must **not** be suspended.
+1. **Sync allow-list is `backup.ts` TABLES** (mirrored in `merge.ts` `SnapshotTables`). A table syncs **iff** it's listed there. Device-local AI caches (`coachNotes`, `dietNotes`, `workoutSuggestions`, `dietSuggestions`) are **deliberately excluded** — never add them. Stored coach verdicts are user data in their own table (`coachHistory`, synced). A table added after snapshot v2 goes in `LATE_TABLES` too and is optional in `SnapshotTables`, so a snapshot from an older build (missing it) never wipes it.
+2. **AI cache writes** must be wrapped in `withSyncTrackingSuspended` and use natural keys (not in `UUID_TABLES`). Real user-data writes (sessions/sets/foods/rank… and stored coach verdicts in `coachHistory`) must **not** be suspended.
 3. **The Gemini key, the GitHub PAT and all device-local prefs (notifications, haptics, rest-alert mode) never touch Dexie** — they live in zustand-persist stores in localStorage (`gymtracker-ai`, `gymtracker-sync`, `gymtracker-notify`), so they are never synced or backed up.
-4. **Every structured Gemini call sets `generationConfig.thinkingConfig.thinkingBudget=0`** (Flash otherwise truncates JSON). Add new generators via `generateStructured<T>`.
+4. **Every structured Gemini call sets `generationConfig.thinkingConfig.thinkingBudget=0`** (Flash otherwise truncates JSON). Add new generators via `generateStructured<T>`, and call them with `aiRequestOpts()` so they get the free-model fallback chain. Fallbacks are free Flash/Flash-Lite models only (a billed key must never silently pay for a Pro fallback); a rejected key, a permission error on the chosen model or no network never falls back.
 5. **`finishSession` is non-idempotent** (adds a scoreEvent, adds full points, bumps streak). To re-score an edited past workout use **`rescoreSession`** (updates the existing event, applies only the points delta, carries the streak).
 6. **Equipment separation is by `exerciseId`** — variants are distinct exercises; no `SetRow.equipment`. Every weight/PR/progression path already partitions by exerciseId.
 7. **Food dedup key** is the derived `offId = barcode ?? source:sourceId` (OFF stays bare EAN → backward-compatible; USDA branded reuses the EAN; whole foods → `usda:<fdcId>`).
-8. **Dexie schema is additive** — bump `version(N)` with only new stores; never edit a released version block. Seed uses **deterministic ids** (id: i+1) so two fresh installs merge without duplicating the catalog; seed rows carry `updatedAt: 0` (written suspended), so a real row always wins a merge.
+8. **Dexie schema is additive** — bump `version(N)` with only new stores; never edit a released version block (current: 8). Seed uses **deterministic ids** (id: i+1) so two fresh installs merge without duplicating the catalog; seed rows carry `updatedAt: 0` (written suspended), so a real row always wins a merge.
 9. **Deletes that must propagate** use `deleteWithTombstone`/`tombstoneKeys`; device-local cache deletes use a plain suspended `delete()`.
 10. **Routing:** `HashRouter`; parse ids with `parseRouteId`, never `Number()`. **Ordering:** `orderBy('date'/'startedAt')`, not `orderBy('id')` (UUID strings don't sort chronologically).
 11. **Report mode** (`?report=1`) must skip `checkAchievements`/`evaluateQuests`/confetti/rank-up (side-effects wrong for old sessions).

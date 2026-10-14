@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, Scale, Trophy, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles } from 'lucide-react'
 import { db } from '../../db/db'
+import { useAiStore } from '../../lib/aiStore'
 import { localDateStr, addDays } from '../../lib/dates'
 import { LineChart, BarChart, BandBars, Sparkline, type ChartPoint } from '../../components/Charts'
 import { standardFor, levelFor } from '../../lib/standards'
@@ -40,6 +42,7 @@ export default function ProgressScreen() {
       <h1 className="mb-4 font-display text-3xl font-bold">Progress</h1>
 
       <BodyweightTile />
+      <CoachHistoryTile />
 
       <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
         <button
@@ -138,7 +141,7 @@ function BodyweightTile() {
     : null
 
   async function save() {
-    const w = draft ?? current ?? 75
+    const w = Math.round((draft ?? current ?? 75) * 10) / 10
     await db.bodyLog.put({ date: localDateStr(), weightKg: w })
     await db.settings.update(1, { bodyweightKg: w })
     setLogOpen(false)
@@ -147,20 +150,25 @@ function BodyweightTile() {
   return (
     <div className="rounded-2xl border border-edge bg-card p-4">
       {/* Caption on its own row, so the value, sparkline and + share the full width. */}
-      <p className="mb-1 flex items-center gap-1.5 text-xs text-sub">
+      <Link to="/progress/bodyweight" className="mb-1 flex items-center gap-1.5 text-xs text-sub">
         <Scale size={14} className="shrink-0" aria-hidden />
-        <span className="truncate">Bodyweight (feeds your rank score)</span>
-      </p>
+        <span className="min-w-0 flex-1 truncate">Bodyweight (feeds your rank score)</span>
+        <span className="flex shrink-0 items-center whitespace-nowrap font-semibold text-primary">
+          History <ChevronRight size={14} aria-hidden />
+        </span>
+      </Link>
       <div className="flex items-center gap-3">
-        <p className="num flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 font-display text-2xl font-bold">
-          <span className="whitespace-nowrap">{current !== undefined ? `${current} kg` : '—'}</span>
-          {delta !== null && (
-            <span className={`whitespace-nowrap text-sm font-semibold ${delta <= 0 ? 'text-accent' : 'text-sub'}`}>
-              {delta > 0 ? '+' : ''}{delta} / 30d
-            </span>
-          )}
-        </p>
-        <Sparkline values={log.slice(-30).map(l => l.weightKg)} color={GREEN} />
+        <Link to="/progress/bodyweight" aria-label="Bodyweight history" className="flex min-w-0 flex-1 items-center gap-3">
+          <p className="num flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 font-display text-2xl font-bold">
+            <span className="whitespace-nowrap">{current !== undefined ? `${current} kg` : '—'}</span>
+            {delta !== null && (
+              <span className={`whitespace-nowrap text-sm font-semibold ${delta <= 0 ? 'text-accent' : 'text-sub'}`}>
+                {delta > 0 ? '+' : ''}{delta} / 30d
+              </span>
+            )}
+          </p>
+          <Sparkline values={log.slice(-30).map(l => l.weightKg)} color={GREEN} />
+        </Link>
         <button
           onClick={() => {
             setDraft(current ?? 75)
@@ -193,6 +201,33 @@ function BodyweightTile() {
         </button>
       </Sheet>
     </div>
+  )
+}
+
+/** Entry to the stored AI coach verdicts; hidden until there is one or a key to make one. */
+function CoachHistoryTile() {
+  const apiKey = useAiStore(s => s.apiKey)
+  const stats = useLiveQuery(async () => ({
+    count: await db.coachHistory.count(),
+    last: await db.coachHistory.orderBy('generatedAt').last(),
+  }))
+  if (!stats || (stats.count === 0 && !apiKey)) return null
+  return (
+    <Link
+      to="/progress/coach"
+      className="mt-4 flex items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:bg-muted/30"
+    >
+      <Sparkles size={18} className="shrink-0 text-primary" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-lg font-semibold">Coach history</p>
+        <p className="truncate text-xs text-sub">
+          {stats.count === 0
+            ? 'Every coach’s note and diet report is kept here'
+            : `${stats.count} verdict${stats.count === 1 ? '' : 's'} · ${stats.last?.note.headline ?? ''}`}
+        </p>
+      </div>
+      <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
+    </Link>
   )
 }
 

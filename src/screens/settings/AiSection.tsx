@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, ExternalLink, ShieldAlert } from 'lucide-react'
 import { useAiStore } from '../../lib/aiStore'
-import { listModels, pickDefaultModel, GeminiError } from '../../lib/gemini'
+import { listModels, pickDefaultModel, fallbackModels, GeminiError } from '../../lib/gemini'
 
 export default function AiSection() {
   const connected = !!useAiStore(s => s.apiKey)
@@ -38,6 +38,27 @@ function ModelSelect() {
   )
 }
 
+/** Which free models a failed call retries on (the chain `aiRequestOpts` sends). */
+function FallbackNote() {
+  const model = useAiStore(s => s.model)
+  const models = useAiStore(s => s.models)
+  const chain = fallbackModels(models, model)
+  if (chain.length === 0) return null
+  const label = (id: string) => models.find(m => m.id === id)?.label ?? id
+  return (
+    <p className="text-xs leading-relaxed text-sub">
+      If this model fails or runs out of quota, the request is retried on{' '}
+      {chain.map((id, i) => (
+        <span key={id}>
+          {i > 0 && (i === chain.length - 1 ? ' and then ' : ', then ')}
+          <span className="font-semibold text-ink">{label(id)}</span>
+        </span>
+      ))}{' '}
+      (Flash models, free on the Gemini free tier; Pro is never used as a fallback).
+    </p>
+  )
+}
+
 function PrivacyNote() {
   return (
     <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-muted/20 p-2.5 text-xs leading-relaxed text-sub">
@@ -54,16 +75,19 @@ function PrivacyNote() {
 function ConnectedView() {
   const clear = useAiStore(s => s.clear)
   function disconnect() {
-    if (!window.confirm('Remove the Gemini key from this device? Cached coach notes stay.')) return
+    if (!window.confirm('Remove the Gemini key from this device? Stored coach verdicts stay.')) return
     clear()
   }
   return (
     <div className="space-y-3">
       <div>
         <p className="text-sm font-semibold text-accent">Connected</p>
-        <p className="mt-0.5 text-xs text-sub">A coaching note is generated when you finish a workout.</p>
+        <p className="mt-0.5 text-xs text-sub">
+          A coaching note is generated when you finish a workout and kept in Progress › Coach history.
+        </p>
       </div>
       <ModelSelect />
+      <FallbackNote />
       <PrivacyNote />
       <button onClick={disconnect} className="py-2 text-xs font-medium text-danger">
         Remove key

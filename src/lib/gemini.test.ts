@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { parseCoachNote, generateCoachNote, generateDietNote, listModels, pickDefaultModel, GeminiError } from './gemini'
+import { parseCoachNote, generateCoachNote, generateDietNote, listModels, pickDefaultModel, fallbackModels, MAX_FALLBACKS, GeminiError } from './gemini'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -201,5 +201,139 @@ describe('pickDefaultModel', () => {
   })
   it('returns empty string for no models', () => {
     expect(pickDefaultModel([])).toBe('')
+  })
+})
+
+describe('model fallback', () => {
+  type Res = { ok: boolean; status: number; body: unknown }
+  /** One canned response per call, in order; records the model of each call. */
+  function stubSequence(responses: Res[]) {
+    const models: string[] = []
+    let i = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      models.push(/models\/([^:]+):/.exec(url)![1])
+      const res = responses[Math.min(i++, responses.length - 1)]
+      return { ok: res.ok, status: res.status, json: async () => res.body }
+    }))
+    return models
+  }
+  const quota: Res = { ok: false, status: 429, body: { error: { message: 'Quota exceeded' } } }
+  const opts = (fallbacks: string[], onModel?: (m: string) => void) =>
+    ({ apiKey: 'k', model: 'gemini-a-flash', fallbacks, onModel })
+
+  it('retries a quota error on the next free model and reports which one answered', async () => {
+    const calls = stubSequence([quota, okResponse(VALID_NOTE)])
+    const onModel = vi.fn()
+    const note = await generateCoachNote('p', opts(['gemini-b-flash-lite', 'gemini-c-flash'], onModel))
+    expect(note.headline).toBe('Strong session')
+    expect(calls).toEqual(['gemini-a-flash', 'gemini-b-flash-lite'])
+    expect(onModel).toHaveBeenCalledWith('gemini-b-flash-lite')
+  })
+
+  it('reports the chosen model when it answers first', async () => {
+    const calls = stubSequence([okResponse(VALID_NOTE)])
+    const onModel = vi.fn()
+    await generateCoachNote('p', opts(['gemini-b-flash-lite'], onModel))
+    expect(calls).toEqual(['gemini-a-flash'])
+    expect(onModel).toHaveBeenCalledWith('gemini-a-flash')
+  })
+
+  it('falls back on an overloaded/retired model and on a request the model rejects', async () => {
+    const calls = stubSequence([
+      { ok: false, status: 503, body: { error: { message: 'The model is overloaded.' } } },
+      { ok: false, status: 400, body: { error: { message: 'Budget 0 is invalid. This model only works in thinking mode.' } } },
+      okResponse(VALID_NOTE),
+    ])
+    await generateCoachNote('p', opts(['gemini-b', 'gemini-c']))
+    expect(calls).toEqual(['gemini-a-flash', 'gemini-b', 'gemini-c'])
+  })
+
+  it('falls back on an empty or blocked answer', async () => {
+    const calls = stubSequence([
+      { ok: true, status: 200, body: { candidates: [{ finishReason: 'SAFETY', content: { parts: [] } }] } },
+      okResponse(VALID_NOTE),
+    ])
+    await generateCoachNote('p', opts(['gemini-b']))
+    expect(calls).toHaveLength(2)
+  })
+
+  it('never falls back on a rejected key, an auth error or no network', async () => {
+    let calls = stubSequence([{ ok: false, status: 400, body: { error: { message: 'API key not valid. Please pass a valid API key.' } } }])
+    await expect(generateCoachNote('p', opts(['gemini-b']))).rejects.toMatchObject({ kind: 'bad-key' })
+    expect(calls).toHaveLength(1)
+
+    calls = stubSequence([{ ok: false, status: 403, body: {} }])
+    await expect(generateCoachNote('p', opts(['gemini-b']))).rejects.toMatchObject({ kind: 'auth' })
+    expect(calls).toHaveLength(1)
+
+    const fetchFn = vi.fn(async () => { throw new Error('offline') })
+    vi.stubGlobal('fetch', fetchFn)
+    await expect(generateCoachNote('p', opts(['gemini-b']))).rejects.toMatchObject({ kind: 'network' })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips a fallback model the key may not use and keeps going', async () => {
+    const calls = stubSequence([quota, { ok: false, status: 403, body: {} }, okResponse(VALID_NOTE)])
+    await generateCoachNote('p', opts(['gemini-b', 'gemini-c']))
+    expect(calls).toEqual(['gemini-a-flash', 'gemini-b', 'gemini-c'])
+  })
+
+  it('throws the quota error when every model fails', async () => {
+    stubSequence([
+      { ok: false, status: 404, body: { error: { message: 'models/gemini-a-flash is not found' } } },
+      quota,
+      { ok: false, status: 500, body: {} },
+    ])
+    await expect(generateCoachNote('p', opts(['gemini-b', 'gemini-c']))).rejects.toMatchObject({ kind: 'rate-limit' })
+  })
+
+  it("throws the chosen model's error when no model hit a quota", async () => {
+    stubSequence([
+      { ok: false, status: 503, body: { error: { message: 'overloaded' } } },
+      { ok: false, status: 404, body: { error: { message: 'not found' } } },
+    ])
+    await expect(generateCoachNote('p', opts(['gemini-b']))).rejects.toMatchObject({ kind: 'other', status: 503 })
+  })
+
+  it('does not call the same model twice', async () => {
+    const calls = stubSequence([quota])
+    await expect(generateCoachNote('p', opts(['gemini-a-flash', 'gemini-a-flash']))).rejects.toBeInstanceOf(GeminiError)
+    expect(calls).toEqual(['gemini-a-flash'])
+  })
+
+  it('does not swallow an abort between attempts', async () => {
+    const abort = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    let n = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      if (n++ === 0) return { ok: false, status: 429, json: async () => ({}) }
+      throw abort
+    }))
+    await expect(generateCoachNote('p', opts(['gemini-b', 'gemini-c']))).rejects.toMatchObject({ name: 'AbortError' })
+    expect(n).toBe(2)
+  })
+})
+
+describe('fallbackModels', () => {
+  const m = (...ids: string[]) => ids.map(id => ({ id, label: id }))
+
+  it('keeps the free Flash family: stable before preview, newest first, never the primary or Pro', () => {
+    const models = m(
+      'gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro',
+      'gemini-3-flash-preview', 'gemini-2.5-flash-image', 'gemini-2.5-flash-preview-tts',
+    )
+    expect(fallbackModels(models, 'gemini-3.5-flash')).toEqual([
+      'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview',
+    ])
+  })
+
+  it('caps the chain at MAX_FALLBACKS', () => {
+    const models = m('gemini-1-flash', 'gemini-2-flash', 'gemini-3-flash', 'gemini-4-flash', 'gemini-5-flash', 'gemini-pro')
+    expect(fallbackModels(models, 'gemini-pro')).toHaveLength(MAX_FALLBACKS)
+    expect(fallbackModels(models, 'gemini-pro')[0]).toBe('gemini-5-flash')
+  })
+
+  it('uses the free "latest" aliases when the key has no discovered model list', () => {
+    expect(fallbackModels([], 'gemini-2.5-flash')).toEqual(['gemini-flash-latest', 'gemini-flash-lite-latest'])
+    expect(fallbackModels([], 'gemini-flash-latest')).toEqual(['gemini-flash-lite-latest'])
   })
 })

@@ -23,48 +23,81 @@ function niceRange(values: number[]): [number, number] {
   return [Math.max(0, min - pad), max + pad]
 }
 
-export function LineChart({ points, color, height = 160, yFmt = (v: number) => String(Math.round(v)) }: {
+/** Above this many points the line drops its per-point markers (taps still pick the nearest point). */
+const DENSE = 40
+
+export function LineChart({ points, color, height = 160, yFmt = (v: number) => String(Math.round(v)), trend, trendColor = SUB, xFmt }: {
   points: ChartPoint[]
   color: string
   height?: number
   yFmt?: (v: number) => string
+  /** Optional smoothed series (e.g. a moving average), drawn dashed behind the points. */
+  trend?: ChartPoint[]
+  trendColor?: string
+  /** When set, the first and last x values are labelled under the plot. */
+  xFmt?: (x: number) => string
 }) {
   const [sel, setSel] = useState<number | null>(null)
   const W = 340
-  const P = { l: 34, r: 12, t: 14, b: 8 }
+  const P = { l: 34, r: 12, t: 14, b: xFmt ? 22 : 8 }
   if (points.length === 0) return null
-  const [y0, y1] = niceRange(points.map(p => p.y))
+  const [y0, y1] = niceRange([...points, ...(trend ?? [])].map(p => p.y))
   const x0 = points[0].x
   const x1 = points[points.length - 1].x || x0 + 1
   const px = (x: number) =>
     P.l + (x1 === x0 ? 0.5 : (x - x0) / (x1 - x0)) * (W - P.l - P.r)
   const py = (y: number) => P.t + (1 - (y - y0) / (y1 - y0 || 1)) * (height - P.t - P.b)
-  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${px(p.x).toFixed(1)},${py(p.y).toFixed(1)}`).join(' ')
+  const line = (pts: ChartPoint[]) =>
+    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${px(p.x).toFixed(1)},${py(p.y).toFixed(1)}`).join(' ')
   const last = points[points.length - 1]
   const selected = sel !== null ? points[sel] : null
+  const dense = points.length > DENSE
+
+  // Tap anywhere on the plot: select the point nearest in x (dots are too small to hit on a phone).
+  function pick(e: React.MouseEvent<SVGSVGElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (rect.width === 0) return
+    const vx = ((e.clientX - rect.left) / rect.width) * W
+    let best = 0
+    points.forEach((p, i) => {
+      if (Math.abs(px(p.x) - vx) < Math.abs(px(points[best].x) - vx)) best = i
+    })
+    setSel(sel === best ? null : best)
+  }
 
   return (
-    <svg viewBox={`0 0 ${W} ${height}`} className="w-full" role="img" aria-label="Trend chart">
+    <svg viewBox={`0 0 ${W} ${height}`} className="w-full" role="img" aria-label="Trend chart" onClick={pick} style={{ cursor: 'pointer' }}>
       {[0.25, 0.5, 0.75].map(f => {
         const y = P.t + f * (height - P.t - P.b)
         return <line key={f} x1={P.l} x2={W - P.r} y1={y} y2={y} stroke={GRID} strokeWidth="1" />
       })}
       <text x={2} y={py(y1) + 4} fontSize="10" fill={SUB} className="num">{yFmt(y1)}</text>
       <text x={2} y={py(y0) + 4} fontSize="10" fill={SUB} className="num">{yFmt(y0)}</text>
-      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      {points.map((p, i) => (
-        <circle
-          key={i}
-          cx={px(p.x)}
-          cy={py(p.y)}
-          r={sel === i ? 5 : 3.5}
-          fill={color}
-          stroke="#1B2431"
-          strokeWidth="2"
-          onClick={() => setSel(sel === i ? null : i)}
-          style={{ cursor: 'pointer' }}
-        />
-      ))}
+      {xFmt && (
+        <>
+          <text x={P.l} y={height - 6} fontSize="10" fill={SUB} className="num">{xFmt(x0)}</text>
+          {x1 !== x0 && (
+            <text x={W - P.r} y={height - 6} fontSize="10" fill={SUB} textAnchor="end" className="num">{xFmt(x1)}</text>
+          )}
+        </>
+      )}
+      {trend && trend.length > 1 && (
+        <path d={line(trend)} fill="none" stroke={trendColor} strokeWidth="2" strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" />
+      )}
+      <path d={line(points)} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {points.map((p, i) =>
+        dense && sel !== i ? null : (
+          <circle
+            key={i}
+            cx={px(p.x)}
+            cy={py(p.y)}
+            r={sel === i ? 5 : 3.5}
+            fill={color}
+            stroke="#1B2431"
+            strokeWidth="2"
+          />
+        ),
+      )}
       {!selected && (
         <text x={Math.min(px(last.x), W - P.r - 4)} y={py(last.y) - 8} fontSize="11" fontWeight="600" fill={INK} textAnchor="end" className="num">
           {yFmt(last.y)}

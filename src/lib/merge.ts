@@ -17,11 +17,13 @@
  *   savedMeals (two devices scanning the same product offline).
  * - tombstones propagate deletes: a row is dropped when a tombstone is newer
  *   than the row's last update.
+ * - coachHistory (stored AI verdicts) unions by id; a snapshot from a build that
+ *   predates the table has none, which never deletes the other side's rows.
  */
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog, SavedMeal,
   Settings, RankState, ScoreEvent, Season, DayType, BodyLogEntry, WaterLog,
-  AchievementUnlock, QuestState, Tombstone, Id,
+  AchievementUnlock, QuestState, Tombstone, CoachJudgement, Id,
 } from '../types'
 import { SEASON_CARRYOVER } from './ranks'
 
@@ -43,6 +45,8 @@ export interface SnapshotTables {
   achievements: AchievementUnlock[]
   quests: QuestState[]
   tombstones: Tombstone[]
+  /** Optional: absent in snapshots from builds before the table existed. */
+  coachHistory?: CoachJudgement[]
 }
 
 export interface SyncPayload {
@@ -128,6 +132,8 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     .filter(alive('savedMeals', byId))
   const waterLogs = unionByKey(L.waterLogs, R.waterLogs, byId)
     .filter(alive('waterLogs', byId))
+  const coachHistory = unionByKey(L.coachHistory ?? [], R.coachHistory ?? [], byId)
+    .filter(alive('coachHistory', byId))
   const bodyLog = unionByKey(L.bodyLog, R.bodyLog, row => row.date)
     .filter(alive('bodyLog', row => row.date))
   const dayTypes = unionByKey(L.dayTypes, R.dayTypes, row => row.date)
@@ -224,7 +230,7 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     tables: {
       exercises, templates, sessions, sets, foods, foodLogs, savedMeals,
       settings, rankState, scoreEvents, seasons, dayTypes, bodyLog, waterLogs,
-      achievements, quests, tombstones,
+      achievements, quests, tombstones, coachHistory,
     },
     notes,
   }

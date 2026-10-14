@@ -1,28 +1,27 @@
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, withSyncTrackingSuspended } from '../db/db'
-import { useAiStore } from '../lib/aiStore'
+import { useAiStore, aiRequestOpts } from '../lib/aiStore'
 import { gatherDietBriefing, formatDietBriefing } from '../lib/dietReport'
+import { currentNote, judgementsFor, saveJudgement } from '../lib/coachHistory'
 import { generateDietNote } from '../lib/gemini'
-import AiReportCard, { renderCoachNote } from './AiReportCard'
+import AiReportCard, { renderCoachNote, HistoryLink } from './AiReportCard'
 import type { CoachNote } from '../types'
 
 export default function DietCoachCard({ date }: { date: string }) {
-  const cached = useLiveQuery(async () => (await db.dietNotes.get(date)) ?? null, [date])
-  const cachedNote = cached === undefined ? undefined : cached ? cached.note : null
+  const cachedNote = useLiveQuery(() => currentNote('diet', date), [date])
+  const stored = useLiveQuery(async () => (await judgementsFor('diet', date)).length, [date]) ?? 0
+  // The model that answered (the chosen one or a free fallback), stored with the report.
+  const usedModel = useRef('')
 
   async function generate(): Promise<CoachNote> {
     const briefing = await gatherDietBriefing(date)
     if (!briefing) throw new Error('Log some food first to get a diet report.')
-    const { apiKey, model } = useAiStore.getState()
-    return generateDietNote(formatDietBriefing(briefing), { apiKey: apiKey!, model })
+    return generateDietNote(formatDietBriefing(briefing), aiRequestOpts(m => { usedModel.current = m }))
   }
 
   async function save(note: CoachNote) {
-    const model = useAiStore.getState().model
-    await withSyncTrackingSuspended(() =>
-      db.dietNotes.put({ date, note, model, generatedAt: Date.now() }),
-    )
+    await saveJudgement({ kind: 'diet', date, note, model: usedModel.current || useAiStore.getState().model })
   }
 
   return (
@@ -35,6 +34,7 @@ export default function DietCoachCard({ date }: { date: string }) {
       renderNote={renderCoachNote}
       autoGenerate={false}
       generateLabel="Generate diet report"
+      footer={<HistoryLink kind="diet" earlier={stored - 1} />}
       noKeyHint={
         <>
           Get AI feedback on your nutrition.{' '}

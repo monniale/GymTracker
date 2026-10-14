@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Sparkles, Loader2, RefreshCw, AlertTriangle, WifiOff } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Sparkles, Loader2, RefreshCw, AlertTriangle, WifiOff, History } from 'lucide-react'
 import { useAiStore } from '../lib/aiStore'
 import { GeminiError } from '../lib/gemini'
 import type { CoachInsightTone, CoachNote } from '../types'
@@ -63,6 +64,8 @@ export interface AiReportCardProps<T> {
   loadingLabel?: string
   /** Shown when generation isn't possible yet (no key path excluded). */
   emptyHint?: ReactNode
+  /** Extra action beside Regenerate under a note (e.g. a link to stored verdicts). */
+  footer?: ReactNode
 }
 
 export default function AiReportCard<T>({
@@ -78,6 +81,7 @@ export default function AiReportCard<T>({
   generateLabel = 'Generate report',
   loadingLabel = 'Reviewing…',
   emptyHint,
+  footer,
 }: AiReportCardProps<T>) {
   const apiKey = useAiStore(s => s.apiKey)
   const [status, setStatus] = useState<Status>('idle')
@@ -144,6 +148,7 @@ export default function AiReportCard<T>({
         renderNote={renderNote}
         onRegenerate={canRun ? run : undefined}
         busy={status === 'loading'}
+        footer={footer}
       />
     )
   }
@@ -255,13 +260,16 @@ function NoteView<T>({
   renderNote,
   onRegenerate,
   busy,
+  footer,
 }: {
   title: string
   note: T
   renderNote: (note: T) => ReactNode
   onRegenerate?: () => void
   busy: boolean
+  footer?: ReactNode
 }) {
+  const regenerate = onRegenerate && !busy
   return (
     <div className={shell}>
       <div className="flex items-start justify-between gap-2">
@@ -269,10 +277,35 @@ function NoteView<T>({
         {busy && <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin text-sub" />}
       </div>
       {renderNote(note)}
-      {onRegenerate && !busy && (
-        <ActionButton onClick={onRegenerate} icon={<RefreshCw size={13} />} label="Regenerate" />
+      {(regenerate || footer) && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {regenerate ? (
+            <button
+              onClick={() => void onRegenerate()}
+              className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-sub active:text-ink"
+            >
+              <RefreshCw size={13} /> Regenerate
+            </button>
+          ) : (
+            <span />
+          )}
+          {footer}
+        </div>
       )}
     </div>
+  )
+}
+
+/** Link from a coach card to the stored verdicts (Progress › Coach history). */
+export function HistoryLink({ kind, earlier }: { kind: 'workout' | 'diet'; earlier: number }) {
+  return (
+    <Link
+      to={`/progress/coach?kind=${kind}`}
+      className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-primary active:opacity-70"
+    >
+      <History size={13} aria-hidden />
+      {earlier > 0 ? `${earlier} earlier · History` : 'History'}
+    </Link>
   )
 }
 

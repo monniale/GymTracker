@@ -60,7 +60,7 @@ The app starts empty: its storage (origin `https://localhost`) is separate from 
 2. **In the app, first thing** (the Workout tab shows a *Restore your data* card until you choose):
    - **Connect GitHub Sync** (recommended). Use the same repo, with the PAT from your password manager or a new fine-grained token for the phone (it can be revoked on its own). If Sync asks how to combine, choose **"Use cloud data (replace this device)"**. If you already logged something on the phone, "Merge both" keeps it: the untouched defaults (settings, exercise catalog, rank) carry no edit time and never win over the cloud copy, but anything you changed on the phone does.
    - or **Import a backup** (Settings › Data › Import): the JSON from step 1.
-3. Re-enter the **Gemini key** and pick the model. Both are device-local and never synced. AI notes regenerate on demand, which uses quota.
+3. Re-enter the **Gemini key** and pick the model. Both are device-local and never synced. Coach's notes and diet reports sync with your data (Progress › Coach history); AI weight and macro suggestions regenerate on demand, which uses quota.
 4. **Settings › Notifications** (prefs start at their defaults):
    1. Allow notifications.
    2. Battery → Unrestricted.

@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, withSyncTrackingSuspended } from '../db/db'
-import { useAiStore } from './aiStore'
+import { useAiStore, aiRequestOpts } from './aiStore'
 import { gatherWorkoutPlanBriefing, formatWorkoutPlanBriefing } from './coachBriefing'
 import { generateWeightPlan } from './gemini'
 import { SCORING } from './scoring'
@@ -29,12 +29,13 @@ function clampReps(r: number): number {
 
 /** Generate a whole-session plan and cache it. Never throws (silent fallback). */
 export async function generateAndCacheWorkoutPlan(sessionId: Id): Promise<void> {
-  const { apiKey, model } = useAiStore.getState()
+  const { apiKey } = useAiStore.getState()
   if (!apiKey || !navigator.onLine) return
   try {
     const briefing = await gatherWorkoutPlanBriefing(sessionId)
     if (!briefing || briefing.exercises.length === 0) return
-    const raw = await generateWeightPlan(formatWorkoutPlanBriefing(briefing), { apiKey, model })
+    let model = useAiStore.getState().model
+    const raw = await generateWeightPlan(formatWorkoutPlanBriefing(briefing), aiRequestOpts(m => { model = m }))
 
     const byRef = new Map(briefing.exercises.map(e => [e.ref, e]))
     const maxKg = Math.min(600, briefing.bodyweightKg * SCORING.maxWeightBwMult)

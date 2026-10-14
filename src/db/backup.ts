@@ -5,8 +5,16 @@ import { isNative } from '../native/platform'
 export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'settings', 'rankState', 'scoreEvents', 'seasons', 'dayTypes',
-  'bodyLog', 'waterLogs', 'achievements', 'quests', 'tombstones',
+  'bodyLog', 'waterLogs', 'achievements', 'quests', 'tombstones', 'coachHistory',
 ] as const
+
+/**
+ * Tables added after snapshot format v2 shipped. A snapshot or backup that has no
+ * entry for one of them comes from an app build that predates it (e.g. the PWA
+ * not yet updated, syncing with the phone): applying it keeps this device's rows
+ * instead of clearing them, and the next push puts them back in the cloud copy.
+ */
+const LATE_TABLES: ReadonlySet<TableName> = new Set<TableName>(['coachHistory'])
 
 export type TableName = (typeof TABLES)[number]
 export type TableDump = Record<TableName, unknown[]>
@@ -30,12 +38,19 @@ export async function collectTables(): Promise<TableDump> {
 /** Wholesale replace of all tables. Sync tracking suspended so the import
  * itself doesn't stamp updatedAt or mark the device dirty. Covers both
  * `importBackup` and the sync pull/merge, so it announces the replacement
- * (`onDataReplaced`) to listeners the suspended writes bypass. */
-export async function applyTables(tables: Partial<TableDump>): Promise<void> {
+ * (`onDataReplaced`) to listeners the suspended writes bypass. Resolves true
+ * when it kept local rows of a LATE_TABLES table the snapshot lacked, i.e. this
+ * device now holds data the cloud copy is missing. */
+export async function applyTables(tables: Partial<TableDump>): Promise<boolean> {
+  let keptLocal = false
   await withSyncTrackingSuspended(() =>
     db.transaction('rw', TABLES.map(t => db.table(t)), async () => {
       for (const name of TABLES) {
         const rows = tables[name]
+        if (rows === undefined && LATE_TABLES.has(name)) {
+          if ((await db.table(name).count()) > 0) keptLocal = true
+          continue
+        }
         await db.table(name).clear()
         if (Array.isArray(rows) && rows.length > 0) {
           await db.table(name).bulkPut(rows)
@@ -44,6 +59,7 @@ export async function applyTables(tables: Partial<TableDump>): Promise<void> {
     }),
   )
   emitDataReplaced()
+  return keptLocal
 }
 
 export async function exportBackup(): Promise<void> {

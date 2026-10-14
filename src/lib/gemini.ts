@@ -42,7 +42,9 @@ export interface AiModel {
 
 function mapHttpError(status: number, detail: string): GeminiError {
   const kind: GeminiErrorKind =
-    status === 400 ? 'bad-key'
+    // 400 is also INVALID_ARGUMENT for a model that rejects the request shape (e.g. a
+    // thinking-only model refusing thinkingBudget 0): only a key problem is 'bad-key'.
+    status === 400 ? (!detail || /api.?key/i.test(detail) ? 'bad-key' : 'other')
       : status === 401 || status === 403 ? 'auth'
         : status === 429 ? 'rate-limit'
           : 'other'
@@ -89,6 +91,10 @@ Return a short headline verdict (max ~8 words) plus 3–5 brief insights (each m
 export interface GenerateOpts {
   apiKey: string
   model: string
+  /** Free models tried in order when `model` fails with a retryable error (see `fallbackModels`). */
+  fallbacks?: string[]
+  /** Told which model actually answered: `model` or one of the fallbacks. */
+  onModel?: (model: string) => void
   signal?: AbortSignal
 }
 
@@ -140,8 +146,13 @@ interface StructuredConfig<T> {
  * Shared engine: ask Gemini for a structured JSON payload under a given system
  * prompt and response schema, and parse it with the caller's parser. Generic
  * over the payload type so every AI feature (coach note, diet note, weight plan,
- * macro suggestion) reuses the transport, error mapping and the mandatory
- * thinking-disabled config with zero duplication.
+ * macro suggestion) reuses the transport, error mapping, the model fallback
+ * chain and the mandatory thinking-disabled config with zero duplication.
+ *
+ * If the chosen model fails with a retryable error, the same request goes to
+ * each of `opts.fallbacks` in turn. When every model fails, the error thrown is
+ * a quota error if any model hit one (the actionable story), else the chosen
+ * model's own error.
  */
 async function generateStructured<T>(
   prompt: string,
@@ -149,24 +160,40 @@ async function generateStructured<T>(
   config: StructuredConfig<T>,
   opts: GenerateOpts,
 ): Promise<T> {
-  const data = await post(
-    {
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: config.temperature ?? 0.6,
-        // Gemini 2.5/3 Flash count "thinking" tokens against maxOutputTokens and
-        // think by default; with structured output that starves the JSON and
-        // truncates it. Disable thinking for these short, well-specified tasks
-        // and keep a generous cap as a safety margin.
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: config.maxOutputTokens ?? 2048,
-        responseMimeType: 'application/json',
-        responseSchema: config.schema,
-      },
+  const body = {
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: config.temperature ?? 0.6,
+      // Gemini 2.5/3 Flash count "thinking" tokens against maxOutputTokens and
+      // think by default; with structured output that starves the JSON and
+      // truncates it. Disable thinking for these short, well-specified tasks
+      // and keep a generous cap as a safety margin.
+      thinkingConfig: { thinkingBudget: 0 },
+      maxOutputTokens: config.maxOutputTokens ?? 2048,
+      responseMimeType: 'application/json',
+      responseSchema: config.schema,
     },
-    opts,
-  )
+  }
+  const chain = [...new Set([opts.model, ...(opts.fallbacks ?? [])].filter(Boolean))]
+  const errors: unknown[] = []
+  for (const [i, model] of chain.entries()) {
+    try {
+      const value = await generateOnce(body, config.parse, { ...opts, model })
+      opts.onModel?.(model)
+      return value
+    } catch (e) {
+      // The chosen model got past the key check, so a fallback's own auth error is about that model only.
+      const modelAuth = i > 0 && e instanceof GeminiError && (e.kind === 'auth' || e.kind === 'bad-key')
+      if (!isRetryable(e) && !modelAuth) throw e
+      errors.push(e)
+    }
+  }
+  throw errors.find(e => e instanceof GeminiError && e.kind === 'rate-limit') ?? errors[0]
+}
+
+async function generateOnce<T>(body: unknown, parse: (text: string) => T, opts: GenerateOpts): Promise<T> {
+  const data = await post(body, opts)
   const cand = data.candidates?.[0]
   const finish = cand?.finishReason
   if (finish && finish !== 'STOP' && finish !== 'MAX_TOKENS') {
@@ -174,7 +201,19 @@ async function generateStructured<T>(
   }
   const text = (cand?.content?.parts ?? []).map(p => p.text ?? '').join('')
   if (!text.trim()) throw new GeminiError('Gemini returned an empty response — try again.', 'other', 200)
-  return config.parse(text)
+  return parse(text)
+}
+
+/**
+ * Failures another model may not share: a per-model free quota, an overloaded or
+ * retired model, a request shape the model rejects, an empty/blocked/unparseable
+ * answer. A rejected key, a permission problem or no network fails the same way
+ * on every model, and an abort is the caller's choice — those never fall back.
+ */
+function isRetryable(e: unknown): boolean {
+  if ((e as Error)?.name === 'AbortError') return false
+  if (e instanceof GeminiError) return e.kind === 'rate-limit' || e.kind === 'blocked' || e.kind === 'other'
+  return true // the parser rejected a malformed answer
 }
 
 /** Ask Gemini to judge a workout, returning a validated CoachNote. */
@@ -472,4 +511,34 @@ export async function listModels(apiKey: string, signal?: AbortSignal): Promise<
 /** Best default from an available-model list (the list is already rank-sorted). */
 export function pickDefaultModel(models: AiModel[]): string {
   return models[0]?.id ?? ''
+}
+
+/** Most free-fallback attempts after the chosen model, so a failing call stays quick. */
+export const MAX_FALLBACKS = 3
+
+/** Free-tier aliases to try when the key's model list is unknown. */
+const FREE_ALIASES = ['gemini-flash-latest', 'gemini-flash-lite-latest']
+
+/** Variants that can't answer a plain JSON text request. */
+const NON_TEXT = /image|tts|audio|live|native|embed|robotics|computer|thinking|-8b/
+
+function modelVersion(id: string): number {
+  const m = /gemini-(\d+(?:\.\d+)?)/.exec(id)
+  return m ? parseFloat(m[1]) : 0
+}
+
+/**
+ * The models to fall back on when `primary` fails: the key's other Flash and
+ * Flash-Lite models — free on the Gemini free tier (a key with billing on pays
+ * their low Flash price); Pro is left out so a fallback never costs Pro prices —
+ * stable before preview, newest
+ * version first, at most MAX_FALLBACKS. Free-tier quotas are per model, so a 429
+ * on one model usually leaves the others open.
+ */
+export function fallbackModels(models: AiModel[], primary: string): string[] {
+  const ids = models.length > 0 ? models.map(m => m.id) : FREE_ALIASES
+  return [...new Set(ids)]
+    .filter(id => id !== primary && /flash/i.test(id) && !NON_TEXT.test(id.toLowerCase()))
+    .sort((a, b) => modelRank(a) - modelRank(b) || modelVersion(b) - modelVersion(a) || a.localeCompare(b))
+    .slice(0, MAX_FALLBACKS)
 }

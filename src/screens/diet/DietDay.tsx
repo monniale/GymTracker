@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronRight, Plus, Copy, BookmarkPlus, Dumbbell, BedDouble, ArrowLeftRight, Droplets, Minus, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { db, deleteWithTombstone } from '../../db/db'
@@ -23,7 +24,10 @@ const MEALS: { key: MealType; label: string }[] = [
 
 export default function DietDay() {
   const today = useLocalToday()
-  const [date, setDate] = useState(today)
+  // Opened on a given past day (Coach history › Diet day), else today.
+  const opened = (useLocation().state as { date?: string } | null)?.date
+  const [date, setDate] = useState(() =>
+    opened && /^\d{4}-\d{2}-\d{2}$/.test(opened) && opened <= today ? opened : today)
   // Follow "today" across a day rollover (the app resumed the next morning, e.g. from a meal
   // reminder), but leave a day the user navigated to alone.
   const prevToday = useRef(today)

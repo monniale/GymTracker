@@ -135,7 +135,7 @@ export default function SessionSummary() {
         </div>
       )}
 
-      <CoachCard sessionId={sid} />
+      <CoachCard sessionId={sid} autoGenerate={!isReport} />
 
       <div className="mt-6 space-y-2 text-left">
         <div className="rounded-2xl border border-edge bg-card p-4">

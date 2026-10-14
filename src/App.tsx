@@ -3,8 +3,9 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ensureSeeded } from './db/seed'
 import { runDailyChecksOnce } from './lib/season'
 import { checkAchievements } from './lib/achievements'
-import { installSyncTriggers, syncNow, isConnected } from './lib/sync'
+import { installSyncTriggers, syncNow, isConnected, withSyncLock } from './lib/sync'
 import { evaluateQuests } from './lib/quests'
+import { backfillCoachHistory } from './lib/coachHistory'
 import TabBar from './components/TabBar'
 import RestTimerBar from './components/RestTimerBar'
 import WorkoutHome from './screens/workout/WorkoutHome'
@@ -15,6 +16,8 @@ import History from './screens/workout/History'
 import PastWorkout from './screens/workout/PastWorkout'
 import DietDay from './screens/diet/DietDay'
 import ProgressScreen from './screens/progress/ProgressScreen'
+import WeightHistory from './screens/progress/WeightHistory'
+import CoachHistory from './screens/progress/CoachHistory'
 import RankScreen from './screens/rank/RankScreen'
 import SettingsScreen from './screens/settings/SettingsScreen'
 import { isNative } from './native/platform'
@@ -39,6 +42,9 @@ export default function App() {
       // Post-launch, non-blocking: catch up on unlocks/quest awards + sync.
       void checkAchievements()
       void evaluateQuests()
+      // One-time copy of this device's cached coach verdicts into the synced history,
+      // queued ahead of the launch sync so it pushes them.
+      void withSyncLock(backfillCoachHistory).catch(e => console.error('[coach] backfill failed', e))
       installSyncTriggers()
       if (isConnected()) void syncNow('launch')
     })()
@@ -65,6 +71,8 @@ export default function App() {
           <Route path="/workout/past/:id" element={<PastWorkout />} />
           <Route path="/diet" element={<DietDay />} />
           <Route path="/progress" element={<ProgressScreen />} />
+          <Route path="/progress/bodyweight" element={<WeightHistory />} />
+          <Route path="/progress/coach" element={<CoachHistory />} />
           <Route path="/rank" element={<RankScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/workout" replace />} />

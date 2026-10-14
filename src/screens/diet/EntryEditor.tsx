@@ -5,7 +5,7 @@ import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
 import { errMsg } from '../../components/AiReportCard'
 import { macrosFor } from '../../lib/nutrition'
-import { useAiStore } from '../../lib/aiStore'
+import { useAiStore, aiRequestOpts } from '../../lib/aiStore'
 import { gatherSubstitutionBriefing, formatSubstitutionBriefing } from '../../lib/dietReport'
 import { generateSubstitution } from '../../lib/gemini'
 import { applySwap } from '../../lib/foodResolve'
@@ -98,8 +98,7 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
     try {
       const briefing = await gatherSubstitutionBriefing(log.id!)
       if (!briefing) throw new Error('Could not read this entry.')
-      const { apiKey: key, model } = useAiStore.getState()
-      const res = await generateSubstitution(formatSubstitutionBriefing(briefing), { apiKey: key!, model })
+      const res = await generateSubstitution(formatSubstitutionBriefing(briefing), aiRequestOpts())
       setHeadline(res.headline)
       setItems(res.items)
       setStatus('done')

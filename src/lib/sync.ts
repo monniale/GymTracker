@@ -104,8 +104,9 @@ function parseRemote(text: string): SyncPayload {
 }
 
 async function applyRemote(payload: SyncPayload): Promise<void> {
-  await applyTables(payload.tables as never)
-  setSyncDirty(false)
+  // Rows kept from a table the remote build doesn't know yet still need a push.
+  const keptLocal = await applyTables(payload.tables as never)
+  setSyncDirty(keptLocal)
 }
 
 /* ------------------------------ engine ------------------------------ */

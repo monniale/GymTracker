@@ -300,6 +300,29 @@ export interface DietNoteRow {
   updatedAt?: number
 }
 
+/**
+ * A stored AI coach verdict (a workout coach note or a diet report). Unlike the
+ * device-local caches above it is synced user data (backup.ts TABLES), so past
+ * verdicts survive a new phone or a reinstall. Append-only: Regenerate adds a
+ * row and keeps the earlier verdict; the newest row per session/day is current.
+ */
+export interface CoachJudgement {
+  id?: Id
+  kind: 'workout' | 'diet'
+  /** The judged session (workout verdicts). */
+  sessionId?: Id
+  /** Local day the verdict is about (the session's day / the diet day), YYYY-MM-DD. */
+  date: string
+  /** Session name when the verdict was written (workout verdicts). */
+  title?: string
+  note: CoachNote
+  /** The model that wrote it (the chosen one or a free fallback). */
+  model: string
+  generatedAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
+}
+
 /* ---------- AI action suggestions (F1 diet macros, F2 workout weights) ---------- */
 
 /** One AI-suggested working set (already snapped to loadable increments). */
