@@ -2,7 +2,7 @@
 
 ## Status (2026-10-15)
 - Delivery changed (owner, 2026-10-15): **one PR per feature, stacked** — branch `feat/NN-<name>` off the previous feature's branch, PR base = that branch. Merge them in order.
-- Built: 1 (training heatmap, `feat/01-training-heatmap`), 2 (rep-range PRs, `feat/02-rep-range-prs`), 3 (share card, `feat/03-share-card`; Android share sheet still to check on the emulator), 4 (meal plan, `feat/04-meal-plan`, Dexie v9), 5 (weekly AI coach review, `feat/05-week-review`). Next: **feature 6 (cardio sets)**, then continue in order.
+- Built: 1 (training heatmap, `feat/01-training-heatmap`), 2 (rep-range PRs, `feat/02-rep-range-prs`), 3 (share card, `feat/03-share-card`; Android share sheet still to check on the emulator), 4 (meal plan, `feat/04-meal-plan`, Dexie v9), 5 (weekly AI coach review, `feat/05-week-review`), 6 (cardio sets, `feat/06-cardio`). Next: **feature 7 (Strong/Hevy CSV import)**, then continue in order.
 - Owner decisions taken (do not re-ask): order = as below; cardio = no rank points; no real Strong/Hevy export (use documented formats); Italian = everything (screens, notifications, rest timer, AI notes).
 - Line numbers below were verified on 2026-10-14 (HEAD `3e87ff3`). Since then RankScreen.tsx/SessionSummary.tsx changed (rank emblems + particles); re-check line refs in those files before editing.
 
