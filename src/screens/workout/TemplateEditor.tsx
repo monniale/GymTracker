@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronUp, ChevronDown, Trash2, Plus, Link2 } from 'lucide
 import { db, deleteWithTombstone } from '../../db/db'
 import { parseRouteId } from '../../lib/ids'
 import NumberStepper from '../../components/NumberStepper'
+import { isCardioExercise } from '../../lib/cardio'
 import ExercisePicker from './ExercisePicker'
 import type { Exercise, TemplateItem } from '../../types'
 
@@ -42,7 +43,9 @@ export default function TemplateEditor() {
     update({
       items: [
         ...template.items,
-        { exerciseId: e.id!, targetSets: 3, targetReps: 8, restSec: e.defaultRestSec },
+        isCardioExercise(e)
+          ? { exerciseId: e.id!, targetSets: 1, targetReps: 20, restSec: e.defaultRestSec }
+          : { exerciseId: e.id!, targetSets: 3, targetReps: 8, restSec: e.defaultRestSec },
       ],
     })
 
@@ -118,12 +121,12 @@ export default function TemplateEditor() {
                 />
                 <NumberStepper
                   compact
-                  label="Reps"
+                  label={isCardioExercise(ex) ? 'Min' : 'Reps'}
                   value={item.targetReps}
                   onChange={v => updateItem(i, { targetReps: Math.round(v) })}
                   step={1}
                   min={1}
-                  max={50}
+                  max={isCardioExercise(ex) ? 180 : 50}
                 />
                 <NumberStepper
                   compact

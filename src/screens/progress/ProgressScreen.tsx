@@ -4,8 +4,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays, CalendarRange } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAiStore } from '../../lib/aiStore'
-import { localDateStr, addDays, MONTH_NAMES } from '../../lib/dates'
+import { localDateStr, addDays, MONTH_NAMES, fmtDuration } from '../../lib/dates'
 import { gatherRepMaxes, REP_BUCKETS, type RepMax } from '../../lib/repMax'
+import { isCardioExercise, isCardioSet, paceSecPerKm } from '../../lib/cardio'
 import { useLocalToday } from '../../lib/hooks'
 import { trainingHeatmap } from '../../lib/heatmap'
 import Heatmap from '../../components/Heatmap'
@@ -64,8 +65,10 @@ export default function ProgressScreen() {
         </button>
         {activeExId ? (
           <>
-            <ExerciseTrend exerciseId={activeExId} />
-            {activeEx?.muscleGroup !== 'cardio' && <RepMaxTable exerciseId={activeExId} />}
+            {isCardioExercise(activeEx)
+              ? <CardioTrend exerciseId={activeExId} />
+              : <ExerciseTrend exerciseId={activeExId} />}
+            {!isCardioExercise(activeEx) && <RepMaxTable exerciseId={activeExId} />}
           </>
         ) : (
           <p className="py-6 text-center text-sm text-sub">Log a workout to see trends.</p>
@@ -88,7 +91,7 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
   const data = useLiveQuery(async () => {
     const sets = await db.sets
       .where('exerciseId').equals(exerciseId)
-      .filter(s => !s.isWarmup)
+      .filter(s => !s.isWarmup && !isCardioSet(s))
       .toArray()
     if (sets.length === 0) return { e1rm: [], volume: [] }
     const bySession = new Map<Id, { best: number; volume: number; t: number }>()
@@ -116,6 +119,54 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
       <LineChart points={data.e1rm} color={ORANGE} />
       <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Session volume (kg)</p>
       <BarChart points={data.volume} color={ORANGE} yFmt={v => `${Math.round(v)} kg`} />
+    </>
+  )
+}
+
+/** Cardio exercise: time and distance per session, and the pace when a distance was logged. */
+function CardioTrend({ exerciseId }: { exerciseId: Id }) {
+  const data = useLiveQuery(async () => {
+    const sets = await db.sets.where('exerciseId').equals(exerciseId).filter(isCardioSet).toArray()
+    const bySession = new Map<Id, { sec: number; m: number; t: number }>()
+    for (const s of sets) {
+      const cur = bySession.get(s.sessionId) ?? { sec: 0, m: 0, t: s.completedAt }
+      cur.sec += s.durationSec ?? 0
+      cur.m += s.distanceM ?? 0
+      cur.t = Math.min(cur.t, s.completedAt)
+      bySession.set(s.sessionId, cur)
+    }
+    const rows = [...bySession.values()].sort((a, b) => a.t - b.t).slice(-20)
+    return {
+      minutes: rows.map(r => ({ x: r.t, y: r.sec / 60, label: shortDate(r.t) })) as ChartPoint[],
+      km: rows.filter(r => r.m > 0).map(r => ({ x: r.t, y: r.m / 1000, label: shortDate(r.t) })) as ChartPoint[],
+      pace: rows
+        .map(r => ({ r, pace: paceSecPerKm(r.sec, r.m) }))
+        .filter((p): p is { r: typeof p.r; pace: number } => p.pace !== null)
+        .map(({ r, pace }) => ({ x: r.t, y: pace, label: shortDate(r.t) })) as ChartPoint[],
+    }
+  }, [exerciseId])
+
+  if (!data) return null
+  if (data.minutes.length === 0) {
+    return <p className="py-6 text-center text-sm text-sub">No cardio logged for this exercise yet.</p>
+  }
+  return (
+    <>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Duration (min)</p>
+      <LineChart points={data.minutes} color={GREEN} yFmt={v => `${Math.round(v)} min`} />
+      {data.km.length > 0 && (
+        <>
+          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Distance (km)</p>
+          <BarChart points={data.km} color={GREEN} yFmt={v => `${v.toFixed(1)} km`} />
+        </>
+      )}
+      {data.pace.length > 1 && (
+        <>
+          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Pace (min/km, lower is faster)</p>
+          <LineChart points={data.pace} color={ORANGE} yFmt={v => fmtDuration(Math.round(v) * 1000)} />
+        </>
+      )}
+      <p className="mt-2 text-[11px] text-sub">Cardio is tracked for your streak and weekly target; it earns no rank points.</p>
     </>
   )
 }

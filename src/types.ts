@@ -21,6 +21,8 @@ export interface Exercise {
   notes?: string
   /** kg added when the double-progression rule fires (default 2.5). */
   progressionStepKg?: number
+  /** How sets are logged. Absent = by muscle group ('cardio' → cardio, else strength). */
+  kind?: 'strength' | 'cardio'
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -28,6 +30,7 @@ export interface Exercise {
 export interface TemplateItem {
   exerciseId: Id
   targetSets: number
+  /** Target reps; for a cardio exercise, target minutes per set. */
   targetReps: number
   restSec?: number
   /** Linked to the NEXT item as a superset: rest only starts after the last member. */
@@ -65,6 +68,9 @@ export interface SetRow {
   isWarmup: boolean
   completedAt: number
   e1rm: number
+  /** Cardio sets (src/lib/cardio.ts): time and optional distance; weightKg/reps/e1rm are 0. */
+  durationSec?: number
+  distanceM?: number
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }

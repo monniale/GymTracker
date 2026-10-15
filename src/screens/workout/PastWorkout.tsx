@@ -10,6 +10,7 @@ import { fmtDate, fmtDateTime, localDateStr, parseLocalDate } from '../../lib/da
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
 import { EQUIPMENT_LABEL } from '../../lib/equipment'
+import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet } from '../../lib/cardio'
 import type { Equipment, Exercise, SetRow } from '../../types'
 
 /** View & edit a finished workout: per-set weight/reps, add/remove sets, and
@@ -53,6 +54,17 @@ export default function PastWorkout() {
     setBusy(true)
     try {
       const last = rows[rows.length - 1]
+      if (last ? isCardioSet(last) : isCardioExercise(exMap.get(exId as never))) {
+        await db.sets.add({
+          sessionId: sid!,
+          exerciseId: exId,
+          setNumber: rows.length + 1,
+          completedAt: (last?.completedAt ?? Date.now()) + 1,
+          ...cardioFields(cardioDraft(last, 20)),
+        })
+        await rescoreSession(sid!)
+        return
+      }
       const weightKg = last?.weightKg ?? 0
       const reps = last?.reps ?? 8
       await db.sets.add({
@@ -137,7 +149,7 @@ export default function PastWorkout() {
                 >
                   <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                   <span className="num flex-1 font-display text-lg font-semibold">
-                    {s.weightKg} kg × {s.reps}
+                    {isCardioSet(s) ? fmtCardioSet(s) : `${s.weightKg} kg × ${s.reps}`}
                     {s.isWarmup && <span className="ml-2 text-xs font-medium text-sub">warm-up</span>}
                   </span>
                   <Pencil size={15} className="shrink-0 text-sub" />
@@ -205,12 +217,19 @@ function SetSheet({
   const [reps, setReps] = useState(set.reps)
   const [warmup, setWarmup] = useState(set.isWarmup)
   const [busy, setBusy] = useState(false)
+  const cardio = isCardioSet(set)
+  const [min, setMin] = useState(Math.floor((set.durationSec ?? 0) / 60))
+  const [sec, setSec] = useState((set.durationSec ?? 0) % 60)
+  const [km, setKm] = useState(Math.round((set.distanceM ?? 0) / 100) / 10)
 
   async function save() {
     if (busy) return
+    if (cardio && min * 60 + sec <= 0) return
     setBusy(true)
     try {
-      await db.sets.update(set.id!, { weightKg: weight, reps, isWarmup: warmup, e1rm: epley(weight, reps) })
+      await db.sets.update(set.id!, cardio
+        ? cardioFields({ durationSec: min * 60 + sec, distanceM: Math.round(km * 1000) })
+        : { weightKg: weight, reps, isWarmup: warmup, e1rm: epley(weight, reps) })
       await onRescore()
       onClose()
     } finally {
@@ -244,19 +263,29 @@ function SetSheet({
   return (
     <Sheet open onClose={onClose} title={`${exercise?.name ?? 'Set'} · set ${set.setNumber}`}>
       <div className="space-y-4">
-        <div className="flex flex-wrap justify-around gap-2">
-          <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={0} max={600} compact="narrow" />
-          <NumberStepper label="reps" value={reps} onChange={setReps} step={1} min={0} max={100} compact="narrow" />
-        </div>
-        <button
-          onClick={() => setWarmup(w => !w)}
-          aria-pressed={warmup}
-          className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-sm font-semibold ${
-            warmup ? 'bg-muted text-ink' : 'bg-muted/30 text-sub'
-          }`}
-        >
-          {warmup ? 'Warm-up set' : 'Working set'}
-        </button>
+        {cardio ? (
+          <div className="flex flex-wrap justify-around gap-2">
+            <NumberStepper label="min" value={min} onChange={setMin} step={1} min={0} max={600} compact />
+            <NumberStepper label="sec" value={sec} onChange={setSec} step={15} min={0} max={59} compact />
+            <NumberStepper label="km" value={km} onChange={setKm} step={0.1} min={0} max={300} compact />
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-around gap-2">
+            <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={0} max={600} compact="narrow" />
+            <NumberStepper label="reps" value={reps} onChange={setReps} step={1} min={0} max={100} compact="narrow" />
+          </div>
+        )}
+        {!cardio && (
+          <button
+            onClick={() => setWarmup(w => !w)}
+            aria-pressed={warmup}
+            className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-sm font-semibold ${
+              warmup ? 'bg-muted text-ink' : 'bg-muted/30 text-sub'
+            }`}
+          >
+            {warmup ? 'Warm-up set' : 'Working set'}
+          </button>
+        )}
         <button
           onClick={() => void save()}
           disabled={busy}

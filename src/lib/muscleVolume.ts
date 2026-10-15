@@ -1,5 +1,6 @@
 import { db } from '../db/db'
 import { localDateStr, addDays, mondayOf, parseLocalDate } from './dates'
+import { isCardioExercise, isCardioSet } from './cardio'
 import type { Exercise, Id, MuscleGroup, SetRow } from '../types'
 
 /** Evidence-backed weekly hard-set range per muscle for hypertrophy.
@@ -32,8 +33,9 @@ export function computeWeeklyMuscleVolume(
   const past = new Map<MuscleGroup, number>()
   for (const s of sets) {
     if (s.isWarmup || s.completedAt < start8w) continue
-    const mg = exMap.get(s.exerciseId)?.muscleGroup
-    if (!mg || mg === 'cardio') continue
+    const ex = exMap.get(s.exerciseId)
+    const mg = ex?.muscleGroup
+    if (!mg || mg === 'cardio' || isCardioExercise(ex) || isCardioSet(s)) continue
     if (s.completedAt >= weekStart) thisWeek.set(mg, (thisWeek.get(mg) ?? 0) + 1)
     else past.set(mg, (past.get(mg) ?? 0) + 1)
   }

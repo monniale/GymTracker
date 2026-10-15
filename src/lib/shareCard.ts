@@ -1,6 +1,7 @@
 import { isNative } from '../native/platform'
 import { rankForPoints, rankLabel, type RankTier } from './ranks'
 import { fmtDuration, fmtLongDate, localDateStr } from './dates'
+import { isCardioSet } from './cardio'
 import type { ScoreEvent, Session, SetRow } from '../types'
 
 /** One exercise row on the card. */
@@ -48,7 +49,8 @@ export function sessionCardModel(
   rankPoints: number,
   { fresh, streakWeeks }: { fresh: boolean; streakWeeks: number },
 ): SessionCardModel {
-  const working = sets.filter(s => !s.isWarmup)
+  // Strength working sets only: cardio rows (no weight/reps) have their own minutes elsewhere.
+  const working = sets.filter(s => !s.isWarmup && !isCardioSet(s))
   const after = rankForPoints(rankPoints)
   const before = rankForPoints(Math.max(0, rankPoints - event.total))
   const ranked = [...event.breakdown].sort((a, b) => b.setPoints - a.setPoints)
