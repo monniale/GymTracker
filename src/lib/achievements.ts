@@ -1,9 +1,14 @@
 import { db } from '../db/db'
 import { standardFor, levelFor } from './standards'
+import { t, fmtNum } from '../i18n'
+import type { Dict } from '../i18n/en'
+import type { Vars } from '../i18n/types'
 import type { Id } from '../types'
 
 export interface AchievementDef {
+  /** Stored id (db.achievements): never translated. */
   id: string
+  /** Display name and description in the UI language (built at load; a language change reloads). */
   name: string
   desc: string
   /** lucide icon key resolved in the UI */
@@ -21,23 +26,29 @@ export interface AchievementStats {
   liftRatios: Map<string, number> // standards key -> best e1RM/BW ratio
 }
 
+type AchievementKey = keyof Dict['lib']['achievements']
+const text = (key: AchievementKey, vars?: Vars) => ({
+  name: t(`lib.achievements.${key}.name`),
+  desc: t(`lib.achievements.${key}.desc`, vars),
+})
+
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'first-session', name: 'First blood', desc: 'Finish your first session', icon: 'dumbbell', check: s => s.totalSessions >= 1 },
-  { id: 'sessions-10', name: 'Regular', desc: '10 sessions finished', icon: 'dumbbell', check: s => s.totalSessions >= 10 },
-  { id: 'sessions-50', name: 'Gym rat', desc: '50 sessions finished', icon: 'dumbbell', check: s => s.totalSessions >= 50 },
-  { id: 'sessions-100', name: 'Iron veteran', desc: '100 sessions finished', icon: 'medal', check: s => s.totalSessions >= 100 },
-  { id: 'volume-100k', name: 'Ton mover', desc: '100,000 kg lifetime volume', icon: 'zap', check: s => s.totalVolumeKg >= 100_000 },
-  { id: 'volume-1m', name: 'Million club', desc: '1,000,000 kg lifetime volume', icon: 'zap', check: s => s.totalVolumeKg >= 1_000_000 },
-  { id: 'streak-4', name: 'Habit formed', desc: '4-week training streak', icon: 'flame', check: s => s.streakWeeks >= 4 },
-  { id: 'streak-12', name: 'Unstoppable', desc: '12-week training streak', icon: 'flame', check: s => s.streakWeeks >= 12 },
-  { id: 'prs-10', name: 'Record breaker', desc: '10 personal records', icon: 'trophy', check: s => s.totalPrs >= 10 },
-  { id: 'prs-50', name: 'PR machine', desc: '50 personal records', icon: 'trophy', check: s => s.totalPrs >= 50 },
-  { id: 'bench-bw', name: 'Bodyweight bench', desc: 'Bench press e1RM ≥ 1× bodyweight', icon: 'scale', check: s => (s.liftRatios.get('bench') ?? 0) >= 1.0 },
-  { id: 'squat-1_5bw', name: 'Squat 1.5×', desc: 'Squat e1RM ≥ 1.5× bodyweight', icon: 'scale', check: s => (s.liftRatios.get('squat') ?? 0) >= 1.5 },
-  { id: 'deadlift-2bw', name: 'Deadlift 2×', desc: 'Deadlift e1RM ≥ 2× bodyweight', icon: 'scale', check: s => (s.liftRatios.get('deadlift') ?? 0) >= 2.0 },
-  { id: 'nutrition-7', name: 'Fuel logger', desc: 'Log food on 7 different days', icon: 'utensils', check: s => s.foodLogDays >= 7 },
-  { id: 'nutrition-30', name: 'Precision eater', desc: 'Log food on 30 different days', icon: 'utensils', check: s => s.foodLogDays >= 30 },
-  { id: 'big-session', name: 'Monster session', desc: 'Score 200+ points in one session', icon: 'medal', check: s => s.maxSessionPoints >= 200 },
+  { id: 'first-session', ...text('firstSession'), icon: 'dumbbell', check: s => s.totalSessions >= 1 },
+  { id: 'sessions-10', ...text('sessions10'), icon: 'dumbbell', check: s => s.totalSessions >= 10 },
+  { id: 'sessions-50', ...text('sessions50'), icon: 'dumbbell', check: s => s.totalSessions >= 50 },
+  { id: 'sessions-100', ...text('sessions100'), icon: 'medal', check: s => s.totalSessions >= 100 },
+  { id: 'volume-100k', ...text('volume100k', { kg: fmtNum(100_000) }), icon: 'zap', check: s => s.totalVolumeKg >= 100_000 },
+  { id: 'volume-1m', ...text('volume1m', { kg: fmtNum(1_000_000) }), icon: 'zap', check: s => s.totalVolumeKg >= 1_000_000 },
+  { id: 'streak-4', ...text('streak4'), icon: 'flame', check: s => s.streakWeeks >= 4 },
+  { id: 'streak-12', ...text('streak12'), icon: 'flame', check: s => s.streakWeeks >= 12 },
+  { id: 'prs-10', ...text('prs10'), icon: 'trophy', check: s => s.totalPrs >= 10 },
+  { id: 'prs-50', ...text('prs50'), icon: 'trophy', check: s => s.totalPrs >= 50 },
+  { id: 'bench-bw', ...text('benchBw'), icon: 'scale', check: s => (s.liftRatios.get('bench') ?? 0) >= 1.0 },
+  { id: 'squat-1_5bw', ...text('squat15Bw'), icon: 'scale', check: s => (s.liftRatios.get('squat') ?? 0) >= 1.5 },
+  { id: 'deadlift-2bw', ...text('deadlift2Bw'), icon: 'scale', check: s => (s.liftRatios.get('deadlift') ?? 0) >= 2.0 },
+  { id: 'nutrition-7', ...text('nutrition7'), icon: 'utensils', check: s => s.foodLogDays >= 7 },
+  { id: 'nutrition-30', ...text('nutrition30'), icon: 'utensils', check: s => s.foodLogDays >= 30 },
+  { id: 'big-session', ...text('bigSession'), icon: 'medal', check: s => s.maxSessionPoints >= 200 },
 ]
 
 export async function computeAchievementStats(): Promise<AchievementStats> {

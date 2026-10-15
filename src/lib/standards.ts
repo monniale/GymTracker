@@ -5,7 +5,24 @@
  * "Untrained". Rough by nature; used for motivation, not diagnosis.
  */
 
+import { t, type Key } from '../i18n'
+
+/** English level names: data (`LevelInfo.level`, the AI coach briefing). Show them with `levelLabel`. */
 export const LEVELS = ['Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite'] as const
+export type Level = (typeof LEVELS)[number]
+
+const LEVEL_KEY: Record<Level, Key> = {
+  Untrained: 'lib.standards.untrained',
+  Novice: 'lib.standards.novice',
+  Intermediate: 'lib.standards.intermediate',
+  Advanced: 'lib.standards.advanced',
+  Elite: 'lib.standards.elite',
+}
+
+/** A strength level in the UI language, for display ("Intermediate" → "Intermedio"). */
+export function levelLabel(level: Level): string {
+  return t(LEVEL_KEY[level])
+}
 
 interface LiftStandard {
   key: string

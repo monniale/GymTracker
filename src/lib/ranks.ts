@@ -1,3 +1,5 @@
+import { t, type Key } from '../i18n'
+
 export interface RankTier {
   rank: string
   sub: '' | 'III' | 'II' | 'I'
@@ -65,14 +67,35 @@ export function rankLabelEn(t: RankTier): string {
   return t.sub ? `${t.rank} ${t.sub}` : t.rank
 }
 
-/** Rank label in the UI language, for display. */
-export function rankLabel(t: RankTier): string {
-  return rankLabelEn(t)
+const RANK_KEY: Record<string, Key> = {
+  Copper: 'lib.ranks.copper',
+  Bronze: 'lib.ranks.bronze',
+  Silver: 'lib.ranks.silver',
+  Gold: 'lib.ranks.gold',
+  Platinum: 'lib.ranks.platinum',
+  Emerald: 'lib.ranks.emerald',
+  Diamond: 'lib.ranks.diamond',
+  Champion: 'lib.ranks.champion',
 }
 
-/** Display form of a stored English rank label (e.g. an archived season's final rank). */
+/** Rank name in the UI language ("Gold" → "Oro"); an unknown name passes through. */
+function rankName(rank: string): string {
+  const key = RANK_KEY[rank]
+  return key ? t(key) : rank
+}
+
+/** Rank label in the UI language, for display ("Gold II" / "Oro II"). Never store it: see `rankLabelEn`. */
+export function rankLabel(tier: RankTier): string {
+  const name = rankName(tier.rank)
+  return tier.sub ? `${name} ${tier.sub}` : name
+}
+
+/** Display form of a stored English rank label (e.g. an archived season's final rank): "Gold II" → "Oro II".
+ * Anything that is not "<rank>" or "<rank> <III|II|I>" passes through unchanged. */
 export function translateRankLabel(stored: string): string {
-  return stored
+  const m = /^(\S+)(?: (III|II|I))?$/.exec(stored.trim())
+  if (!m || !RANK_KEY[m[1]]) return stored
+  return m[2] ? `${rankName(m[1])} ${m[2]}` : rankName(m[1])
 }
 
 export const SEASON_DAYS = 84 // 12 weeks
