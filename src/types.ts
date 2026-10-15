@@ -54,6 +54,8 @@ export interface Session {
   bodyweightKg: number
   points?: number
   extraExerciseIds: Id[]
+  /** Set on workouts brought in from another app's CSV export (Settings › Data). */
+  importedFrom?: 'strong' | 'hevy'
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
