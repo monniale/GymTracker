@@ -70,7 +70,8 @@ export interface WeekBriefing {
   muscles: MuscleVolumeRow[]
   nutrition: WeekNutrition | null
   bodyweight: { weekMean: number | null; prevMean: number | null; ratePerWeek: number | null }
-  quests: { label: string; done: boolean }[]
+  /** `label` in the UI language (screen), `labelEn` for the English briefing sent to Gemini. */
+  quests: { label: string; labelEn: string; done: boolean }[]
   /** Headlines of that week's stored workout/diet verdicts. */
   verdicts: { kind: 'workout' | 'diet'; date: string; headline: string }[]
 }
@@ -161,7 +162,7 @@ export async function gatherWeekBriefing(monday: string, today: string = localDa
     muscles: computeWeeklyMuscleVolume(volumeSets, exMap, sunday),
     nutrition: await gatherWeekNutrition(sunday),
     bodyweight: weekBodyweight(bodyLog, monday),
-    quests: questsForWeek(monday).map(d => ({ label: d.label, done: done.get(d.id) ?? false })),
+    quests: questsForWeek(monday).map(d => ({ label: d.label, labelEn: d.labelEn, done: done.get(d.id) ?? false })),
     verdicts: verdictRows
       .filter((v): v is typeof v & { kind: 'workout' | 'diet' } => v.kind === 'workout' || v.kind === 'diet')
       .sort((a, b) => a.date.localeCompare(b.date) || a.generatedAt - b.generatedAt)
@@ -222,7 +223,7 @@ function renderWeekBriefing(b: WeekBriefing, exCap: number): string {
     bw.ratePerWeek !== null ? `4-week trend ${bw.ratePerWeek > 0 ? '+' : ''}${bw.ratePerWeek} kg/week` : null,
   ].filter(Boolean)
   lines.push(`Bodyweight: ${bwParts.join(', ')}`)
-  if (b.quests.length > 0) lines.push(`Weekly quests: ${b.quests.map(q => `${q.label} (${q.done ? 'done' : 'not done'})`).join('; ')}`)
+  if (b.quests.length > 0) lines.push(`Weekly quests: ${b.quests.map(q => `${q.labelEn} (${q.done ? 'done' : 'not done'})`).join('; ')}`)
   if (b.verdicts.length > 0) {
     lines.push('Earlier coach verdicts this week:')
     for (const v of b.verdicts.slice(0, CAP.verdicts)) lines.push(`- ${v.date} ${v.kind}: ${v.headline}`)

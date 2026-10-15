@@ -11,7 +11,7 @@ import { useLocalToday } from '../../lib/hooks'
 import { trainingHeatmap } from '../../lib/heatmap'
 import Heatmap from '../../components/Heatmap'
 import { LineChart, BarChart, BandBars, Sparkline, type ChartPoint } from '../../components/Charts'
-import { standardFor, levelFor } from '../../lib/standards'
+import { standardFor, levelFor, levelLabel } from '../../lib/standards'
 import { gatherWeeklyMuscleVolume, HYPERTROPHY_SET_BAND } from '../../lib/muscleVolume'
 import ExercisePicker from '../workout/ExercisePicker'
 import Sheet from '../../components/Sheet'
@@ -460,7 +460,7 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
                           : 'bg-muted/40 text-sub'
                     }`}
                   >
-                    {level.level}
+                    {levelLabel(level.level)}
                   </span>
                   {level.next && (
                     <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted/30">

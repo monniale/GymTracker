@@ -41,7 +41,8 @@ export default function ExercisePicker({ open, onClose, onPick }: Props) {
       const y = b.label.toLowerCase()
       return x < y ? -1 : x > y ? 1 : 0
     })
-  const exactMatch = exercises.some(e => e.nameLower === query)
+  // A catalog exercise typed by its displayed (e.g. Italian) name is a match too: no duplicate custom.
+  const exactMatch = exercises.some(e => e.nameLower === query || exerciseDisplayName(e.name).toLowerCase() === query)
 
   function resetCreate() {
     setCreating(false)

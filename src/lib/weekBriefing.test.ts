@@ -113,7 +113,10 @@ describe('gatherWeekBriefing', () => {
     expect(b.prs).toEqual([{ exercise: 'Bench Press', kind: 'e1RM' }, { exercise: 'Bench Press', kind: 'e1RM' }])
     // Muscle volume stops at the week's end: Monday 00:30's bench set is not in it.
     expect(b.muscles.find(m => m.group === 'chest')?.sets).toBe(2)
-    expect(b.quests).toEqual([{ label: quests[0].label, done: true }, { label: quests[1].label, done: false }])
+    expect(b.quests).toEqual([
+      { label: quests[0].label, labelEn: quests[0].labelEn, done: true },
+      { label: quests[1].label, labelEn: quests[1].labelEn, done: false },
+    ])
     expect(b.verdicts).toEqual([{ kind: 'diet', date: '2026-10-21', headline: 'Protein on point' }])
     expect(await db.scoreEvents.count()).toBe(eventsBefore) // a read never awards quests
     expect(weekStats(b)).toMatchObject({ sessions: 2, points: 215, prs: 2, loggedDays: 0, proteinPerKg: null })
@@ -138,7 +141,7 @@ describe('formatWeekBriefing', () => {
     prs: Array.from({ length: 12 }, (_, i) => ({ exercise: `Lift ${i}`, kind: 'e1RM' as const })),
     muscles: [], nutrition: { loggedDays: 6, avgKcal: 2400, avgProtein: 170, avgCarbs: 250, avgFat: 70, proteinPerKg: 2.1, adherent: 4, trainingDays: 4 },
     bodyweight: { weekMean: 80.2, prevMean: 80.5, ratePerWeek: -0.3 },
-    quests: [{ label: 'Finish 3 sessions', done: true }],
+    quests: [{ label: 'Finish 3 sessions', labelEn: 'Finish 3 sessions', done: true }],
     verdicts: [],
   }
 
