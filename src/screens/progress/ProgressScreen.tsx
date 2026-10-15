@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays } from 'lucide-react'
+import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays, CalendarRange } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAiStore } from '../../lib/aiStore'
 import { localDateStr, addDays, MONTH_NAMES } from '../../lib/dates'
@@ -50,6 +50,7 @@ export default function ProgressScreen() {
 
       <BodyweightTile />
       <CoachHistoryTile />
+      <WeekReviewTile />
       <TrainingHeatmapTile />
 
       <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
@@ -283,6 +284,29 @@ function CoachHistoryTile() {
             ? 'Every coach’s note and diet report is kept here'
             : `${stats.count} verdict${stats.count === 1 ? '' : 's'} · ${stats.last?.note.headline ?? ''}`}
         </p>
+      </div>
+      <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
+    </Link>
+  )
+}
+
+/** Entry to the weekly review; hidden until there is a stored review or a key to make one. */
+function WeekReviewTile() {
+  const apiKey = useAiStore(s => s.apiKey)
+  const latest = useLiveQuery(async () => {
+    const weeks = await db.coachHistory.where('date').above('').filter(j => j.kind === 'week').toArray()
+    return weeks.reduce<(typeof weeks)[number] | null>((a, j) => (!a || j.date > a.date || (j.date === a.date && j.generatedAt > a.generatedAt) ? j : a), null)
+  })
+  if (latest === undefined || (!latest && !apiKey)) return null
+  return (
+    <Link
+      to="/progress/week"
+      className="mt-4 flex items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:bg-muted/30"
+    >
+      <CalendarRange size={18} className="shrink-0 text-primary" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-lg font-semibold">Week review</p>
+        <p className="truncate text-xs text-sub">{latest ? latest.note.headline : 'Review last week with the coach'}</p>
       </div>
       <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
     </Link>

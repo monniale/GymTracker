@@ -411,7 +411,7 @@ describe('RECAP', () => {
   it('Monday morning summarizes last week', () => {
     const r = ofCat(plan(MON_12_10, mon, { rank, recap: { weekMonday: '2026-10-12', sessions: 3, points: 412.4 } }), 'recap')
     expect(r.map(s => s.id)).toEqual([nid(15, dayIdx('2026-10-19'), 0)])
-    expect(r[0]).toMatchObject({ atMs: T(2026, 10, 19, 9), title: 'Your weekly recap', route: '/rank', channelId: 'weekly_recap_v1' })
+    expect(r[0]).toMatchObject({ atMs: T(2026, 10, 19, 9), title: 'Your weekly recap', route: '/progress/week', channelId: 'weekly_recap_v1' })
     expect(r[0].body).toBe('Last week: 3 sessions, +412 pts, 4-week streak.')
     const early = ofCat(plan(T(2026, 10, 12, 8), mon, { recap: { weekMonday: '2026-10-05', sessions: 1, points: 90 } }), 'recap')
     expect(early[0].atMs).toBe(T(2026, 10, 12, 9))

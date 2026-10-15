@@ -321,10 +321,11 @@ export interface DietNoteRow {
  */
 export interface CoachJudgement {
   id?: Id
-  kind: 'workout' | 'diet'
+  /** 'week' = the weekly review (builds before it show such a row as a diet day). */
+  kind: 'workout' | 'diet' | 'week'
   /** The judged session (workout verdicts). */
   sessionId?: Id
-  /** Local day the verdict is about (the session's day / the diet day), YYYY-MM-DD. */
+  /** Local day the verdict is about (the session's day / the diet day / the week's Monday), YYYY-MM-DD. */
   date: string
   /** Session name when the verdict was written (workout verdicts). */
   title?: string

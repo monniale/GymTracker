@@ -56,7 +56,7 @@ export const CHANNEL_FOR: Record<Category, string> = {
 }
 
 /** Hash routes a reminder tap may open (⊆ ALLOWED_ROUTES in src/native/navigation.ts). */
-export const REMINDER_ROUTES = ['/workout', '/workout/session', '/diet', '/progress', '/rank', '/settings'] as const
+export const REMINDER_ROUTES = ['/workout', '/workout/session', '/diet', '/progress', '/progress/week', '/rank', '/settings'] as const
 export type ReminderRoute = (typeof REMINDER_ROUTES)[number]
 
 export const MEAL_SLOT: Record<MealType, number> = { breakfast: 0, lunch: 1, snack: 2, dinner: 3 }
@@ -394,7 +394,7 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
       const streakWeeks = alive && rank ? rank.streakWeeks : 0
       const body = `${prefix}: ${plural(data.recap.sessions, 'session')}, +${Math.round(data.recap.points)} pts`
         + `${streakWeeks > 0 ? `, ${streakWeeks}-week streak` : ''}.`
-      push(spec('recap', d, 0, atLocal(d, prefs.recap.time), 'Your weekly recap', body, '/rank', `recap:${d}`))
+      push(spec('recap', d, 0, atLocal(d, prefs.recap.time), 'Your weekly recap', body, '/progress/week', `recap:${d}`))
     }
   }
 
