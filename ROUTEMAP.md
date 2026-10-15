@@ -31,6 +31,8 @@ Build/verify: `npm run build` (= `tsc --noEmit && vite build`) + `node scripts/c
 | **Notifications / reminders (Android)** | `src/lib/notifyPlanner.ts`, `notifyPrefs.ts`, `notifyStore.ts`, `notifyData.ts`, `src/native/notifications.ts`, `status.ts`, `deviceSettings.ts`, `src/native/ui/NotificationsSection.tsx`, `notifyHealth.ts` |
 | **Rest timer (native)** | `src/store.ts`, `src/components/RestTimerBar.tsx`, `src/native/restTimerBridge.ts`, `restTimerPlugin.ts`, `android/…/resttimer/*.java`, `src/native/ui/RestTimerNativeSettings.tsx` |
 | **Android build / sign / release / smoke** | `android/app/build.gradle`, `AndroidManifest.xml`, `capacitor.config.ts`, `vite.config.ts`, `scripts/android/*`, `scripts/check-pwa-dist.mjs`, `ANDROID.md` |
+| **Rank emblems / particle effects** | `src/components/RankBadge.tsx`, `RankParticles.tsx`, `src/assets/ranks/*.svg`, `src/lib/ranks.ts`, `src/screens/rank/RankScreen.tsx` |
+| **Planned features (roadmap)** | `docs/FEATURE_PLAN.md` — 9 features, build order, file-level design, verification |
 
 Cross-cutting rules live in **Invariants** at the bottom — read those before any schema/sync/scoring change.
 
@@ -104,7 +106,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/lib/ranks.ts` (71) — rank tiers/thresholds; `rankFor`.
 - `src/lib/achievements.ts` (92) — achievement unlocks (`computeAchievementStats`, `checkAchievements` — add-only).
 - `src/lib/quests.ts` (189) — weekly quests + bonus awards (add-only).
-- `src/screens/rank/RankScreen.tsx` (285) — rank/season screen; `src/components/RankBadge.tsx` (45), `Confetti.tsx` (55).
+- `src/screens/rank/RankScreen.tsx` (314) — rank/season screen; `src/components/RankBadge.tsx` (26, one SVG emblem per tier from `src/assets/ranks/<rank>-<sub>.svg`), `RankParticles.tsx` (390, canvas aura per rank, density by sub-tier, Champion = flames + rays + shockwaves; off under reduced-motion). Rank screen: hero aura, "All ranks" rows with emblems, tap → preview sheet, `Confetti.tsx` (55).
 - `src/screens/progress/ProgressScreen.tsx` (300) — bodyweight tile (→ history), Coach history tile, e1RM trends / PR wall / muscle volume; `src/components/Charts.tsx` (230) — SVG chart primitives (no CDN; `LineChart` optional dashed `trend` series, x labels, tap selects the nearest point, markers hidden past 40 points).
 - `src/screens/progress/WeightHistory.tsx` (358) — `/progress/bodyweight`: stats (since start, 4-week kg/week, lowest/highest), range chart + 7-day average, month-by-month story (older months collapsed) with badges; add (any past day)/edit/delete weigh-ins (tombstoned; the newest one sets `settings.bodyweightKg`). Logic in `src/lib/bodyweight.ts` (160: `inRange`, `movingAverage`, `weeklyRate`, `buildWeightStory`).
 - `src/screens/progress/CoachHistory.tsx` (208) — `/progress/coach`: every stored verdict by month, filter All/Workouts/Diet (`?kind=`), earlier verdicts marked, expand → insights, model, Open workout / Open day, delete.

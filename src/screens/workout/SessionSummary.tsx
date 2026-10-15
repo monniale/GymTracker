@@ -8,6 +8,7 @@ import { rankForPoints, rankLabel } from '../../lib/ranks'
 import { checkAchievements, type AchievementDef } from '../../lib/achievements'
 import { evaluateQuests, QUEST_BONUS, type QuestDef } from '../../lib/quests'
 import RankBadge from '../../components/RankBadge'
+import RankParticles from '../../components/RankParticles'
 import Confetti from '../../components/Confetti'
 import CoachCard from '../../components/CoachCard'
 import { fmtDuration, fmtDateTime } from '../../lib/dates'
@@ -85,7 +86,10 @@ export default function SessionSummary() {
               Rank up!
             </p>
           )}
-          <RankBadge tier={after.tier} size={rankedUp ? 110 : 80} />
+          <div className="relative" style={{ width: rankedUp ? 110 : 80, height: rankedUp ? 110 : 80 }}>
+            {rankedUp && <RankParticles tier={after.tier} size={110} />}
+            <RankBadge tier={after.tier} size={rankedUp ? 110 : 80} />
+          </div>
           <p className="mt-1 font-display text-2xl font-bold" style={{ color: after.tier.color }}>
             {rankLabel(after.tier)}
           </p>

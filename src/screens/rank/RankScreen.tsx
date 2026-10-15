@@ -5,10 +5,12 @@ import {
   Dumbbell, Trophy, Scale, UtensilsCrossed, Zap, Medal, Ghost,
 } from 'lucide-react'
 import { db } from '../../db/db'
-import { rankForPoints, rankLabel, SEASON_DAYS, TIERS } from '../../lib/ranks'
+import { rankForPoints, rankLabel, SEASON_DAYS, TIERS, type RankTier } from '../../lib/ranks'
 import { ACHIEVEMENTS, type AchievementDef } from '../../lib/achievements'
 import { evaluateQuests, QUEST_BONUS, type QuestStatus } from '../../lib/quests'
 import RankBadge from '../../components/RankBadge'
+import RankParticles from '../../components/RankParticles'
+import Sheet from '../../components/Sheet'
 import { addDays, daysBetween, fmtDate, localDateStr } from '../../lib/dates'
 import type { Season } from '../../types'
 
@@ -30,6 +32,7 @@ export default function RankScreen() {
   ) ?? []
   const pastSeasons = useLiveQuery(() => db.seasons.orderBy('startDate').reverse().toArray()) ?? []
   const [showInfo, setShowInfo] = useState(false)
+  const [preview, setPreview] = useState<RankTier | null>(null)
   const [quests, setQuests] = useState<QuestStatus[]>([])
   const unlockedIds = useLiveQuery(
     async () => new Map((await db.achievements.toArray()).map(a => [a.id, a.unlockedAt])),
@@ -68,7 +71,10 @@ export default function RankScreen() {
       <h1 className="mb-4 font-display text-3xl font-bold">Rank</h1>
 
       <div className="flex flex-col items-center rounded-2xl border border-edge bg-card p-6">
-        <RankBadge tier={info.tier} size={120} />
+        <div className="relative" style={{ width: 120, height: 120 }}>
+          <RankParticles tier={info.tier} size={120} />
+          <RankBadge tier={info.tier} size={120} />
+        </div>
         <p className="mt-2 font-display text-3xl font-bold" style={{ color: info.tier.color }}>
           {rankLabel(info.tier)}
         </p>
@@ -242,17 +248,39 @@ export default function RankScreen() {
       <h2 className="mb-2 mt-6 font-display text-xl font-semibold">All ranks</h2>
       <div className="grid grid-cols-2 gap-1.5 pb-4">
         {TIERS.map(t => (
-          <div
+          <button
             key={`${t.rank}${t.sub}`}
-            className={`num flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ${
+            onClick={() => setPreview(t)}
+            className={`num flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left text-sm ${
               t === info.tier ? 'bg-muted/60 font-bold' : 'bg-card text-sub'
             }`}
           >
-            <span style={{ color: t.color }}>{rankLabel(t)}</span>
-            <span>{t.threshold}</span>
-          </div>
+            <RankBadge tier={t} size={44} />
+            <span className="min-w-0">
+              <span className="block truncate" style={{ color: t.color }}>{rankLabel(t)}</span>
+              <span className="block whitespace-nowrap text-xs">{t.threshold} pts</span>
+            </span>
+          </button>
         ))}
       </div>
+      <Sheet open={preview !== null} onClose={() => setPreview(null)} title={preview ? rankLabel(preview) : ''}>
+        {preview && (
+          <div className="flex flex-col items-center pb-4">
+            <div className="relative my-6" style={{ width: 180, height: 180 }}>
+              <RankParticles tier={preview} size={180} bleed={36} />
+              <RankBadge tier={preview} size={180} />
+            </div>
+            <p className="num font-display text-2xl font-bold" style={{ color: preview.color }}>
+              {preview.threshold} pts
+            </p>
+            <p className="num mt-1 text-sm text-sub">
+              {rankState.points >= preview.threshold
+                ? 'Reached'
+                : `${Math.ceil(preview.threshold - rankState.points)} pts to go`}
+            </p>
+          </div>
+        )}
+      </Sheet>
     </div>
   )
 }
