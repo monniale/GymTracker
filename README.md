@@ -63,6 +63,9 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - **Warm-up ramps** and a **plate calculator** for barbell lifts.
 - Equipment variants (barbell, dumbbell, machine, cable…), per-exercise notes, and exercises added mid-session.
 - **History calendar**: open any past workout and fix a typo. Its score is recalculated.
+- **Cardio sets** with time and distance. They count for your streak and weekly target, but not for rank points.
+- A **shareable workout card**: a PNG of the session (points, rank, top lifts and PRs) for the share sheet.
+- **Import your history from Strong or Hevy** (CSV export), with a preview before anything is saved.
 
 ### ⏱️ Rest timer
 - Starts by itself when you log a set: a short rest after warm-ups, and it waits for the last exercise of a superset.
@@ -74,15 +77,20 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - **Barcode scanner** plus food search across **Open Food Facts** and **USDA FoodData Central**.
 - Custom foods, editable macros (your corrections always win), a recipe builder, saved meals and copy-yesterday.
 - A water tracker and a weekly nutrition report.
+- **Plan tomorrow's meals**: planned foods show next to what you ate, and one tap logs them when you eat.
 
 ### 📈 Progress
-- Estimated 1RM and volume charts for every exercise.
+- Estimated 1RM and volume charts for every exercise, plus **rep-range PRs** (your best 1, 3, 5, 8, 10 and 12 RM, all-time and this season).
+- A **training heatmap** of the last 26 weeks, with your longest run of trained weeks.
 - **Weekly sets per muscle**, compared with the evidence-based 10–20 hard-sets range.
 - A **PR wall** with strength-standard levels from Novice to Elite.
 - **Bodyweight history**:
   - a trend chart with a 7-day average;
   - your kg-per-week rate and your lowest and highest weights;
   - a month-by-month timeline with milestones such as *"−3 kg since start"*.
+
+### 🌍 English and Italian
+- The whole app is available in **English and Italian**: screens, dates, reminders, the rest timer and the AI coach's notes. It follows your phone's language, and you can switch in Settings.
 
 ### 🏆 Rank & seasons
 - Tiers from **Copper III to Champion**, driven by an evidence-based score:
@@ -95,6 +103,7 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - A **coach's note after every workout** and a **diet report** for any day.
 - **Suggested opening weights** before a session, ideas to **complete your macros**, and **food swaps**.
 - **Fallback to other models**: if your model runs out of free quota or is down, the request is retried on your key's other free Flash models.
+- A **weekly review**: the coach looks back at the whole week (training, food, bodyweight) and sets 2–3 goals for the next one.
 - **Coach history**: every verdict is saved and synced, including the earlier one when you regenerate a note.
 
 > [!NOTE]
@@ -105,6 +114,7 @@ The same app, packaged for Android with [Capacitor](https://capacitorjs.com). It
 
 - ⏲️ **Live rest countdown**: a countdown in the notification shade (Live Updates on Android 16), with **Skip** and **+15 s** buttons. It rings even if the app was closed.
 - 🔔 **Smart reminders**: training days, meals, water, rank decay and streak warnings, a weekly recap, and weigh-ins. Each one can be switched on or off.
+- 🏠 **Home-screen widget**: rank, points, streak, this week's workouts and the next one. Tap it to open the app.
 - 📷 **Native barcode scanner**: Google ML Kit, with the camera scanner as a fallback.
 - 🤏 **Feels native**: haptics, back-button navigation, the screen stays on during a workout, and backups export through the share sheet.
 

@@ -122,6 +122,7 @@ Commit → `scripts/android/release.sh` → `adb install -r <apk>`. This needs t
   - The Live Update status-bar chip and the One UI countdown rendering are not verified on One UI 8.5.
 - **Exact timing** relies on `USE_EXACT_ALARM`. If Settings ever shows "Exact timing is off", tap Fix: alarms are then inexact and may be late.
 - **Text size:** the WebView text zoom is pinned to 100 %, so the One UI font size does not apply inside the app. This keeps the 360/320 px layouts intact. Changing the font size or Bold font does not reload the app (an open sheet or a typed value survives).
+- **Language:** on Android 13+ the app's own native texts (the "Rest over" alert and its Skip action, channel names, the widget) follow the in-app language. On older Android they follow the phone's language.
 - **Home-screen widget:** it shows what the app last pushed. It refreshes whenever GymTracker runs (launch, resume, any change, midnight while open), not on its own: after days without opening the app, the streak and "this week" can be out of date until the next launch.
 - **Barcode scanner:** ML Kit downloads its scanner module through Play services on first use. If that fails, the camera fallback (zxing) and manual entry remain.
 - **Storage:** `navigator.storage.persist()` is best effort, and Android may still clear WebView storage under extreme pressure. Keep GitHub Sync connected, or export regularly. Uninstalling deletes everything.
