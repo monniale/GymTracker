@@ -17,6 +17,9 @@ const ALLOW = new Set([
   'g', 'min', 's', 'W', 'P', 'C', 'F', 'e1RM', 'RM', 'OK', 'English', 'Italiano', 'AI',
 ])
 
+/** Text between `>` and `<` that is really code (comparisons such as `a > b … c < d`). */
+const CODE = /\b(const|let|return|useState|useRef|Promise|null|undefined|await|async)\b|=>|===|!==|&&|\|\||[;{}]|\w\(|^\s*[=(!]/
+
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const p = join(dir, name)
@@ -30,10 +33,13 @@ export function findCopy(src: string): string[] {
   const code = src
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    // TypeScript generics (useState<Food | null>, Promise<void>, Map<Id, Food[]>) are not JSX.
+    .replace(/<[A-Z][\w.]*(?:\[\])?(?:\s*[|,]\s*[\w.'"]+(?:\[\])?)*>/g, '')
   const hits: string[] = []
   for (const m of code.matchAll(/>([^<>{}]*)</g)) {
     const text = m[1].replace(/\s+/g, ' ').trim()
-    if (/[A-Za-z]{2,}/.test(text) && !ALLOW.has(text) && !/^[\w.]+\s*(=>|\(|&&|\|\|)/.test(text)) hits.push(text)
+    if (!/[A-Za-z]{2,}/.test(text) || ALLOW.has(text) || CODE.test(text)) continue
+    hits.push(text)
   }
   for (const m of code.matchAll(/\b(aria-label|placeholder|title|alt)="([^"]*)"/g)) {
     if (/[A-Za-z]{2,}/.test(m[2]) && !ALLOW.has(m[2])) hits.push(`${m[1]}="${m[2]}"`)
@@ -47,6 +53,8 @@ describe('UI copy goes through src/i18n', () => {
       'Hello world', 'aria-label="Close menu"',
     ])
     expect(findCopy('<span>kg</span><span>{n} </span>')).toEqual([])
+    expect(findCopy('const [a, setA] = useState<Food | null>(null)\nconst x = a > b && c < d\nfn(): Promise<void> {}')).toEqual([])
+    expect(findCopy('<p>Shaded band = the 10–20 range (optional)</p>')).toEqual(['Shaded band = the 10–20 range (optional)'])
   })
 
   it.runIf(ENFORCE || process.env.I18N_GUARD === '1')('has no hard-coded English in screens, components and native UI', () => {
