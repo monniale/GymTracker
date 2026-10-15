@@ -187,3 +187,8 @@ export async function evaluateQuests(): Promise<{ statuses: QuestStatus[]; fresh
   }
   return { statuses, fresh }
 }
+
+/** Display form of a stored score-event label ("Quest: Finish 3 sessions" is stored in English). */
+export function displayEventLabel(label: string): string {
+  return label
+}

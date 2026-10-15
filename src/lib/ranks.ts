@@ -60,8 +60,19 @@ export function rankForPoints(points: number): RankInfo {
   return { tier, index, next, progress }
 }
 
-export function rankLabel(t: RankTier): string {
+/** English rank label ("Gold II"): what gets STORED (Season.finalRank). */
+export function rankLabelEn(t: RankTier): string {
   return t.sub ? `${t.rank} ${t.sub}` : t.rank
+}
+
+/** Rank label in the UI language, for display. */
+export function rankLabel(t: RankTier): string {
+  return rankLabelEn(t)
+}
+
+/** Display form of a stored English rank label (e.g. an archived season's final rank). */
+export function translateRankLabel(stored: string): string {
+  return stored
 }
 
 export const SEASON_DAYS = 84 // 12 weeks

@@ -11,9 +11,10 @@ import native from './native'
 import notify from './notify'
 import lib from './lib'
 import ai from './ai'
+import data from './data'
 
 /** The English dictionary: the source of truth for keys and the fallback for every language. */
-export const en = { common, units, workout, diet, progress, rank, settings, components, native, notify, lib, ai } as const
+export const en = { common, units, workout, diet, progress, rank, settings, components, native, notify, lib, ai, data } as const
 
 /** What every other language must provide (same keys, any strings). */
 export type Dict = Shape<typeof en>
