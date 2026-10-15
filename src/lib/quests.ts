@@ -1,13 +1,19 @@
 import { db } from '../db/db'
 import { localDateStr, mondayOf, addDays, parseLocalDate } from './dates'
 import { dayTargets, totalsForLogs } from './nutrition'
+import { t, fmtNum } from '../i18n'
 import type { Id } from '../types'
 
 export const QUEST_BONUS = 15
+/** Prefix of a quest's stored score-event label. Stored data: English forever. */
+const EVENT_PREFIX = 'Quest: '
 
 export interface QuestDef {
   id: string
-  label: string
+  /** Display label in the UI language (read when accessed). */
+  readonly label: string
+  /** English label: the one stored in a quest's score event (`Quest: <labelEn>`). Never translate it. */
+  labelEn: string
   target: number
   /** current progress for the given week */
   measure: (weekMonday: string) => Promise<number>
@@ -24,13 +30,15 @@ async function sessionsInWeek(weekMonday: string) {
 const POOL: QuestDef[] = [
   {
     id: 'sessions',
-    label: 'Finish 3 sessions',
+    get label() { return t('lib.quests.sessions') },
+    labelEn: 'Finish 3 sessions',
     target: 3,
     measure: async w => (await sessionsInWeek(w)).length,
   },
   {
     id: 'legs-2',
-    label: 'Train legs or glutes twice',
+    get label() { return t('lib.quests.legs2') },
+    labelEn: 'Train legs or glutes twice',
     target: 2,
     measure: async w => {
       const sessions = await sessionsInWeek(w)
@@ -48,7 +56,8 @@ const POOL: QuestDef[] = [
   },
   {
     id: 'prs-2',
-    label: 'Set 2 personal records',
+    get label() { return t('lib.quests.prs2') },
+    labelEn: 'Set 2 personal records',
     target: 2,
     measure: async w => {
       const days = Array.from({ length: 7 }, (_, i) => addDays(w, i))
@@ -61,7 +70,8 @@ const POOL: QuestDef[] = [
   },
   {
     id: 'protein-5',
-    label: 'Hit your protein target on 5 days',
+    get label() { return t('lib.quests.protein5') },
+    labelEn: 'Hit your protein target on 5 days',
     target: 5,
     measure: async w => {
       const settings = await db.settings.get(1)
@@ -86,7 +96,8 @@ const POOL: QuestDef[] = [
   },
   {
     id: 'volume-15k',
-    label: 'Move 15,000 kg of volume',
+    get label() { return t('lib.quests.volume15k', { kg: fmtNum(15_000) }) },
+    labelEn: 'Move 15,000 kg of volume',
     target: 15_000,
     measure: async w => {
       const sessions = await sessionsInWeek(w)
@@ -100,7 +111,8 @@ const POOL: QuestDef[] = [
   },
   {
     id: 'log-food-5',
-    label: 'Log your food on 5 days',
+    get label() { return t('lib.quests.logFood5') },
+    labelEn: 'Log your food on 5 days',
     target: 5,
     measure: async w => {
       const days = Array.from({ length: 7 }, (_, i) => addDays(w, i))
@@ -161,7 +173,7 @@ export async function evaluateQuests(): Promise<{ statuses: QuestStatus[]; fresh
           await db.rankState.put(rs)
         }
         await db.scoreEvents.add({
-          label: `Quest: ${def.label}`,
+          label: `${EVENT_PREFIX}${def.labelEn}`,
           date: localDateStr(),
           basePoints: 0,
           prBonus: 0,
@@ -188,7 +200,11 @@ export async function evaluateQuests(): Promise<{ statuses: QuestStatus[]; fresh
   return { statuses, fresh }
 }
 
-/** Display form of a stored score-event label ("Quest: Finish 3 sessions" is stored in English). */
+/** Display form of a stored score-event label: "Quest: Finish 3 sessions" (stored in English) →
+ * "Missione: Completa 3 allenamenti" in Italian. Labels of no known quest pass through unchanged. */
 export function displayEventLabel(label: string): string {
-  return label
+  if (!label.startsWith(EVENT_PREFIX)) return label
+  const en = label.slice(EVENT_PREFIX.length)
+  const def = POOL.find(q => q.labelEn === en)
+  return def ? t('lib.quests.eventLabel', { label: def.label }) : label
 }
