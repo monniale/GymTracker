@@ -149,8 +149,18 @@ describe('exercise matching', () => {
     expect(m[m.length - 1].create).toMatchObject({ name: 'Bench Press (Smith Machine)', muscleGroup: 'chest', equipment: 'machine', isCustom: true })
   })
 
+  it('keeps assisted and band variants apart from the bodyweight lift', () => {
+    const m = resolveExercises(['Pull Up (Assisted)', 'Pull Up (Band)', 'Pull Up'], catalog)
+    expect(m.map(x => x.existing?.id ?? null)).toEqual([null, null, 12])
+  })
+
   it('guesses a muscle group for new exercises', () => {
     expect(guessMuscleGroup('Elliptical Trainer')).toBe('cardio')
+    expect(guessMuscleGroup('Running')).toBe('cardio')
+    expect(guessMuscleGroup('Reverse Crunch')).toBe('core')
+    expect(guessMuscleGroup('Bicycle Crunch')).toBe('core')
+    expect(guessMuscleGroup('Seated Row Machine')).toBe('back')
+    expect(guessMuscleGroup('Walking Lunge (Dumbbell)')).toBe('legs')
     expect(guessMuscleGroup('Triceps Kickback (Dumbbell)')).toBe('triceps')
     expect(guessMuscleGroup('Cable Kickback')).toBe('glutes')
     expect(guessMuscleGroup('Leg Curl (Machine)')).toBe('legs')
