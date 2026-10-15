@@ -5,6 +5,7 @@ import { db } from '../db/db'
 import { ensureSeeded } from '../db/seed'
 import { parseHistoryCsv } from './importHistory'
 import { previewImport, applyImport } from './importApply'
+import { rescoreSession } from './finishSession'
 
 const T = (y: number, m: number, d: number, h = 0) => new Date(y, m - 1, d, h).getTime()
 
@@ -82,6 +83,16 @@ describe('importing a Strong history', () => {
     expect(sets.find(s => s.durationSec)).toMatchObject({ durationSec: 1500, distanceM: 5000, weightKg: 0, reps: 0 })
     const custom = await db.exercises.where('nameLower').equals('farmer carry').first()
     expect(custom).toMatchObject({ isCustom: true, muscleGroup: 'other' })
+  })
+
+  it('editing an imported workout from before the season never moves the rank', async () => {
+    await applyImport(parseHistoryCsv(CSV))
+    const points = (await db.rankState.get(1))!.points
+    const old = await db.sessions.where('startedAt').below(T(2026, 10, 1)).first()
+    const set = await db.sets.where('sessionId').equals(old!.id!).filter(s => s.reps === 5).first()
+    await db.sets.update(set!.id!, { reps: 1, e1rm: 100 })
+    await rescoreSession(old!.id!)
+    expect((await db.rankState.get(1))!.points).toBe(points)
   })
 
   it('skips workouts already imported and reuses the custom exercises', async () => {

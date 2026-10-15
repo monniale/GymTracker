@@ -262,8 +262,8 @@ export function normalizeImportedName(raw: string): { base: string; equipment?: 
  * (src/db/seed.ts) where the generic matcher can't get there by itself.
  */
 const ALIASES: Record<string, string> = {
-  pushup: 'Push-Up', pushups: 'Push-Up', chestdip: 'Dips', dip: 'Dips', dips: 'Dips', chestdipassisted: 'Dips',
-  pullup: 'Pull-Up', pullups: 'Pull-Up', pullupassisted: 'Pull-Up', pullupweighted: 'Pull-Up', chinup: 'Chin-Up', chinups: 'Chin-Up',
+  pushup: 'Push-Up', pushups: 'Push-Up', chestdip: 'Dips', dip: 'Dips', dips: 'Dips',
+  pullup: 'Pull-Up', pullups: 'Pull-Up', pullupweighted: 'Pull-Up', chinup: 'Chin-Up', chinups: 'Chin-Up',
   benchpressbarbell: 'Bench Press', inclinebenchpressbarbell: 'Incline Bench Press',
   benchpressdumbbell: 'Dumbbell Bench Press', inclinebenchpressdumbbell: 'Incline Dumbbell Press',
   chestpressmachine: 'Chest Press Machine', chestflydumbbell: 'Chest Fly', chestfly: 'Chest Fly',
@@ -303,7 +303,8 @@ const ALIASES: Record<string, string> = {
 }
 
 const MUSCLE_RULES: [RegExp, MuscleGroup][] = [
-  [/run|treadmill|cycl|bike|elliptical|row(ing)? machine|^rowing|swim|walk(?!ing lunge)|stair|jump rope|hiit|cardio|ski erg/i, 'cardio'],
+  // Whole words only: "crunch", "trunk", "bicycle crunch" and "seated row machine" are not cardio.
+  [/\b(run|running|jog|jogging|treadmill|cycling|bike|elliptical|rowing|rower|ergometer|swim|swimming|walk|walking|stair|stairs|stairmaster|jump rope|hiit|cardio|ski erg|spinning)\b(?! lunge)/i, 'cardio'],
   [/tricep|skull ?crush|pushdown|close.?grip/i, 'triceps'],
   [/hip thrust|glute|abduct|kickback|bridge/i, 'glutes'],
   [/crunch|plank|sit ?up|leg raise|twist|ab wheel|\babs?\b|oblique|hollow|v ?up/i, 'core'],
@@ -341,7 +342,9 @@ export function resolveExercises(rawNames: string[], catalog: Exercise[]): Exerc
     const exact = byLower.get(raw.trim().toLowerCase())
     if (exact) return { raw, existing: exact } // e.g. a custom made by an earlier import
     const { base, equipment, key } = normalizeImportedName(raw)
-    const alias = ALIASES[alnum(raw)] ?? ALIASES[key]
+    // Assisted / band variants log the ASSISTANCE weight: never fold them into the bodyweight lift.
+    const assisted = /assist|\bband\b/i.test(raw)
+    const alias = ALIASES[alnum(raw)] ?? (assisted ? undefined : ALIASES[key])
     if (alias) {
       const hit = byLower.get(alias.toLowerCase())
       if (hit) return { raw, existing: hit }

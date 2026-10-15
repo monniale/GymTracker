@@ -87,7 +87,11 @@ export default function ImportHistorySheet({ text, onClose, onDone }: {
             </div>
           )}
 
-          {!preview ? (
+          {!preview && error ? (
+            <p className="flex items-start gap-1.5 text-sm text-danger">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
+            </p>
+          ) : !preview ? (
             <p className="flex items-center gap-2 text-sm text-sub">
               <Loader2 size={16} className="animate-spin" /> Reading the file…
             </p>

@@ -182,7 +182,9 @@ export async function rescoreSession(sessionId: Id): Promise<number | null> {
     if (ev) await db.scoreEvents.update(ev.id!, fields)
     else await db.scoreEvents.add({ sessionId, ...fields })
     const rs = await db.rankState.get(1)
-    if (rs) {
+    // A workout from an earlier season (or imported history) never counted toward this season's
+    // rank, so editing it must not move it either.
+    if (rs && eventDate >= rs.seasonStart) {
       rs.points = Math.max(0, Math.round(rs.points + (result.total - oldTotal)))
       await db.rankState.put(rs)
     }
