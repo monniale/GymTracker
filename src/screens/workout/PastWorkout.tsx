@@ -11,6 +11,8 @@ import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
 import { EQUIPMENT_LABEL } from '../../lib/equipment'
 import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet } from '../../lib/cardio'
+import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { t } from '../../i18n'
 import type { Equipment, Exercise, SetRow } from '../../types'
 
 /** View & edit a finished workout: per-set weight/reps, add/remove sets, and
@@ -84,7 +86,7 @@ export default function PastWorkout() {
   }
 
   async function deleteWorkout() {
-    if (!window.confirm('Delete this whole workout? Its sets are removed (earned points are kept).')) return
+    if (!window.confirm(t('workout.past.confirmDelete'))) return
     await db.transaction('rw', db.sets, db.sessions, db.scoreEvents, db.tombstones, async () => {
       const setKeys = await db.sets.where('sessionId').equals(sid!).primaryKeys()
       const eventKeys = await db.scoreEvents.where('sessionId').equals(sid!).primaryKeys()
@@ -103,14 +105,14 @@ export default function PastWorkout() {
       <div className="mb-4 flex items-center gap-2">
         <Link
           to="/workout/history"
-          aria-label="Back to past workouts"
+          aria-label={t('workout.past.back')}
           className="flex h-11 w-11 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={24} />
         </Link>
         <h1 className="min-w-0 flex-1 truncate font-display text-2xl font-bold">{session.name}</h1>
         {session.points !== undefined && (
-          <span className="num rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
+          <span className="num shrink-0 whitespace-nowrap rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
             +{session.points}
           </span>
         )}
@@ -123,7 +125,7 @@ export default function PastWorkout() {
       >
         <div className="min-w-0 flex-1">
           <p className="text-sm text-sub">{fmtDateTime(session.startedAt)}</p>
-          <p className="num text-sm text-sub">Bodyweight {session.bodyweightKg} kg</p>
+          <p className="num text-sm text-sub">{t('workout.past.bodyweight', { kg: session.bodyweightKg })}</p>
         </div>
         <Pencil size={16} className="shrink-0 text-sub" />
       </button>
@@ -134,7 +136,7 @@ export default function PastWorkout() {
           <div key={String(exId)} className="rounded-2xl border border-edge bg-card p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold">
-                {exercise?.name ?? 'Exercise'}
+                {exercise ? exerciseDisplayName(exercise.name) : t('workout.past.exercise')}
               </p>
               {exercise?.equipment && <EquipmentBadge equipment={exercise.equipment} />}
             </div>
@@ -150,7 +152,7 @@ export default function PastWorkout() {
                   <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                   <span className="num flex-1 font-display text-lg font-semibold">
                     {isCardioSet(s) ? fmtCardioSet(s) : `${s.weightKg} kg × ${s.reps}`}
-                    {s.isWarmup && <span className="ml-2 text-xs font-medium text-sub">warm-up</span>}
+                    {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                   </span>
                   <Pencil size={15} className="shrink-0 text-sub" />
                 </button>
@@ -161,12 +163,12 @@ export default function PastWorkout() {
               disabled={busy}
               className="mt-2 flex min-h-[40px] items-center gap-1 px-1 text-sm font-medium text-sub active:text-ink disabled:opacity-50"
             >
-              <Plus size={16} /> Add set
+              <Plus size={16} /> {t('workout.shared.addSet')}
             </button>
           </div>
         ))}
         {groups.length === 0 && (
-          <p className="py-8 text-center text-sm text-sub">No sets in this workout.</p>
+          <p className="py-8 text-center text-sm text-sub">{t('workout.past.noSets')}</p>
         )}
       </div>
 
@@ -174,7 +176,7 @@ export default function PastWorkout() {
         onClick={() => void deleteWorkout()}
         className="mt-6 flex items-center gap-1.5 py-2 text-sm font-medium text-danger"
       >
-        <Trash2 size={16} /> Delete workout
+        <Trash2 size={16} /> {t('workout.past.delete')}
       </button>
 
       {editSet && (
@@ -199,7 +201,7 @@ export default function PastWorkout() {
 
 function EquipmentBadge({ equipment }: { equipment: Equipment }) {
   return (
-    <span className="shrink-0 rounded-full bg-muted/40 px-2 py-0.5 text-xs font-medium text-sub">
+    <span className="shrink-0 whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs font-medium text-sub">
       {EQUIPMENT_LABEL[equipment]}
     </span>
   )
@@ -261,7 +263,14 @@ function SetSheet({
   }
 
   return (
-    <Sheet open onClose={onClose} title={`${exercise?.name ?? 'Set'} · set ${set.setNumber}`}>
+    <Sheet
+      open
+      onClose={onClose}
+      title={t('workout.past.setTitle', {
+        name: exercise ? exerciseDisplayName(exercise.name) : t('workout.past.set'),
+        n: set.setNumber,
+      })}
+    >
       <div className="space-y-4">
         {cardio ? (
           <div className="flex flex-wrap justify-around gap-2">
@@ -272,7 +281,7 @@ function SetSheet({
         ) : (
           <div className="flex flex-wrap justify-around gap-2">
             <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={0} max={600} compact="narrow" />
-            <NumberStepper label="reps" value={reps} onChange={setReps} step={1} min={0} max={100} compact="narrow" />
+            <NumberStepper label={t('workout.shared.reps')} value={reps} onChange={setReps} step={1} min={0} max={100} compact="narrow" />
           </div>
         )}
         {!cardio && (
@@ -283,7 +292,7 @@ function SetSheet({
               warmup ? 'bg-muted text-ink' : 'bg-muted/30 text-sub'
             }`}
           >
-            {warmup ? 'Warm-up set' : 'Working set'}
+            {warmup ? t('workout.past.warmupSet') : t('workout.past.workingSet')}
           </button>
         )}
         <button
@@ -291,14 +300,14 @@ function SetSheet({
           disabled={busy}
           className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-50"
         >
-          Save
+          {t('common.save')}
         </button>
         <button
           onClick={() => void remove()}
           disabled={busy}
           className="flex w-full items-center justify-center gap-1.5 py-2 text-sm font-medium text-danger disabled:opacity-50"
         >
-          <Trash2 size={16} /> Delete set
+          <Trash2 size={16} /> {t('workout.shared.deleteSet')}
         </button>
       </div>
     </Sheet>
@@ -350,10 +359,10 @@ function DetailsSheet({
   }
 
   return (
-    <Sheet open onClose={onClose} title="Workout details">
+    <Sheet open onClose={onClose} title={t('workout.past.details')}>
       <div className="space-y-4">
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Name</span>
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.past.name')}</span>
           <input
             value={name}
             onChange={e => setName(e.target.value)}
@@ -361,24 +370,26 @@ function DetailsSheet({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Date</span>
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.past.date')}</span>
           <input
             type="date"
             value={dateStr}
             onChange={e => e.target.value && setDateStr(e.target.value)}
             className="num min-h-[48px] w-full rounded-xl bg-card px-3 text-base"
           />
-          <span className="mt-1 block text-xs text-sub">Was {fmtDate(localDateStr(new Date(session.startedAt)))}</span>
+          <span className="mt-1 block text-xs text-sub">
+            {t('workout.past.was', { date: fmtDate(localDateStr(new Date(session.startedAt))) })}
+          </span>
         </label>
         <div className="flex justify-center">
-          <NumberStepper label="bodyweight" value={bw} onChange={setBw} step={0.5} min={30} max={300} unit="kg" />
+          <NumberStepper label={t('workout.past.bodyweightLabel')} value={bw} onChange={setBw} step={0.5} min={30} max={300} unit="kg" />
         </div>
         <button
           onClick={() => void save()}
           disabled={busy}
           className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-50"
         >
-          Save
+          {t('common.save')}
         </button>
       </div>
     </Sheet>

@@ -4,11 +4,15 @@ import { Search, Plus } from 'lucide-react'
 import { db } from '../../db/db'
 import Sheet from '../../components/Sheet'
 import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
+import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { t } from '../../i18n'
 import type { Equipment, Exercise, MuscleGroup } from '../../types'
 
 const MUSCLES: MuscleGroup[] = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'legs', 'glutes', 'core', 'cardio', 'other',
 ]
+
+const muscleLabel = (m: MuscleGroup): string => t(`workout.muscle.${m}`)
 
 interface Props {
   open: boolean
@@ -25,9 +29,18 @@ export default function ExercisePicker({ open, onClose, onPick }: Props) {
   const exercises = useLiveQuery(() => db.exercises.orderBy('nameLower').toArray()) ?? []
 
   const query = q.trim().toLowerCase()
-  const filtered = exercises.filter(e =>
-    (!query || e.nameLower.includes(query)) &&
-    (equipFilter === 'all' || e.equipment === equipFilter))
+  // Search matches the stored (English) name and the name shown in the UI language; the list
+  // follows the shown name (in English that is the nameLower order the query returns).
+  const filtered = exercises
+    .map(e => ({ e, label: exerciseDisplayName(e.name) }))
+    .filter(({ e, label }) =>
+      (!query || e.nameLower.includes(query) || label.toLowerCase().includes(query)) &&
+      (equipFilter === 'all' || e.equipment === equipFilter))
+    .sort((a, b) => {
+      const x = a.label.toLowerCase()
+      const y = b.label.toLowerCase()
+      return x < y ? -1 : x > y ? 1 : 0
+    })
   const exactMatch = exercises.some(e => e.nameLower === query)
 
   function resetCreate() {
@@ -64,20 +77,20 @@ export default function ExercisePicker({ open, onClose, onPick }: Props) {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Add exercise">
+    <Sheet open={open} onClose={onClose} title={t('workout.shared.addExercise')}>
       <div className="mb-3 flex items-center gap-2 rounded-xl bg-card px-3">
         <Search size={18} className="shrink-0 text-sub" />
         <input
           value={q}
           onChange={e => { setQ(e.target.value); resetCreate() }}
-          placeholder="Search exercises…"
+          placeholder={t('workout.picker.search')}
           className="min-h-[48px] w-full text-base"
         />
       </div>
 
       {/* Equipment filter */}
       <div className="mb-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-        <Chip active={equipFilter === 'all'} onClick={() => setEquipFilter('all')}>All</Chip>
+        <Chip active={equipFilter === 'all'} onClick={() => setEquipFilter('all')}>{t('workout.picker.all')}</Chip>
         {EQUIPMENTS.map(eq => (
           <Chip key={eq} active={equipFilter === eq} onClick={() => setEquipFilter(eq)}>
             {EQUIPMENT_LABEL[eq]}
@@ -90,29 +103,29 @@ export default function ExercisePicker({ open, onClose, onPick }: Props) {
           {creating ? (
             <div className="rounded-xl border border-primary/40 bg-card p-3">
               <p className="mb-2 text-sm font-medium">
-                New exercise <span className="text-primary">“{q.trim()}”</span>
+                {t('workout.picker.newExercise')} <span className="text-primary">“{q.trim()}”</span>
               </p>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Muscle group</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.picker.muscleGroup')}</p>
               <div className="mb-3 flex flex-wrap gap-2">
                 {MUSCLES.map(m => (
                   <button
                     key={m}
                     onClick={() => setNewMuscle(m)}
-                    className={`min-h-[40px] rounded-full px-3 text-sm font-medium capitalize ${
+                    className={`min-h-[40px] whitespace-nowrap rounded-full px-3 text-sm font-medium ${
                       newMuscle === m ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
                     }`}
                   >
-                    {m}
+                    {muscleLabel(m)}
                   </button>
                 ))}
               </div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Equipment</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.shared.equipment')}</p>
               <div className="mb-3 flex flex-wrap gap-2">
                 {EQUIPMENTS.map(eq => (
                   <button
                     key={eq}
                     onClick={() => setNewEquip(eq)}
-                    className={`min-h-[40px] rounded-full px-3 text-sm font-medium ${
+                    className={`min-h-[40px] whitespace-nowrap rounded-full px-3 text-sm font-medium ${
                       newEquip === eq ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
                     }`}
                   >
@@ -125,7 +138,7 @@ export default function ExercisePicker({ open, onClose, onPick }: Props) {
                 disabled={!newMuscle}
                 className="w-full rounded-xl bg-primary py-3 font-display text-base font-bold text-bg active:opacity-90 disabled:opacity-40"
               >
-                Create exercise
+                {t('workout.picker.create')}
               </button>
             </div>
           ) : (
@@ -133,28 +146,29 @@ export default function ExercisePicker({ open, onClose, onPick }: Props) {
               onClick={() => setCreating(true)}
               className="flex w-full items-center gap-2 rounded-xl border border-dashed border-primary/50 px-3 py-3 text-left font-medium text-primary active:bg-muted/30"
             >
-              <Plus size={18} /> Create “{q.trim()}”
+              <Plus size={18} className="shrink-0" />
+              <span className="min-w-0 truncate">{t('workout.picker.createNamed', { name: q.trim() })}</span>
             </button>
           )}
         </div>
       )}
 
       <ul className="divide-y divide-edge/50">
-        {filtered.map(e => (
+        {filtered.map(({ e, label }) => (
           <li key={e.id}>
             <button
               onClick={() => pick(e)}
               className="flex min-h-[52px] w-full items-center justify-between gap-2 px-1 py-2 text-left active:bg-muted/30"
             >
-              <span className="min-w-0 flex-1 truncate font-medium">{e.name}</span>
+              <span className="min-w-0 flex-1 truncate font-medium">{label}</span>
               <span className="flex shrink-0 items-center gap-1.5">
                 {e.equipment && (
-                  <span className="rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
+                  <span className="whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
                     {EQUIPMENT_LABEL[e.equipment]}
                   </span>
                 )}
-                <span className="rounded-full bg-muted/40 px-2 py-0.5 text-xs capitalize text-sub">
-                  {e.muscleGroup}
+                <span className="whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
+                  {muscleLabel(e.muscleGroup)}
                 </span>
               </span>
             </button>
@@ -162,7 +176,7 @@ export default function ExercisePicker({ open, onClose, onPick }: Props) {
         ))}
         {filtered.length === 0 && (
           <li className="py-6 text-center text-sm text-sub">
-            {query || equipFilter !== 'all' ? 'No matching exercises.' : 'No exercises yet.'}
+            {query || equipFilter !== 'all' ? t('workout.picker.noMatch') : t('workout.picker.empty')}
           </li>
         )}
       </ul>
@@ -175,7 +189,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`min-h-[36px] shrink-0 rounded-full px-3 text-sm font-medium ${
+      className={`min-h-[36px] shrink-0 whitespace-nowrap rounded-full px-3 text-sm font-medium ${
         active ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
       }`}
     >

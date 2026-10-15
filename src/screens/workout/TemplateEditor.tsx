@@ -7,6 +7,8 @@ import { parseRouteId } from '../../lib/ids'
 import NumberStepper from '../../components/NumberStepper'
 import { isCardioExercise } from '../../lib/cardio'
 import ExercisePicker from './ExercisePicker'
+import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { t } from '../../i18n'
 import type { Exercise, TemplateItem } from '../../types'
 
 export default function TemplateEditor() {
@@ -50,7 +52,7 @@ export default function TemplateEditor() {
     })
 
   async function deleteTemplate() {
-    if (!window.confirm(`Delete workout “${template!.name}”? Logged sessions are kept.`)) return
+    if (!window.confirm(t('workout.template.confirmDelete', { name: template!.name }))) return
     await deleteWithTombstone('templates', tid)
     navigate('/workout')
   }
@@ -60,7 +62,7 @@ export default function TemplateEditor() {
       <div className="mb-4 flex items-center gap-2">
         <button
           onClick={() => navigate('/workout')}
-          aria-label="Back"
+          aria-label={t('common.back')}
           className="flex h-11 w-11 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={24} />
@@ -68,7 +70,7 @@ export default function TemplateEditor() {
         <input
           value={template.name}
           onChange={e => update({ name: e.target.value })}
-          aria-label="Workout name"
+          aria-label={t('workout.template.nameAria')}
           className="min-w-0 w-full truncate border-b border-transparent font-display text-2xl font-bold focus:border-primary"
         />
       </div>
@@ -84,25 +86,25 @@ export default function TemplateEditor() {
                 : 'border-edge'
             }`}>
               <div className="mb-2 flex items-center justify-between gap-1">
-                <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold">{ex?.name ?? '…'}</p>
+                <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold">{ex ? exerciseDisplayName(ex.name) : '…'}</p>
                 <div className="flex shrink-0 gap-0.5">
                   <button
                     onClick={() => moveItem(i, -1)}
-                    aria-label="Move up"
+                    aria-label={t('workout.template.moveUp')}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-sub active:bg-muted/40"
                   >
                     <ChevronUp size={18} />
                   </button>
                   <button
                     onClick={() => moveItem(i, 1)}
-                    aria-label="Move down"
+                    aria-label={t('workout.template.moveDown')}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-sub active:bg-muted/40"
                   >
                     <ChevronDown size={18} />
                   </button>
                   <button
                     onClick={() => removeItem(i)}
-                    aria-label="Remove exercise"
+                    aria-label={t('workout.template.removeExercise')}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-danger active:bg-muted/40"
                   >
                     <Trash2 size={18} />
@@ -112,7 +114,7 @@ export default function TemplateEditor() {
               <div className="flex flex-wrap items-end justify-around gap-x-1 gap-y-2">
                 <NumberStepper
                   compact
-                  label="Sets"
+                  label={t('workout.template.sets')}
                   value={item.targetSets}
                   onChange={v => updateItem(i, { targetSets: Math.round(v) })}
                   step={1}
@@ -121,7 +123,7 @@ export default function TemplateEditor() {
                 />
                 <NumberStepper
                   compact
-                  label={isCardioExercise(ex) ? 'Min' : 'Reps'}
+                  label={isCardioExercise(ex) ? 'Min' : t('workout.template.reps')}
                   value={item.targetReps}
                   onChange={v => updateItem(i, { targetReps: Math.round(v) })}
                   step={1}
@@ -130,7 +132,7 @@ export default function TemplateEditor() {
                 />
                 <NumberStepper
                   compact
-                  label="Rest"
+                  label={t('workout.template.rest')}
                   value={item.restSec ?? ex?.defaultRestSec ?? 90}
                   onChange={v => updateItem(i, { restSec: Math.round(v) })}
                   step={15}
@@ -144,15 +146,15 @@ export default function TemplateEditor() {
               <div className="relative z-10 -mb-2 -mt-1.5 flex justify-center">
                 <button
                   onClick={() => updateItem(i, { supersetWithNext: !item.supersetWithNext })}
-                  aria-label={item.supersetWithNext ? 'Unlink superset' : 'Link as superset'}
+                  aria-label={item.supersetWithNext ? t('workout.template.unlinkSuperset') : t('workout.template.linkSuperset')}
                   aria-pressed={!!item.supersetWithNext}
-                  className={`flex min-h-[28px] items-center gap-1 rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-wide ${
+                  className={`flex min-h-[28px] items-center gap-1 whitespace-nowrap rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-wide ${
                     item.supersetWithNext
                       ? 'border-primary/40 bg-bg text-primary'
                       : 'border-edge bg-bg text-sub/60'
                   }`}
                 >
-                  <Link2 size={11} /> {item.supersetWithNext ? 'Superset' : 'Link'}
+                  <Link2 size={11} /> {item.supersetWithNext ? t('workout.shared.superset') : t('workout.template.link')}
                 </button>
               </div>
             )}
@@ -165,11 +167,11 @@ export default function TemplateEditor() {
         onClick={() => setPickerOpen(true)}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-edge py-4 font-medium text-sub active:bg-muted/30"
       >
-        <Plus size={20} /> Add exercise
+        <Plus size={20} /> {t('workout.shared.addExercise')}
       </button>
 
       <button onClick={deleteTemplate} className="mt-8 w-full py-3 text-sm font-medium text-danger">
-        Delete workout
+        {t('workout.template.delete')}
       </button>
 
       <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={addExercise} />
