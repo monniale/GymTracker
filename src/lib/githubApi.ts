@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 /**
  * Minimal GitHub REST client for the sync engine. api.github.com is CORS-open
  * for any origin with Authorization headers (docs: "CORS for AJAX requests
@@ -34,28 +36,28 @@ async function gh(token: string, path: string, init?: RequestInit): Promise<Resp
       },
     })
   } catch {
-    throw new GhError('Network unreachable', 0, 'network')
+    throw new GhError(t('data.github.network'), 0, 'network')
   }
   if (res.ok || res.status === 404) return res
-  if (res.status === 401) throw new GhError('Token invalid or expired', 401, 'auth')
+  if (res.status === 401) throw new GhError(t('data.github.tokenInvalid'), 401, 'auth')
   if (res.status === 403 || res.status === 429) {
     const remaining = res.headers.get('x-ratelimit-remaining')
     throw new GhError(
-      remaining === '0' ? 'GitHub rate limit reached — try later' : 'Access forbidden (check token permissions)',
+      remaining === '0' ? t('data.github.rateLimit') : t('data.github.forbidden'),
       res.status,
       remaining === '0' ? 'rate-limit' : 'auth',
     )
   }
-  if (res.status === 409) throw new GhError('Remote changed underneath us', 409, 'conflict')
+  if (res.status === 409) throw new GhError(t('data.github.conflict'), 409, 'conflict')
   if (res.status === 422) {
     const body = await res.text()
     // A stale/missing sha on PUT surfaces as 422 "does not match" on some paths.
     if (/sha/i.test(body) && /match|exist/i.test(body)) {
-      throw new GhError('Remote changed underneath us', 422, 'conflict')
+      throw new GhError(t('data.github.conflict'), 422, 'conflict')
     }
-    throw new GhError(`GitHub rejected the request (422)`, 422, 'other')
+    throw new GhError(t('data.github.rejected', { status: 422 }), 422, 'other')
   }
-  throw new GhError(`GitHub error ${res.status}`, res.status, 'other')
+  throw new GhError(t('data.github.error', { status: res.status }), res.status, 'other')
 }
 
 /** Unicode-safe base64 helpers (payload contains e.g. “ ” × é). */
@@ -79,7 +81,7 @@ export function decodeB64(b64: string): string {
 /** Validates the token and returns the authenticated username. */
 export async function getAuthedUser(token: string): Promise<string> {
   const res = await gh(token, '/user')
-  if (res.status === 404) throw new GhError('Token cannot read the user', 404, 'auth')
+  if (res.status === 404) throw new GhError(t('data.github.cannotReadUser'), 404, 'auth')
   const data = await res.json()
   return data.login as string
 }
@@ -134,7 +136,7 @@ export async function putFile(
     method: 'PUT',
     body: JSON.stringify({ message, content: encodeB64(text), ...(sha ? { sha } : {}) }),
   })
-  if (res.status === 404) throw new GhError('Repository or path not found', 404, 'not-found')
+  if (res.status === 404) throw new GhError(t('data.github.notFound'), 404, 'not-found')
   const data = await res.json()
   return data.content.sha as string
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { fallbackModels, GeminiError, type AiModel, type GenerateOpts } from './gemini'
+import { t } from '../i18n'
 
 /**
  * Device-local AI settings. Cloned from useSyncStore: the API key is persisted
@@ -45,6 +46,6 @@ export const useAiStore = create<AiStore>()(
  */
 export function aiRequestOpts(onModel?: (model: string) => void): GenerateOpts {
   const { apiKey, model, models } = useAiStore.getState()
-  if (!apiKey) throw new GeminiError('Add a Gemini key in Settings first.', 'auth')
+  if (!apiKey) throw new GeminiError(t('ai.gemini.noKey'), 'auth')
   return { apiKey, model, fallbacks: fallbackModels(models, model), onModel }
 }

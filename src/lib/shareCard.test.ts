@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { sessionCardModel, cardStats, cardFileName } from './shareCard'
 import { fmtLongDate } from './dates'
+import { useUiStore } from './uiStore'
 import type { ExerciseBreakdown, ScoreEvent, Session, SetRow } from '../types'
 
 const START = new Date(2026, 9, 15, 18, 0).getTime()
@@ -55,6 +56,18 @@ describe('sessionCardModel', () => {
     expect(cardStats(m).map(s => s.label)).toEqual(['sets', 'volume', 'time', 'streak'])
     expect(cardStats(m)[1].value).toBe('1,930 kg')
     expect(cardStats({ ...m, streakWeeks: 0 }).map(s => s.label)).toEqual(['sets', 'volume', 'time'])
+  })
+
+  it('draws its stats in Italian when the UI is Italian', () => {
+    const m = sessionCardModel(session, ev, sets, 2000, { fresh: true, streakWeeks: 3 })
+    useUiStore.setState({ language: 'it' })
+    try {
+      expect(cardStats({ ...m, volumeKg: 12_345 }).map(s => s.label)).toEqual(['serie', 'volume', 'tempo', 'striscia'])
+      expect(cardStats({ ...m, volumeKg: 12_345 })[1].value).toBe('12.345 kg')
+      expect(cardStats(m)[3].value).toBe('3 sett.')
+    } finally {
+      useUiStore.setState({ language: 'en' })
+    }
   })
 })
 

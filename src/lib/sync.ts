@@ -16,6 +16,7 @@ import {
   getFile, putFile, getAuthedUser, repoExists, repoIsPrivate,
   GhError, type GhConfig,
 } from './githubApi'
+import { t } from '../i18n'
 
 export const DATA_PATH = 'data/current.json'
 
@@ -96,10 +97,10 @@ function parseRemote(text: string): SyncPayload {
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error('Remote data file is not valid JSON')
+    throw new Error(t('data.sync.remoteInvalidJson'))
   }
   const p = parsed as SyncPayload
-  if (p.app !== 'gymtracker' || !p.tables) throw new Error('Remote file is not a GymTracker snapshot')
+  if (p.app !== 'gymtracker' || !p.tables) throw new Error(t('data.sync.remoteNotSnapshot'))
   return p
 }
 
@@ -213,11 +214,11 @@ async function doSync(reason: string): Promise<SyncOutcome> {
         throw e
       }
     }
-    throw new Error('Remote kept changing — try again')
+    throw new Error(t('data.sync.keptChanging'))
   } catch (e) {
     const message = e instanceof GhError
       ? e.kind === 'auth'
-        ? 'GitHub token rejected — it may have expired. Paste a fresh one in Settings.'
+        ? t('data.sync.tokenRejected')
         : e.message
       : (e as Error).message
     useSyncStore.setState({ lastError: message })
@@ -243,7 +244,7 @@ export async function previewConnection(token: string, repoName: string): Promis
   const owner = await getAuthedUser(token)
   const config: GhConfig = { token, owner, repo: repoName }
   if (!(await repoExists(config))) {
-    throw new Error(`Repository ${owner}/${repoName} not found. Create it as a PRIVATE repo on GitHub first.`)
+    throw new Error(t('data.sync.repoNotFound', { owner, repo: repoName }))
   }
   const isPrivate = await repoIsPrivate(config)
   const remote = await getFile(config, DATA_PATH)

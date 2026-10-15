@@ -2,6 +2,7 @@ import { parseCsv } from './csv'
 import { epley, scoreSession } from './scoring'
 import { localDateStr, parseLocalDate } from './dates'
 import { isCardioSet } from './cardio'
+import { t, tp } from '../i18n'
 import type { Equipment, Exercise, ExerciseBreakdown, Id, MuscleGroup } from '../types'
 
 /**
@@ -180,7 +181,7 @@ export function parseStrong(rows: string[][], opts: ImportOptions = DEFAULT_IMPO
     }
     g.sets.push(set)
   }
-  if (badDates > 0) warnings.push(`${badDates} row${badDates === 1 ? '' : 's'} with an unreadable date were skipped.`)
+  if (badDates > 0) warnings.push(tp('data.import.badDates', badDates))
   return { format: 'strong', sessions: finish(groups), warnings }
 }
 
@@ -216,18 +217,18 @@ export function parseHevy(rows: string[][]): ParsedHistory {
     }
     g.sets.push(set)
   }
-  if (badDates > 0) warnings.push(`${badDates} row${badDates === 1 ? '' : 's'} with an unreadable date were skipped.`)
+  if (badDates > 0) warnings.push(tp('data.import.badDates', badDates))
   return { format: 'hevy', sessions: finish(groups), warnings }
 }
 
 /** Parses a Strong or Hevy export. Throws a user-facing Error for anything else. */
 export function parseHistoryCsv(text: string, opts: ImportOptions = DEFAULT_IMPORT_OPTIONS): ParsedHistory {
   const rows = parseCsv(text)
-  if (rows.length < 2) throw new Error('The file has no workouts in it.')
+  if (rows.length < 2) throw new Error(t('data.import.noWorkouts'))
   const format = detectFormat(rows[0])
-  if (!format) throw new Error('Not a Strong or Hevy export (unknown columns).')
+  if (!format) throw new Error(t('data.import.unknownFormat'))
   const parsed = format === 'hevy' ? parseHevy(rows) : parseStrong(rows, opts)
-  if (parsed.sessions.length === 0) throw new Error('No sets found in the file.')
+  if (parsed.sessions.length === 0) throw new Error(t('data.import.noSets'))
   return parsed
 }
 

@@ -2,6 +2,8 @@ import type {
   CoachNote, CoachInsight, CoachInsightCategory, CoachInsightTone,
   MacroSuggestion, MacroSuggestionItem, MealType, PlannedSet,
 } from '../types'
+import { t } from '../i18n'
+import { getLang, type Lang } from './uiStore'
 
 /**
  * Minimal Gemini client for the AI workout coach. Runs directly from the
@@ -48,7 +50,11 @@ function mapHttpError(status: number, detail: string): GeminiError {
       : status === 401 || status === 403 ? 'auth'
         : status === 429 ? 'rate-limit'
           : 'other'
-  return new GeminiError(detail || `Gemini request failed (${status})`, kind, status)
+  return new GeminiError(
+    detail ? t('ai.gemini.requestFailedDetail', { detail }) : t('ai.gemini.requestFailed', { status }),
+    kind,
+    status,
+  )
 }
 
 /** Gemini structured-output schema (OpenAPI subset) mirroring CoachNote. */
@@ -125,7 +131,7 @@ async function post(body: unknown, opts: GenerateOpts): Promise<GeminiResponse> 
     })
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
-    throw new GeminiError('Network unreachable — check your connection.', 'network')
+    throw new GeminiError(t('ai.gemini.network'), 'network')
   }
   if (!res.ok) {
     throw mapHttpError(res.status, await errorDetail(res))
@@ -142,6 +148,18 @@ async function errorDetail(res: Response): Promise<string> {
   }
 }
 
+/**
+ * Appended to every system prompt while the UI is Italian, so the prose the user reads comes back
+ * in Italian. The briefings, JSON keys and enum values stay English (the schema fixes the enums).
+ */
+export const ITALIAN_OUTPUT_LINE =
+  'Write every user-facing text (headline, messages, reasons, names you invent) in Italian.'
+
+/** The system prompt for the UI language `lang`. */
+export function localizedSystemPrompt(systemPrompt: string, lang: Lang = getLang()): string {
+  return lang === 'it' ? `${systemPrompt}\n${ITALIAN_OUTPUT_LINE}` : systemPrompt
+}
+
 /** How to shape and parse one structured Gemini call. */
 interface StructuredConfig<T> {
   schema: object
@@ -155,7 +173,8 @@ interface StructuredConfig<T> {
  * prompt and response schema, and parse it with the caller's parser. Generic
  * over the payload type so every AI feature (coach note, diet note, weight plan,
  * macro suggestion) reuses the transport, error mapping, the model fallback
- * chain and the mandatory thinking-disabled config with zero duplication.
+ * chain and the mandatory thinking-disabled config with zero duplication. The
+ * system prompt gets `ITALIAN_OUTPUT_LINE` while the UI is Italian.
  *
  * If the chosen model fails with a retryable error, the same request goes to
  * each of `opts.fallbacks` in turn. When every model fails, the error thrown is
@@ -169,7 +188,7 @@ async function generateStructured<T>(
   opts: GenerateOpts,
 ): Promise<T> {
   const body = {
-    systemInstruction: { parts: [{ text: systemPrompt }] },
+    systemInstruction: { parts: [{ text: localizedSystemPrompt(systemPrompt) }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: config.temperature ?? 0.6,
@@ -205,10 +224,10 @@ async function generateOnce<T>(body: unknown, parse: (text: string) => T, opts: 
   const cand = data.candidates?.[0]
   const finish = cand?.finishReason
   if (finish && finish !== 'STOP' && finish !== 'MAX_TOKENS') {
-    throw new GeminiError('Gemini could not generate a response — try again.', 'blocked', 200)
+    throw new GeminiError(t('ai.gemini.blocked'), 'blocked', 200)
   }
   const text = (cand?.content?.parts ?? []).map(p => p.text ?? '').join('')
-  if (!text.trim()) throw new GeminiError('Gemini returned an empty response — try again.', 'other', 200)
+  if (!text.trim()) throw new GeminiError(t('ai.gemini.empty'), 'other', 200)
   return parse(text)
 }
 
@@ -264,7 +283,7 @@ export function parseCoachNote(text: string): CoachNote {
         }))
     : []
   return {
-    headline: typeof p.headline === 'string' && p.headline.trim() ? p.headline.trim() : 'Session reviewed',
+    headline: typeof p.headline === 'string' && p.headline.trim() ? p.headline.trim() : t('ai.note.defaultHeadline'),
     tone: TONES.includes(p.tone as CoachInsightTone) ? (p.tone as CoachInsightTone) : 'neutral',
     insights,
   }
@@ -283,13 +302,13 @@ function jsonUnescape(raw: string): string {
  * headline and any complete "message" strings, rather than showing raw JSON. */
 function salvageCoachNote(text: string): CoachNote {
   const h = text.match(/"headline"\s*:\s*"((?:[^"\\]|\\.)*)"/)
-  const headline = h ? jsonUnescape(h[1]) : 'Session reviewed'
+  const headline = h ? jsonUnescape(h[1]) : t('ai.note.defaultHeadline')
   const messages = [...text.matchAll(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/g)]
     .map(m => jsonUnescape(m[1]))
     .filter(msg => msg.trim().length > 0)
   const insights: CoachInsight[] = messages.length
     ? messages.map(message => ({ category: 'verdict', tone: 'neutral', message }))
-    : [{ category: 'verdict', tone: 'neutral', message: 'The coach note was cut off — tap Regenerate.' }]
+    : [{ category: 'verdict', tone: 'neutral', message: t('ai.note.cutOff') }]
   return { headline, tone: 'neutral', insights }
 }
 
@@ -455,14 +474,14 @@ export function parseMacroSuggestion(text: string): MacroSuggestion {
     parsed = JSON.parse(text)
   } catch {
     const h = text.match(/"headline"\s*:\s*"((?:[^"\\]|\\.)*)"/)
-    return { headline: h ? jsonUnescape(h[1]) : 'The suggestion was cut off — tap Regenerate.', items: [] }
+    return { headline: h ? jsonUnescape(h[1]) : t('ai.macro.cutOff'), items: [] }
   }
   const p = (parsed ?? {}) as Partial<MacroSuggestion>
   const items = Array.isArray(p.items)
     ? p.items.map(cleanMacroItem).filter((i): i is MacroSuggestionItem => i !== null)
     : []
   return {
-    headline: typeof p.headline === 'string' && p.headline.trim() ? p.headline.trim() : 'Ideas to finish your day',
+    headline: typeof p.headline === 'string' && p.headline.trim() ? p.headline.trim() : t('ai.macro.defaultHeadline'),
     items,
   }
 }
@@ -507,7 +526,7 @@ export async function listModels(apiKey: string, signal?: AbortSignal): Promise<
     res = await fetch(`${ENDPOINT}?pageSize=1000`, { signal, headers: { 'x-goog-api-key': apiKey } })
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
-    throw new GeminiError('Network unreachable — check your connection.', 'network')
+    throw new GeminiError(t('ai.gemini.network'), 'network')
   }
   if (!res.ok) throw mapHttpError(res.status, await errorDetail(res))
   const data = (await res.json()) as { models?: RawModel[] }

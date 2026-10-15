@@ -2,6 +2,8 @@ import { isNative } from '../native/platform'
 import { rankForPoints, rankLabel, type RankTier } from './ranks'
 import { fmtDuration, fmtLongDate, localDateStr } from './dates'
 import { isCardioSet } from './cardio'
+import { exerciseDisplayName } from './exerciseNames'
+import { t, tp, fmtNum } from '../i18n'
 import type { ScoreEvent, Session, SetRow } from '../types'
 
 /** One exercise row on the card. */
@@ -58,7 +60,7 @@ export function sessionCardModel(
     const mine = working.filter(s => s.exerciseId === b.exerciseId)
     const top = mine.reduce<SetRow | null>((a, s) => (!a || s.e1rm > a.e1rm ? s : a), null)
     return {
-      name: b.exerciseName,
+      name: exerciseDisplayName(b.exerciseName),
       sets: mine.length,
       best: top ? { weightKg: top.weightKg, reps: top.reps } : null,
       e1rmPr: b.e1rmPr,
@@ -86,11 +88,13 @@ export function sessionCardModel(
 /** Footer stats in display order; the streak only when there is one. */
 export function cardStats(m: SessionCardModel): { value: string; label: string }[] {
   const stats = [
-    { value: String(m.sets), label: m.sets === 1 ? 'set' : 'sets' },
-    { value: `${m.volumeKg.toLocaleString('en-US')} kg`, label: 'volume' },
-    { value: fmtDuration(m.durationMs), label: 'time' },
+    { value: String(m.sets), label: tp('data.shareCard.statSets', m.sets) },
+    { value: `${fmtNum(m.volumeKg)} kg`, label: t('data.shareCard.statVolume') },
+    { value: fmtDuration(m.durationMs), label: t('data.shareCard.statTime') },
   ]
-  if (m.streakWeeks > 0) stats.push({ value: `${m.streakWeeks} wk`, label: 'streak' })
+  if (m.streakWeeks > 0) {
+    stats.push({ value: t('data.shareCard.streakWeeks', { n: m.streakWeeks }), label: t('data.shareCard.statStreak') })
+  }
   return stats
 }
 
@@ -197,7 +201,7 @@ export async function renderSessionCard(m: SessionCardModel, emblemSrc?: string)
   canvas.width = CARD_W
   canvas.height = CARD_H
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas is not available')
+  if (!ctx) throw new Error(t('data.shareCard.noCanvas'))
   const PAD = 72
 
   // Background with a glow in the rank colour behind the emblem.
@@ -232,7 +236,7 @@ export async function renderSessionCard(m: SessionCardModel, emblemSrc?: string)
   ctx.fillText(`+${m.points}`, PAD - 6, 410)
   ctx.fillStyle = SUB
   ctx.font = `600 40px ${DISPLAY}`
-  ctx.fillText(m.prCount > 0 ? `POINTS · ${m.prCount} PR${m.prCount === 1 ? '' : 'S'}` : 'POINTS', PAD, 466)
+  ctx.fillText(m.prCount > 0 ? tp('data.shareCard.pointsPrs', m.prCount) : t('data.shareCard.points'), PAD, 466)
 
   // Rank emblem + label.
   const cx = 820
@@ -240,7 +244,7 @@ export async function renderSessionCard(m: SessionCardModel, emblemSrc?: string)
     ctx.fillStyle = GREEN
     ctx.font = `700 40px ${DISPLAY}`
     ctx.textAlign = 'center'
-    ctx.fillText('RANK UP!', cx, 222)
+    ctx.fillText(t('data.shareCard.rankUp'), cx, 222)
   }
   if (emblem) ctx.drawImage(emblem, cx - 130, 236, 260, 260)
   ctx.textAlign = 'center'
@@ -256,24 +260,25 @@ export async function renderSessionCard(m: SessionCardModel, emblemSrc?: string)
     ctx.fillStyle = CARD
     ctx.fill()
     let right = CARD_W - PAD - 28
-    if (ex.volumePr) right = pill(ctx, 'VOL PR', right, y + 23, GREEN) - 14
-    if (ex.e1rmPr) right = pill(ctx, 'e1RM PR', right, y + 23, ORANGE) - 14
+    if (ex.volumePr) right = pill(ctx, t('data.shareCard.volumePr'), right, y + 23, GREEN) - 14
+    if (ex.e1rmPr) right = pill(ctx, t('data.shareCard.e1rmPr'), right, y + 23, ORANGE) - 14
     ctx.fillStyle = INK
     ctx.font = `600 40px ${BODY}`
     const nameX = PAD + 32
     ctx.fillText(fit(ctx, ex.name, right - nameX - 8), nameX, y + 44)
     ctx.fillStyle = SUB
     ctx.font = `500 28px ${BODY}`
+    const sets = tp('units.sets', ex.sets)
     const detail = ex.best
-      ? `${ex.sets} set${ex.sets === 1 ? '' : 's'} · best ${ex.best.weightKg} kg × ${ex.best.reps}`
-      : `${ex.sets} set${ex.sets === 1 ? '' : 's'}`
+      ? t('data.shareCard.setsBest', { sets, weight: fmtNum(ex.best.weightKg), reps: ex.best.reps })
+      : sets
     ctx.fillText(fit(ctx, detail, right - nameX - 8), nameX, y + 80)
     y += 106
   }
   if (m.moreExercises > 0) {
     ctx.fillStyle = SUB
     ctx.font = `500 30px ${BODY}`
-    ctx.fillText(`+ ${m.moreExercises} more exercise${m.moreExercises === 1 ? '' : 's'}`, PAD + 32, y + 26)
+    ctx.fillText(tp('data.shareCard.moreExercises', m.moreExercises), PAD + 32, y + 26)
   }
 
   // Footer stats.
@@ -304,7 +309,7 @@ export async function renderSessionCard(m: SessionCardModel, emblemSrc?: string)
   ctx.textAlign = 'left'
 
   return new Promise((resolve, reject) =>
-    canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Could not encode the image'))), 'image/png'),
+    canvas.toBlob(b => (b ? resolve(b) : reject(new Error(t('data.shareCard.encodeFailed')))), 'image/png'),
   )
 }
 
@@ -312,7 +317,7 @@ function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader()
     r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''))
-    r.onerror = () => reject(r.error ?? new Error('Could not read the image'))
+    r.onerror = () => reject(r.error ?? new Error(t('data.shareCard.readFailed')))
     r.readAsDataURL(blob)
   })
 }
@@ -324,7 +329,7 @@ function blobToBase64(blob: Blob): Promise<string> {
 export async function shareImage(blob: Blob, fileName: string): Promise<'shared' | 'downloaded' | 'canceled'> {
   if (isNative) {
     const { sharePngFile } = await import('../native/files')
-    return sharePngFile(fileName, await blobToBase64(blob), 'Share workout')
+    return sharePngFile(fileName, await blobToBase64(blob), t('data.shareCard.shareTitle'))
   }
   const file = new File([blob], fileName, { type: 'image/png' })
   if (navigator.canShare?.({ files: [file] })) {
