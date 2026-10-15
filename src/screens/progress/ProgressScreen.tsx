@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAiStore } from '../../lib/aiStore'
 import { localDateStr, addDays } from '../../lib/dates'
+import { useLocalToday } from '../../lib/hooks'
+import { trainingHeatmap } from '../../lib/heatmap'
+import Heatmap from '../../components/Heatmap'
 import { LineChart, BarChart, BandBars, Sparkline, type ChartPoint } from '../../components/Charts'
 import { standardFor, levelFor } from '../../lib/standards'
 import { gatherWeeklyMuscleVolume, HYPERTROPHY_SET_BAND } from '../../lib/muscleVolume'
@@ -46,6 +49,7 @@ export default function ProgressScreen() {
 
       <BodyweightTile />
       <CoachHistoryTile />
+      <TrainingHeatmapTile />
 
       <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
         <button
@@ -231,6 +235,40 @@ function CoachHistoryTile() {
       </div>
       <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
     </Link>
+  )
+}
+
+const HEATMAP_WEEKS = 26
+
+/** Consistency grid of the last 26 weeks (finished workouts per day). */
+function TrainingHeatmapTile() {
+  const today = useLocalToday()
+  const sessions = useLiveQuery(() => db.sessions.orderBy('startedAt').toArray())
+  const heat = useMemo(
+    () => (sessions ? trainingHeatmap(sessions, today, { weeks: HEATMAP_WEEKS }) : null),
+    [sessions, today],
+  )
+  if (!heat) return null
+  return (
+    <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
+      <Link to="/workout/history" className="mb-2 flex items-center gap-1.5 text-xs text-sub">
+        <CalendarDays size={14} className="shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">Consistency · last {HEATMAP_WEEKS} weeks</span>
+        <span className="flex shrink-0 items-center whitespace-nowrap font-semibold text-primary">
+          History <ChevronRight size={14} aria-hidden />
+        </span>
+      </Link>
+      <Heatmap data={heat} today={today} />
+      <p className="num mt-2 flex flex-wrap gap-x-1.5 text-xs text-sub">
+        <span className="whitespace-nowrap">
+          <span className="font-semibold text-ink">{heat.daysThisYear}</span> day{heat.daysThisYear === 1 ? '' : 's'} this year
+        </span>
+        <span aria-hidden>·</span>
+        <span className="whitespace-nowrap">
+          longest run <span className="font-semibold text-ink">{heat.longestRunWeeks}</span> week{heat.longestRunWeeks === 1 ? '' : 's'}
+        </span>
+      </p>
+    </section>
   )
 }
 

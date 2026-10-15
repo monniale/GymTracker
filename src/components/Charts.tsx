@@ -12,9 +12,9 @@ export interface ChartPoint {
   label: string // tooltip label (e.g. date)
 }
 
-const GRID = '#2A3442'
-const INK = '#F8FAFC'
-const SUB = '#94A3B8'
+export const GRID = '#2A3442'
+export const INK = '#F8FAFC'
+export const SUB = '#94A3B8'
 
 function niceRange(values: number[]): [number, number] {
   const min = Math.min(...values)
