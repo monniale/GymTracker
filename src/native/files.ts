@@ -1,5 +1,6 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
+import { t } from '../i18n'
 
 /** Cache sub-folder for exports (covered by the template FileProvider's `cache-path` root). */
 const EXPORT_DIR = 'exports'
@@ -39,10 +40,10 @@ async function shareExport(
  */
 export async function shareTextFile(fileName: string, text: string, dialogTitle?: string): Promise<'shared' | 'canceled'> {
   // UTF8 is mandatory here: without it `data` is treated as base64.
-  return shareExport(fileName, text, dialogTitle ?? 'Save GymTracker backup', Encoding.UTF8)
+  return shareExport(fileName, text, dialogTitle ?? t('native.share.backup'), Encoding.UTF8)
 }
 
 /** Shares a PNG (base64, no data: prefix) through the Android share sheet: WhatsApp, Instagram, Photos… */
 export async function sharePngFile(fileName: string, base64: string, dialogTitle?: string): Promise<'shared' | 'canceled'> {
-  return shareExport(fileName, base64, dialogTitle ?? 'Share image')
+  return shareExport(fileName, base64, dialogTitle ?? t('native.share.image'))
 }

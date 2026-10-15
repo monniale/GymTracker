@@ -149,7 +149,7 @@ public final class RestTimerController {
             .putBoolean(K_RUNNING, true)
             .putLong(K_END_AT, endAt)
             .putLong(K_TOTAL_MS, Math.max(1_000L, totalMs))
-            .putString(K_TITLE, title != null ? title : "Rest")
+            .putString(K_TITLE, title != null ? title : ctx.getString(R.string.rest_title))
             .putString(K_BODY, body)
             .putLong(K_ENDED_AT, 0L)
             .putBoolean(K_COUNTDOWN, countdown)
@@ -229,14 +229,17 @@ public final class RestTimerController {
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (nm == null) return;
 
+        // Names / descriptions come from res/values(-it)/strings.xml, so they follow the phone's
+        // language; re-creating a channel with the same id only updates them (never change an id here).
+
         // Silent, but IMPORTANCE_DEFAULT so it is not filed under "Silent" and stays > IMPORTANCE_MIN
         // (a Live Update promotion requirement).
         NotificationChannel countdown = new NotificationChannel(
             CH_COUNTDOWN,
-            "Rest timer (live countdown)",
+            ctx.getString(R.string.rest_channel_countdown),
             NotificationManager.IMPORTANCE_DEFAULT
         );
-        countdown.setDescription("Live countdown while you rest between sets");
+        countdown.setDescription(ctx.getString(R.string.rest_channel_countdown_desc));
         countdown.setSound(null, null);
         countdown.enableVibration(false);
         countdown.setShowBadge(false);
@@ -248,10 +251,10 @@ public final class RestTimerController {
         // Default: USAGE_NOTIFICATION_EVENT follows the ringer (silent/vibrate) and routes to earbuds.
         NotificationChannel quiet = new NotificationChannel(
             CH_ALERT_QUIET,
-            "Rest over — discreet (follows ringer)",
+            ctx.getString(R.string.rest_channel_quiet),
             NotificationManager.IMPORTANCE_HIGH
         );
-        quiet.setDescription("Sound and vibration when the rest period ends. Follows the ringer mode; plays in earbuds.");
+        quiet.setDescription(ctx.getString(R.string.rest_channel_quiet_desc));
         quiet.setSound(
             sound,
             new AudioAttributes.Builder()
@@ -267,10 +270,10 @@ public final class RestTimerController {
         // Opt-in: USAGE_ALARM plays at alarm volume, even in vibrate/silent ringer mode, on the speaker.
         NotificationChannel loud = new NotificationChannel(
             CH_ALERT,
-            "Rest over — loud (alarm volume)",
+            ctx.getString(R.string.rest_channel_loud),
             NotificationManager.IMPORTANCE_HIGH
         );
-        loud.setDescription("Alarm-volume sound when the rest period ends. Rings on silent; plays on the phone speaker.");
+        loud.setDescription(ctx.getString(R.string.rest_channel_loud_desc));
         loud.setSound(
             sound,
             new AudioAttributes.Builder()
@@ -290,7 +293,7 @@ public final class RestTimerController {
         if (!s.running) return;
         SharedPreferences p = prefs(ctx);
         if (!p.getBoolean(K_COUNTDOWN, true)) return;
-        String title = p.getString(K_TITLE, "Rest");
+        String title = p.getString(K_TITLE, ctx.getString(R.string.rest_title));
         String body = p.getString(K_BODY, null);
         long now = System.currentTimeMillis();
 
@@ -310,8 +313,8 @@ public final class RestTimerController {
             .setRequestPromotedOngoing(true) // Android 16 Live Update request (writes android.requestPromotedOngoing)
             .setContentIntent(openAppIntent(ctx))
             .setDeleteIntent(broadcast(ctx, ACTION_DISMISSED, RC_DISMISSED, 0L))
-            .addAction(0, "Skip", broadcast(ctx, ACTION_SKIP, RC_SKIP, 0L))
-            .addAction(0, "+15 s", broadcast(ctx, ACTION_EXTEND, RC_EXTEND, EXTEND_STEP_MS));
+            .addAction(0, ctx.getString(R.string.rest_action_skip), broadcast(ctx, ACTION_SKIP, RC_SKIP, 0L))
+            .addAction(0, ctx.getString(R.string.rest_action_extend), broadcast(ctx, ACTION_EXTEND, RC_EXTEND, EXTEND_STEP_MS));
         // Do NOT call setShortCriticalText() while counting: in AOSP SystemUI the text wins over the
         // chronometer in the status-bar chip. Do NOT setColorized(true): it disqualifies promotion.
 
@@ -325,8 +328,8 @@ public final class RestTimerController {
         String body = p.getString(K_BODY, null);
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, channel)
             .setSmallIcon(R.drawable.ic_stat_timer)
-            .setContentTitle("Rest over")
-            .setContentText(body != null && !body.isEmpty() ? body : "Time for your next set")
+            .setContentTitle(ctx.getString(R.string.rest_over_title))
+            .setContentText(body != null && !body.isEmpty() ? body : ctx.getString(R.string.rest_over_body))
             .setCategory(NotificationCompat.CATEGORY_ALARM) // exempt from notification cooldown; DND "alarms"
             .setPriority(NotificationCompat.PRIORITY_HIGH) // pre-O heads-up; O+ uses the channel
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

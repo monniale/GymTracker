@@ -1,6 +1,7 @@
 import type { NativeStatus } from '../status'
 import type { HHMM, NotifyPrefs, RestAlertPrefs } from '../../lib/notifyPrefs'
 import { localDateStr } from '../../lib/dates'
+import { t } from '../../i18n'
 
 /**
  * Pure helpers behind the native Settings UI (NotificationsSection, RestTimerNativeSettings):
@@ -161,16 +162,19 @@ export function throughDate(horizon: number): string {
 /** UsageStatsManager standby buckets. */
 export function bucketLabel(bucket: number | null): string | null {
   if (bucket === null) return null
-  const names: Record<number, string> = {
+  const names: Record<number, 'exempted' | 'active' | 'workingSet' | 'frequent' | 'rare' | 'restricted' | 'never'> = {
     5: 'exempted',
     10: 'active',
-    20: 'working set',
+    20: 'workingSet',
     30: 'frequent',
     40: 'rare',
     45: 'restricted',
     50: 'never',
   }
-  return names[bucket] ?? `bucket ${bucket}`
+  const name = names[bucket]
+  return name
+    ? t(`native.notifications.details.bucket.${name}`)
+    : t('native.notifications.details.bucket.other', { n: bucket })
 }
 
 export const RECAP_DEFAULT_TIME: Record<NotifyPrefs['recap']['when'], HHMM> = {

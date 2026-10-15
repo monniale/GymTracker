@@ -7,6 +7,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import io.github.monniale.gymtracker.R;
 
 /**
  * JS face of the native rest timer (src/native/restTimerPlugin.ts). No `permissions`:
@@ -106,7 +107,7 @@ public class RestTimerPlugin extends Plugin {
             getContext(),
             endAt,
             totalMs,
-            call.getString("title", "Rest"),
+            call.getString("title", getContext().getString(R.string.rest_title)),
             call.getString("body"),
             countdown == null || countdown,
             alert == null || alert,
