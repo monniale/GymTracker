@@ -5,13 +5,15 @@ import {
   Dumbbell, Trophy, Scale, UtensilsCrossed, Zap, Medal, Ghost,
 } from 'lucide-react'
 import { db } from '../../db/db'
-import { rankForPoints, rankLabel, SEASON_DAYS, TIERS, type RankTier } from '../../lib/ranks'
+import { rankForPoints, rankLabel, translateRankLabel, SEASON_DAYS, TIERS, type RankTier } from '../../lib/ranks'
 import { ACHIEVEMENTS, type AchievementDef } from '../../lib/achievements'
-import { evaluateQuests, QUEST_BONUS, type QuestStatus } from '../../lib/quests'
+import { evaluateQuests, displayEventLabel, QUEST_BONUS, type QuestStatus } from '../../lib/quests'
+import { exerciseDisplayName } from '../../lib/exerciseNames'
 import RankBadge from '../../components/RankBadge'
 import RankParticles from '../../components/RankParticles'
 import Sheet from '../../components/Sheet'
 import { addDays, daysBetween, fmtDate, localDateStr } from '../../lib/dates'
+import { t, tp, fmtNum } from '../../i18n'
 import type { Season } from '../../types'
 
 const ICONS: Record<AchievementDef['icon'], typeof Dumbbell> = {
@@ -22,6 +24,11 @@ const ICONS: Record<AchievementDef['icon'], typeof Dumbbell> = {
   utensils: UtensilsCrossed,
   zap: Zap,
   medal: Medal,
+}
+
+/** A message with `**bold**` spans (the scoring explainer's lead-ins). */
+function Rich({ text }: { text: string }) {
+  return <>{text.split('**').map((part, i) => (i % 2 === 1 ? <b key={i} className="text-ink">{part}</b> : part))}</>
 }
 
 export default function RankScreen() {
@@ -68,7 +75,7 @@ export default function RankScreen() {
 
   return (
     <div className="pt-4">
-      <h1 className="mb-4 font-display text-3xl font-bold">Rank</h1>
+      <h1 className="mb-4 font-display text-3xl font-bold">{t('rank.screen.title')}</h1>
 
       <div className="flex flex-col items-center rounded-2xl border border-edge bg-card p-6">
         <div className="relative" style={{ width: 120, height: 120 }}>
@@ -78,7 +85,7 @@ export default function RankScreen() {
         <p className="mt-2 font-display text-3xl font-bold" style={{ color: info.tier.color }}>
           {rankLabel(info.tier)}
         </p>
-        <p className="num text-lg font-semibold text-sub">{Math.round(rankState.points)} pts</p>
+        <p className="num text-lg font-semibold text-sub">{tp('units.pts', Math.round(rankState.points))}</p>
 
         {info.next && (
           <div className="mt-3 w-full max-w-xs">
@@ -89,7 +96,7 @@ export default function RankScreen() {
               />
             </div>
             <p className="num mt-1 text-center text-xs text-sub">
-              {Math.max(0, Math.ceil(info.next.threshold - rankState.points))} pts to {rankLabel(info.next)}
+              {tp('rank.screen.toNext', Math.max(0, Math.ceil(info.next.threshold - rankState.points)), { rank: rankLabel(info.next) })}
             </p>
           </div>
         )}
@@ -98,24 +105,20 @@ export default function RankScreen() {
         <div className="mt-4 flex flex-wrap justify-center gap-2 text-sm font-medium">
           <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-muted/40 px-3 py-1.5">
             <Flame size={15} className="shrink-0 text-primary" />
-            <span>
-              <span className="num">{rankState.streakWeeks}</span> wk streak
-            </span>
+            <span className="num">{tp('rank.screen.streak', rankState.streakWeeks)}</span>
           </span>
           <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-muted/40 px-3 py-1.5">
             <CalendarDays size={15} className="shrink-0 text-sub" />
-            <span>
-              Season {rankState.seasonId} · <span className="num">{daysLeft}</span>d left
-            </span>
+            <span className="num">{tp('rank.screen.seasonLeft', daysLeft, { season: rankState.seasonId })}</span>
           </span>
         </div>
 
         {ghost && (
           <p className="num mt-3 flex items-center gap-1.5 text-xs font-medium text-sub">
             <Ghost size={14} />
-            Day {ghost.dayN}: {ghost.currentPts} pts vs{' '}
+            {t('rank.screen.ghostNow', { day: ghost.dayN, pts: tp('units.pts', ghost.currentPts) })}{' '}
             <span className={ghost.currentPts >= ghost.ghostPts ? 'text-accent' : 'text-danger'}>
-              {ghost.ghostPts} last season
+              {t('rank.screen.ghostLast', { pts: fmtNum(ghost.ghostPts) })}
             </span>
           </p>
         )}
@@ -123,20 +126,20 @@ export default function RankScreen() {
 
       {quests.length > 0 && (
         <div className="mt-3 rounded-2xl border border-edge bg-card p-4">
-          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
-            <Target size={17} className="text-accent" /> Weekly quests
-            <span className="num ml-auto text-xs font-medium text-sub">+{QUEST_BONUS} pts each</span>
+          <h2 className="mb-2 flex flex-wrap items-center gap-x-2 font-display text-lg font-semibold">
+            <Target size={17} className="shrink-0 text-accent" /> {t('rank.quests.title')}
+            <span className="num ml-auto whitespace-nowrap text-xs font-medium text-sub">{t('rank.quests.bonusEach', { n: QUEST_BONUS })}</span>
           </h2>
           <div className="space-y-2.5">
             {quests.map(q => (
               <div key={q.def.id}>
-                <div className="mb-1 flex items-center justify-between text-sm">
+                <div className="mb-1 flex items-center justify-between gap-2 text-sm">
                   <span className={`font-medium ${q.done ? 'text-accent' : ''}`}>
                     {q.done && <Check size={14} className="mr-1 inline" />}
                     {q.def.label}
                   </span>
-                  <span className="num text-xs text-sub">
-                    {q.current.toLocaleString()} / {q.def.target.toLocaleString()}
+                  <span className="num shrink-0 whitespace-nowrap text-xs text-sub">
+                    {fmtNum(q.current)} / {fmtNum(q.def.target)}
                   </span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-muted/40">
@@ -158,47 +161,29 @@ export default function RankScreen() {
         className="mt-3 flex w-full items-center justify-between rounded-2xl border border-edge bg-card px-4 py-3 text-left"
       >
         <span className="flex items-center gap-2 font-medium">
-          <Info size={18} className="text-sub" /> How scoring works
+          <Info size={18} className="text-sub" /> {t('rank.scoring.toggle')}
         </span>
         {showInfo ? <ChevronUp size={18} className="text-sub" /> : <ChevronDown size={18} className="text-sub" />}
       </button>
       {showInfo && (
         <div className="mt-2 space-y-2 rounded-2xl border border-edge bg-card p-4 text-sm leading-relaxed text-sub">
-          <p>
-            <b className="text-ink">Volume load</b> (sets × reps × weight ÷ your bodyweight) is the base — it is
-            the standard scientific proxy for training stimulus, with a proven dose–response for muscle growth.
-          </p>
-          <p>
-            <b className="text-ink">Intensity weighting</b>: each set is scaled by how heavy it is relative to
-            your estimated 1-rep max (Epley formula). Sets under 30% of your max score almost nothing — junk
-            volume doesn't build muscle, and it doesn't build points either.
-          </p>
-          <p>
-            <b className="text-ink">PR bonuses</b> (+25 per e1RM record, +10 per volume record, max 75):
-            progressive overload — beating your previous best — is the mechanism of adaptation, so it pays extra.
-          </p>
-          <p>
-            <b className="text-ink">Streak multiplier</b> (+5% per consecutive week hitting your weekly session
-            target, max +30%): consistency is the single best predictor of results, so it multiplies everything.
-          </p>
-          <p>
-            <b className="text-ink">Caps</b>: max 6 scored sets per exercise, 24 per session, 150 base points —
-            diminishing returns are real, and grinding endless easy sets won't rank you up. A second session the
-            same day counts 25%. After 7 rest days points decay 3%/day (max −25%). Seasons last 12 weeks; you
-            restart with 20% carryover.
-          </p>
+          <p><Rich text={t('rank.scoring.volume')} /></p>
+          <p><Rich text={t('rank.scoring.intensity')} /></p>
+          <p><Rich text={t('rank.scoring.prBonus')} /></p>
+          <p><Rich text={t('rank.scoring.streak')} /></p>
+          <p><Rich text={t('rank.scoring.caps')} /></p>
         </div>
       )}
 
-      <h2 className="mb-2 mt-6 font-display text-xl font-semibold">Recent scores</h2>
+      <h2 className="mb-2 mt-6 font-display text-xl font-semibold">{t('rank.recent.title')}</h2>
       {events.length === 0 && (
-        <p className="py-4 text-sm text-sub">Finish a workout to earn your first points.</p>
+        <p className="py-4 text-sm text-sub">{t('rank.recent.empty')}</p>
       )}
       <div className="space-y-1.5">
         {events.map(e => (
           <div key={e.id} className="flex items-center gap-3 rounded-xl bg-card px-4 py-2.5">
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {e.label ?? fmtDate(e.date)}
+              {e.label !== undefined ? displayEventLabel(e.label) : fmtDate(e.date)}
             </span>
             {e.prBonus > 0 && (
               <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
@@ -210,7 +195,7 @@ export default function RankScreen() {
         ))}
       </div>
 
-      <h2 className="mb-2 mt-6 font-display text-xl font-semibold">Achievements</h2>
+      <h2 className="mb-2 mt-6 font-display text-xl font-semibold">{t('rank.achievements.title')}</h2>
       <div className="grid grid-cols-2 gap-2">
         {ACHIEVEMENTS.map(a => {
           const unlockedAt = unlockedIds?.get(a.id)
@@ -238,27 +223,27 @@ export default function RankScreen() {
 
       {pastSeasons.length > 0 && (
         <>
-          <h2 className="mb-2 mt-6 font-display text-xl font-semibold">Past seasons</h2>
+          <h2 className="mb-2 mt-6 font-display text-xl font-semibold">{t('rank.seasons.title')}</h2>
           <div className="space-y-1.5">
             {pastSeasons.map(s => <SeasonRow key={s.id} season={s} />)}
           </div>
         </>
       )}
 
-      <h2 className="mb-2 mt-6 font-display text-xl font-semibold">All ranks</h2>
+      <h2 className="mb-2 mt-6 font-display text-xl font-semibold">{t('rank.tiers.title')}</h2>
       <div className="grid grid-cols-2 gap-1.5 pb-4">
-        {TIERS.map(t => (
+        {TIERS.map(tier => (
           <button
-            key={`${t.rank}${t.sub}`}
-            onClick={() => setPreview(t)}
+            key={`${tier.rank}${tier.sub}`}
+            onClick={() => setPreview(tier)}
             className={`num flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left text-sm ${
-              t === info.tier ? 'bg-muted/60 font-bold' : 'bg-card text-sub'
+              tier === info.tier ? 'bg-muted/60 font-bold' : 'bg-card text-sub'
             }`}
           >
-            <RankBadge tier={t} size={44} />
+            <RankBadge tier={tier} size={44} />
             <span className="min-w-0">
-              <span className="block truncate" style={{ color: t.color }}>{rankLabel(t)}</span>
-              <span className="block whitespace-nowrap text-xs">{t.threshold} pts</span>
+              <span className="block truncate" style={{ color: tier.color }}>{rankLabel(tier)}</span>
+              <span className="block whitespace-nowrap text-xs">{tp('units.pts', tier.threshold)}</span>
             </span>
           </button>
         ))}
@@ -271,12 +256,12 @@ export default function RankScreen() {
               <RankBadge tier={preview} size={180} />
             </div>
             <p className="num font-display text-2xl font-bold" style={{ color: preview.color }}>
-              {preview.threshold} pts
+              {tp('units.pts', preview.threshold)}
             </p>
             <p className="num mt-1 text-sm text-sub">
               {rankState.points >= preview.threshold
-                ? 'Reached'
-                : `${Math.ceil(preview.threshold - rankState.points)} pts to go`}
+                ? t('rank.tiers.reached')
+                : tp('rank.tiers.toGo', Math.ceil(preview.threshold - rankState.points))}
             </p>
           </div>
         )}
@@ -293,18 +278,21 @@ function SeasonRow({ season }: { season: Season }) {
         onClick={() => setOpen(o => !o)}
         className="flex w-full items-center gap-3 px-4 py-2.5 text-left"
       >
-        <span className="flex-1 text-sm font-medium">Season {season.seasonId}</span>
-        <span className="text-sm text-sub">{season.finalRank}</span>
-        <span className="num text-sm font-semibold">{season.finalPoints} pts</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{t('rank.seasons.season', { season: season.seasonId })}</span>
+        <span className="shrink-0 whitespace-nowrap text-sm text-sub">{translateRankLabel(season.finalRank)}</span>
+        <span className="num shrink-0 whitespace-nowrap text-sm font-semibold">{tp('units.pts', season.finalPoints)}</span>
         {open ? <ChevronUp size={16} className="text-sub" /> : <ChevronDown size={16} className="text-sub" />}
       </button>
       {open && season.recap && (
-        <div className="num flex justify-between border-t border-edge/60 px-4 py-2.5 text-xs text-sub">
-          <span>{season.recap.sessions} sessions</span>
-          <span>{season.recap.totalVolumeKg.toLocaleString()} kg lifted</span>
+        <div className="num flex flex-wrap justify-between gap-x-3 gap-y-1 border-t border-edge/60 px-4 py-2.5 text-xs text-sub">
+          <span className="whitespace-nowrap">{tp('rank.seasons.sessions', season.recap.sessions)}</span>
+          <span className="whitespace-nowrap">{t('rank.seasons.lifted', { kg: fmtNum(season.recap.totalVolumeKg) })}</span>
           {season.recap.bestLift && (
             <span>
-              best: {season.recap.bestLift.exerciseName} {season.recap.bestLift.e1rm} e1RM
+              {t('rank.seasons.best', {
+                name: exerciseDisplayName(season.recap.bestLift.exerciseName),
+                e1rm: fmtNum(season.recap.bestLift.e1rm),
+              })}
             </span>
           )}
         </div>
