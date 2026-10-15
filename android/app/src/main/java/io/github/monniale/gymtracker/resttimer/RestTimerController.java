@@ -57,7 +57,7 @@ public final class RestTimerController {
     static final String ACTION_DISMISSED = "io.github.monniale.gymtracker.resttimer.DISMISSED";
     static final String EXTRA_DELTA_MS = "deltaMs";
     /** Hash route the app opens when a rest notification is tapped (RestTimerPlugin.handleOnNewIntent). */
-    static final String EXTRA_ROUTE = "gt_route";
+    public static final String EXTRA_ROUTE = "gt_route";
     private static final String ROUTE_SESSION = "/workout/session";
 
     private static final int RC_SKIP = 4211;

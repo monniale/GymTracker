@@ -9,6 +9,7 @@ import { useNow } from '../../lib/hooks'
 import { fmtDuration } from '../../lib/dates'
 import { useNotifyStore } from '../../lib/notifyStore'
 import { isNative } from '../../native/platform'
+import { nextTemplate } from '../../lib/nextTemplate'
 import type { WorkoutTemplate } from '../../types'
 
 // Android only: `isNative` is a build-time false in the Pages build, so Rollup drops the chunk.
@@ -17,6 +18,9 @@ const RestoreCard = isNative ? lazy(() => import('../../native/ui/RestoreCard'))
 export default function WorkoutHome() {
   const navigate = useNavigate()
   const templates = useLiveQuery(() => db.templates.orderBy('position').toArray())
+  // Rotation hint (the Android widget shows the same "Next" workout).
+  const lastFinished = useLiveQuery(() => db.sessions.orderBy('startedAt').reverse().filter(s => s.endedAt !== undefined).first())
+  const upNext = templates ? nextTemplate(templates, lastFinished) : null
   const settings = useLiveQuery(() => db.settings.get(1))
   const activeSessionId = useAppStore(s => s.activeSessionId)
   const setActiveSessionId = useAppStore(s => s.setActiveSessionId)
@@ -95,8 +99,13 @@ export default function WorkoutHome() {
           <div key={t.id} className="flex items-center gap-3 rounded-2xl border border-edge bg-card p-4">
             <div className="min-w-0 flex-1">
               <p className="truncate font-display text-xl font-semibold">{t.name}</p>
-              <p className="text-sm text-sub">
-                {t.items.length} exercise{t.items.length === 1 ? '' : 's'}
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-sub">
+                <span className="whitespace-nowrap">{t.items.length} exercise{t.items.length === 1 ? '' : 's'}</span>
+                {upNext && templates && templates.length > 1 && String(upNext.id) === String(t.id) && (
+                  <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+                    Next up
+                  </span>
+                )}
               </p>
             </div>
             <button

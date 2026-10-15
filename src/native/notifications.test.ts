@@ -59,6 +59,7 @@ const h = vi.hoisted(() => {
 vi.mock('./platform', () => ({ isNative: true, isAndroid: true }))
 vi.mock('@capacitor/local-notifications', () => ({ LocalNotifications: h.api }))
 vi.mock('../lib/notifyData', () => ({ gatherPlannerData: vi.fn(async () => h.s.data) }))
+vi.mock('./widget', () => ({ pushWidgetState: vi.fn(async () => {}) }))
 vi.mock('../db/db', async orig => ({
   ...(await orig<typeof import('../db/db')>()),
   onSyncDirty: (l: () => void) => {

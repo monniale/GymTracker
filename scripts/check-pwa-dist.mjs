@@ -14,7 +14,7 @@ const DIST = 'dist'
 const BASE = process.env.BASE_PATH ?? '/GymTracker/'
 /** Pages build of commit 00625b7 (before the Android work), measured the same way. */
 const BASELINE = { entries: 31, bytes: 931014 }
-const PLUGINS = 'LocalNotifications|Haptics|App|Filesystem|Share|SplashScreen|KeepAwake|BarcodeScanner|RestTimer|DeviceSettings'
+const PLUGINS = 'LocalNotifications|Haptics|App|Filesystem|Share|SplashScreen|KeepAwake|BarcodeScanner|RestTimer|DeviceSettings|Widget'
 // Unminified `registerPlugin("Haptics"` or minified `t("Haptics",{web:…})` / `t("DeviceSettings")`.
 const REGISTER = new RegExp(`(?:registerPlugin|[\\w$])\\(\\s*["'\`](${PLUGINS})["'\`]\\s*(?:\\)|,\\s*\\{)`, 'g')
 
