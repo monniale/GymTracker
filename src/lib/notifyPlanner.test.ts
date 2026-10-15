@@ -435,6 +435,7 @@ describe('RECAP', () => {
     const r = ofCat(plan(MON_12_10, sun, { recap: { weekMonday: '2026-10-12', sessions: 2, points: 150 } }), 'recap')
     expect(r[0].atMs).toBe(T(2026, 10, 18, 19))
     expect(r[0].body).toBe('This week: 2 sessions, +150 pts.')
+    expect(r[0].route).toBe('/rank') // the open week has no review yet
   })
 
   it('the sig changes with the numbers; mismatched week or no data → none', () => {
