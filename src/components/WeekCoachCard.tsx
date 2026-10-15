@@ -1,11 +1,11 @@
 import { useMemo, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAiStore, aiRequestOpts } from '../lib/aiStore'
 import { gatherWeekBriefing, formatWeekBriefing, type WeekBriefing } from '../lib/weekBriefing'
 import { currentNote, judgementsFor, saveJudgement } from '../lib/coachHistory'
 import { generateWeekNote } from '../lib/gemini'
-import AiReportCard, { renderCoachNote, HistoryLink } from './AiReportCard'
+import AiReportCard, { renderCoachNote, HistoryLink, GeminiKeyHint } from './AiReportCard'
+import { t } from '../i18n'
 import type { CoachNote } from '../types'
 
 /** Monday of the last week reviewed automatically on this device (device-local, never synced). */
@@ -53,7 +53,7 @@ export default function WeekCoachCard({ briefing, autoEligible }: { briefing: We
 
   return (
     <AiReportCard
-      title="Week review"
+      title={t('components.weekCoach.title')}
       resetKey={monday}
       cachedNote={cachedNote}
       generate={generate}
@@ -61,18 +61,10 @@ export default function WeekCoachCard({ briefing, autoEligible }: { briefing: We
       renderNote={renderCoachNote}
       autoGenerate={autoGenerate}
       canGenerate={canGenerate}
-      generateLabel="Review my week"
-      emptyHint={finished ? 'Nothing logged this week, so there is nothing to review.' : 'Available once the week is over (after Sunday).'}
+      generateLabel={t('components.weekCoach.generate')}
+      emptyHint={finished ? t('components.weekCoach.empty') : t('components.weekCoach.notYet')}
       footer={<HistoryLink kind="week" earlier={stored - 1} />}
-      noKeyHint={
-        <>
-          Get a weekly review and next week’s focus from the AI coach.{' '}
-          <Link to="/settings" className="font-semibold text-primary">
-            Add a free Gemini key
-          </Link>{' '}
-          in Settings.
-        </>
-      }
+      noKeyHint={<GeminiKeyHint pitch={t('components.weekCoach.noKey')} />}
     />
   )
 }

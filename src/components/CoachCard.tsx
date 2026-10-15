@@ -1,11 +1,11 @@
 import { useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAiStore, aiRequestOpts } from '../lib/aiStore'
 import { gatherWorkoutBriefing, formatBriefing } from '../lib/coachBriefing'
 import { currentNote, judgementsFor, saveJudgement } from '../lib/coachHistory'
 import { generateCoachNote } from '../lib/gemini'
-import AiReportCard, { renderCoachNote, HistoryLink } from './AiReportCard'
+import AiReportCard, { renderCoachNote, HistoryLink, GeminiKeyHint } from './AiReportCard'
+import { t } from '../i18n'
 import type { CoachNote, Id } from '../types'
 
 /**
@@ -20,7 +20,7 @@ export default function CoachCard({ sessionId, autoGenerate = true }: { sessionI
 
   async function generate(): Promise<CoachNote> {
     const briefing = await gatherWorkoutBriefing(sessionId)
-    if (!briefing) throw new Error('This session has no data to review.')
+    if (!briefing) throw new Error(t('components.coach.noData'))
     return generateCoachNote(formatBriefing(briefing), aiRequestOpts(m => { usedModel.current = m }))
   }
 
@@ -30,24 +30,16 @@ export default function CoachCard({ sessionId, autoGenerate = true }: { sessionI
 
   return (
     <AiReportCard
-      title="Coach’s note"
+      title={t('components.coach.title')}
       resetKey={String(sessionId)}
       cachedNote={cachedNote}
       generate={generate}
       save={save}
       renderNote={renderCoachNote}
       autoGenerate={autoGenerate}
-      generateLabel="Get the coach’s note"
+      generateLabel={t('components.coach.generate')}
       footer={<HistoryLink kind="workout" earlier={stored - 1} />}
-      noKeyHint={
-        <>
-          Get an AI coaching note on every workout.{' '}
-          <Link to="/settings" className="font-semibold text-primary">
-            Add a free Gemini key
-          </Link>{' '}
-          in Settings.
-        </>
-      }
+      noKeyHint={<GeminiKeyHint pitch={t('components.coach.noKey')} />}
     />
   )
 }

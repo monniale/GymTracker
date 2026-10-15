@@ -1,4 +1,4 @@
-import type { RankTier } from '../lib/ranks'
+import { rankLabel, type RankTier } from '../lib/ranks'
 
 interface Props {
   tier: RankTier
@@ -22,7 +22,7 @@ export default function RankBadge({ tier, size = 96 }: Props) {
       src={src}
       width={size}
       height={size}
-      alt={`${tier.rank} ${tier.sub}`.trim()}
+      alt={rankLabel(tier)}
       draggable={false}
       className="shrink-0"
     />

@@ -7,6 +7,7 @@ import { lookupBarcodeChained } from '../lib/foodProviders'
 import { beep } from '../lib/audio'
 import { isNative } from '../native/platform'
 import { haptic } from '../native/haptics'
+import { t } from '../i18n'
 import type { RemoteFood } from '../types'
 
 type Mode = 'starting' | 'scanning' | 'lookup' | 'manual'
@@ -52,11 +53,11 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
         onProduct(product)
         return
       }
-      setError(`No product found for ${code}. Check the number or add it as a custom food.`)
+      setError(t('components.barcode.notFound', { code }))
       setManualCode(code)
       setMode('manual')
     } catch {
-      setError('Food database unreachable — check your connection.')
+      setError(t('components.barcode.unreachable'))
       setManualCode(code)
       setMode('manual')
     }
@@ -98,7 +99,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
           void accept(ean)
         } else {
           setManualCode(r.code.replace(/\D/g, '').slice(0, 13))
-          setError('Unrecognised barcode — check the number.')
+          setError(t('components.barcode.unrecognised'))
           setMode('manual')
         }
         return true
@@ -117,7 +118,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
       if (cancelled) return
       if (!navigator.mediaDevices?.getUserMedia) {
         setMode('manual')
-        setError('Camera not available here — type the barcode instead.')
+        setError(t('components.barcode.noCamera'))
         return
       }
       try {
@@ -176,9 +177,9 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
         setError(
           name === 'NotAllowedError'
             ? isNative
-              ? 'Camera permission denied — type the barcode below.'
-              : 'Camera permission denied — type the barcode below. (iOS asks again after you close and reopen the app.)'
-            : 'Camera unavailable — type the barcode below.',
+              ? t('components.barcode.denied')
+              : t('components.barcode.deniedIos')
+            : t('components.barcode.unavailable'),
         )
       }
     }
@@ -215,11 +216,11 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
   const manualValid = validEan(manualCode.trim())
 
   return (
-    <Sheet open={open} onClose={onClose} title="Scan barcode">
+    <Sheet open={open} onClose={onClose} title={t('components.barcode.title')}>
       {nativeEngine && mode === 'starting' && (
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-sub">
           <Loader2 size={24} className="animate-spin" />
-          <p className="text-sm">{installing ? 'Downloading scanner (one time)…' : 'Opening scanner…'}</p>
+          <p className="text-sm">{installing ? t('components.barcode.installing') : t('components.barcode.opening')}</p>
         </div>
       )}
       {!nativeEngine && (mode === 'starting' || mode === 'scanning') && (
@@ -236,7 +237,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
           {hasTorch && (
             <button
               onClick={toggleTorch}
-              aria-label="Toggle flashlight"
+              aria-label={t('components.barcode.torch')}
               aria-pressed={torchOn}
               className={`absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full ${
                 torchOn ? 'bg-primary text-bg' : 'bg-black/60 text-ink'
@@ -249,12 +250,12 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
       )}
       {mode === 'scanning' && (
         <p className="mt-2 text-center text-xs text-sub">
-          Hold the barcode ~10–15 cm from the camera.
+          {t('components.barcode.hold')}
         </p>
       )}
       {mode === 'lookup' && (
         <div className="flex items-center justify-center gap-2 py-10 text-sub">
-          <Loader2 size={20} className="animate-spin" /> Looking up product…
+          <Loader2 size={20} className="animate-spin" /> {t('components.barcode.lookingUp')}
         </div>
       )}
 
@@ -268,7 +269,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
           }}
           className="mt-3 flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-sub active:text-ink"
         >
-          <Keyboard size={16} /> Type the barcode instead
+          <Keyboard size={16} /> {t('components.barcode.typeInstead')}
         </button>
       )}
 
@@ -277,7 +278,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
           onClick={() => setAttempt(a => a + 1)}
           className="mb-3 flex min-h-[48px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-primary/15 font-display text-lg font-bold text-primary active:bg-primary/30"
         >
-          <ScanBarcode size={20} /> Scan again
+          <ScanBarcode size={20} /> {t('components.barcode.scanAgain')}
         </button>
       )}
 
@@ -285,7 +286,7 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
         <div className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">
-              Barcode number (EAN-8 / EAN-13)
+              {t('components.barcode.number')}
             </span>
             <input
               inputMode="numeric"
@@ -293,20 +294,20 @@ export default function BarcodeScanSheet({ open, onClose, onProduct }: Props) {
               maxLength={13}
               value={manualCode}
               onChange={e => setManualCode(e.target.value.replace(/\D/g, ''))}
-              placeholder="e.g. 3017620422003"
+              placeholder={t('components.barcode.example')}
               className="num min-h-[48px] w-full rounded-xl bg-card px-3 text-base"
               autoFocus={!nativeEngine}
             />
           </label>
           {manualCode.length >= 8 && !manualValid && (
-            <p className="text-xs text-danger">Not a valid EAN checksum — double-check the digits.</p>
+            <p className="text-xs text-danger">{t('components.barcode.badChecksum')}</p>
           )}
           <button
             onClick={() => accept(manualCode.trim())}
             disabled={!manualValid}
             className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
           >
-            Look up
+            {t('components.barcode.lookUp')}
           </button>
         </div>
       )}

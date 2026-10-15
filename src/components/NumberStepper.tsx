@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
+import { t } from '../i18n'
 
 interface Props {
   value: number
@@ -46,7 +47,7 @@ export default function NumberStepper({ value, onChange, step, min = 0, max = 99
       <div className="flex items-center gap-1">
         <button
           onClick={() => onChange(clamp(Math.round((value - step) * 100) / 100))}
-          aria-label={`Decrease ${label ?? 'value'}`}
+          aria-label={t('components.stepper.decrease', { label: label ?? t('components.stepper.value') })}
           className={btnCls}
         >
           <Minus size={compact ? 16 : 18} />
@@ -76,7 +77,7 @@ export default function NumberStepper({ value, onChange, step, min = 0, max = 99
         )}
         <button
           onClick={() => onChange(clamp(Math.round((value + step) * 100) / 100))}
-          aria-label={`Increase ${label ?? 'value'}`}
+          aria-label={t('components.stepper.increase', { label: label ?? t('components.stepper.value') })}
           className={btnCls}
         >
           <Plus size={compact ? 16 : 18} />

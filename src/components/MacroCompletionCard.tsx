@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, Check, Loader2 } from 'lucide-react'
 import { db, withSyncTrackingSuspended } from '../db/db'
@@ -12,7 +11,8 @@ import {
 import { generateMacroSuggestion } from '../lib/gemini'
 import { applyMacroSuggestion } from '../lib/foodResolve'
 import type { MacroTotals } from '../lib/nutrition'
-import AiReportCard from './AiReportCard'
+import AiReportCard, { GeminiKeyHint } from './AiReportCard'
+import { t } from '../i18n'
 import type { MacroSuggestion, MacroSuggestionItem } from '../types'
 
 type AddStatus = 'idle' | 'adding' | 'added' | 'error'
@@ -40,7 +40,7 @@ export default function MacroCompletionCard({ date, remaining }: { date: string;
 
   async function generate(): Promise<MacroSuggestion> {
     const briefing = await gatherMacroCompletionBriefing(date)
-    if (!briefing) throw new Error('Set your macro targets in Settings first.')
+    if (!briefing) throw new Error(t('components.macros.noTargets'))
     return generateMacroSuggestion(
       formatMacroCompletionBriefing(briefing),
       aiRequestOpts(m => { usedModel.current = m }),
@@ -74,10 +74,10 @@ export default function MacroCompletionCard({ date, remaining }: { date: string;
       <>
         <p className="mt-2 font-display text-lg font-semibold text-primary">{note.headline}</p>
         {stale && (
-          <p className="mt-1 text-xs text-sub">Your macros changed since this — Regenerate for fresh ideas.</p>
+          <p className="mt-1 text-xs text-sub">{t('components.macros.stale')}</p>
         )}
         {note.items.length === 0 ? (
-          <p className="mt-2 text-sm text-sub">No suggestions this time — tap Regenerate.</p>
+          <p className="mt-2 text-sm text-sub">{t('components.macros.empty')}</p>
         ) : (
           <ul className="mt-2 space-y-2.5">
             {note.items.map((item, i) => (
@@ -89,7 +89,7 @@ export default function MacroCompletionCard({ date, remaining }: { date: string;
                     <span className="num text-sub"> · {item.grams} g</span>
                   </p>
                   <p className="num text-xs text-sub">
-                    +{item.kcal} kcal · P {item.protein} · C {item.carbs} · F {item.fat}
+                    {t('components.macros.line', { kcal: item.kcal, protein: item.protein, carbs: item.carbs, fat: item.fat })}
                   </p>
                   {item.reason && <p className="mt-0.5 text-xs text-sub/80">{item.reason}</p>}
                 </div>
@@ -104,7 +104,7 @@ export default function MacroCompletionCard({ date, remaining }: { date: string;
 
   return (
     <AiReportCard<MacroSuggestion>
-      title="Complete your macros"
+      title={t('components.macros.title')}
       resetKey={date}
       cachedNote={cachedNote}
       generate={generate}
@@ -112,18 +112,10 @@ export default function MacroCompletionCard({ date, remaining }: { date: string;
       renderNote={renderNote}
       autoGenerate={false}
       canGenerate={gap}
-      generateLabel="Suggest foods to hit your macros"
-      loadingLabel="Finding foods…"
-      emptyHint="You've hit today's targets — nicely done. 🎯"
-      noKeyHint={
-        <>
-          Get AI ideas to finish your macros.{' '}
-          <Link to="/settings" className="font-semibold text-primary">
-            Add a free Gemini key
-          </Link>{' '}
-          in Settings.
-        </>
-      }
+      generateLabel={t('components.macros.generate')}
+      loadingLabel={t('components.macros.loading')}
+      emptyHint={t('components.macros.done')}
+      noKeyHint={<GeminiKeyHint pitch={t('components.macros.noKey')} />}
     />
   )
 }
@@ -131,8 +123,8 @@ export default function MacroCompletionCard({ date, remaining }: { date: string;
 function AddButton({ status, onClick }: { status: AddStatus; onClick: () => void }) {
   if (status === 'added') {
     return (
-      <span className="flex h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-accent">
-        <Check size={15} /> Added
+      <span className="flex h-9 shrink-0 items-center whitespace-nowrap gap-1 rounded-lg px-2 text-xs font-semibold text-accent">
+        <Check size={15} /> {t('components.macros.added')}
       </span>
     )
   }
@@ -140,10 +132,10 @@ function AddButton({ status, onClick }: { status: AddStatus; onClick: () => void
     <button
       onClick={onClick}
       disabled={status === 'adding'}
-      className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-primary/15 px-2.5 text-xs font-bold text-primary active:bg-primary/30 disabled:opacity-50"
+      className="flex h-9 shrink-0 items-center whitespace-nowrap gap-1 rounded-lg bg-primary/15 px-2.5 text-xs font-bold text-primary active:bg-primary/30 disabled:opacity-50"
     >
       {status === 'adding' ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />}
-      {status === 'error' ? 'Retry' : 'Add'}
+      {status === 'error' ? t('components.macros.retry') : t('common.add')}
     </button>
   )
 }

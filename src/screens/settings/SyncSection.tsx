@@ -3,6 +3,13 @@ import { Cloud, CloudOff, RefreshCw, Loader2, ExternalLink, AlertTriangle } from
 import { useSyncStore, syncNow, previewConnection, connect, type ConnectPreview, type BootstrapChoice } from '../../lib/sync'
 import { fmtDateTime } from '../../lib/dates'
 import Sheet from '../../components/Sheet'
+import { t, tp } from '../../i18n'
+
+/** Not translated: the suggested repo name and GitHub's own link labels. */
+const DEFAULT_REPO = 'gymtracker-data'
+const NEW_REPO_LINK = 'github.com/new'
+const TOKENS_LINK = 'settings/tokens'
+const TOKEN_PLACEHOLDER = 'github_pat_…'
 
 export default function SyncSection() {
   const store = useSyncStore()
@@ -12,7 +19,7 @@ export default function SyncSection() {
     <section className="mb-4 rounded-2xl border border-edge bg-card p-4">
       <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sub">
         {connected ? <Cloud size={14} className="text-accent" /> : <CloudOff size={14} />}
-        GitHub Sync
+        {t('settings.sync.title')}
       </h2>
       {connected ? <ConnectedView /> : <ConnectView />}
     </section>
@@ -23,7 +30,7 @@ function ConnectedView() {
   const store = useSyncStore()
 
   async function disconnect() {
-    if (!window.confirm('Disconnect sync? Data stays on this device and on GitHub; only the link is removed.')) return
+    if (!window.confirm(t('settings.sync.disconnectConfirm'))) return
     store.disconnect()
   }
 
@@ -36,10 +43,10 @@ function ConnectedView() {
           </p>
           <p className="truncate text-xs text-sub">
             {store.syncing
-              ? 'Syncing…'
+              ? t('settings.sync.syncing')
               : store.lastSyncAt
-                ? `Last sync: ${fmtDateTime(store.lastSyncAt)}`
-                : 'Not synced yet'}
+                ? t('settings.sync.lastSync', { time: fmtDateTime(store.lastSyncAt) })
+                : t('settings.sync.never')}
           </p>
         </div>
         <button
@@ -48,7 +55,7 @@ function ConnectedView() {
           className="flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-primary/15 px-4 text-sm font-semibold text-primary active:bg-primary/30 disabled:opacity-50"
         >
           {store.syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-          Sync now
+          {t('settings.sync.syncNow')}
         </button>
       </div>
       {store.lastError && (
@@ -57,18 +64,18 @@ function ConnectedView() {
         </p>
       )}
       <p className="mt-2 text-xs text-sub">
-        Backs up automatically a few seconds after changes and on every app open. Device ID:{' '}
+        {t('settings.sync.auto')}{' '}
         <span className="num">{store.deviceId.slice(0, 8)}</span>
       </p>
       <button onClick={disconnect} className="mt-1 py-2 text-xs font-medium text-danger">
-        Disconnect
+        {t('settings.sync.disconnect')}
       </button>
     </div>
   )
 }
 
 function ConnectView() {
-  const [repo, setRepo] = useState('gymtracker-data')
+  const [repo, setRepo] = useState(DEFAULT_REPO)
   const [token, setToken] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,7 +87,7 @@ function ConnectView() {
     try {
       const p = await previewConnection(token.trim(), repo.trim())
       if (!p.repoPrivate) {
-        setError(`⚠ ${p.owner}/${repo.trim()} is PUBLIC — your health data would be readable by anyone. Make it private first (repo Settings → Danger zone → Change visibility).`)
+        setError(t('settings.sync.publicRepo', { repo: `${p.owner}/${repo.trim()}` }))
         return
       }
       if (p.remoteExists && p.localMeaningful) {
@@ -101,7 +108,7 @@ function ConnectView() {
     try {
       const outcome = await connect(token.trim(), repo.trim(), choice)
       if (outcome === 'error') {
-        setError(useSyncStore.getState().lastError ?? 'Sync failed')
+        setError(useSyncStore.getState().lastError ?? t('settings.sync.failed'))
         useSyncStore.getState().disconnect()
       }
       setPreview(null)
@@ -117,34 +124,36 @@ function ConnectView() {
     <div className="space-y-3">
       <ol className="list-inside list-decimal space-y-1 text-xs leading-relaxed text-sub">
         <li>
-          Create a <b className="text-ink">private</b> repo named <span className="num">gymtracker-data</span>{' '}
+          {t('settings.sync.step1Before')} <b className="text-ink">{t('settings.sync.step1Private')}</b>{' '}
+          {t('settings.sync.step1After')} <span className="num">{DEFAULT_REPO}</span>{' '}
           <a
             href="https://github.com/new?name=gymtracker-data&visibility=private"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-0.5 text-primary"
           >
-            github.com/new <ExternalLink size={11} />
+            {NEW_REPO_LINK} <ExternalLink size={11} />
           </a>
         </li>
         <li>
-          Create a fine-grained token —{' '}
+          {t('settings.sync.step2Before')}{' '}
           <a
             href="https://github.com/settings/personal-access-tokens/new"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-0.5 text-primary"
           >
-            settings/tokens <ExternalLink size={11} />
+            {TOKENS_LINK} <ExternalLink size={11} />
           </a>
-          : Only select repositories → <span className="num">gymtracker-data</span>, permission{' '}
-          <b className="text-ink">Contents: Read and write</b>, expiration “No expiration”.
+          {t('settings.sync.step2Repos')} <span className="num">{DEFAULT_REPO}</span>
+          {t('settings.sync.step2Permission')} <b className="text-ink">{t('settings.sync.step2Contents')}</b>
+          {t('settings.sync.step2After')}
         </li>
-        <li>Paste the token below (it stays on this device only).</li>
+        <li>{t('settings.sync.step3')}</li>
       </ol>
 
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Repository name</span>
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('settings.sync.repoName')}</span>
         <input
           value={repo}
           onChange={e => setRepo(e.target.value)}
@@ -154,12 +163,12 @@ function ConnectView() {
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Fine-grained token</span>
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('settings.sync.token')}</span>
         <input
           type="password"
           value={token}
           onChange={e => setToken(e.target.value)}
-          placeholder="github_pat_…"
+          placeholder={TOKEN_PLACEHOLDER}
           className="num min-h-[48px] w-full rounded-xl bg-surface px-3 text-base"
           autoCapitalize="none"
           autoCorrect="off"
@@ -171,39 +180,40 @@ function ConnectView() {
         disabled={busy || token.trim().length < 20 || repo.trim().length === 0}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
-        {busy && <Loader2 size={18} className="animate-spin" />} Connect
+        {busy && <Loader2 size={18} className="animate-spin" />} {t('settings.sync.connect')}
       </button>
 
       {error && <p className="text-xs text-danger">{error}</p>}
 
       {preview && (
-        <Sheet open onClose={() => setPreview(null)} title="Both sides have data">
+        <Sheet open onClose={() => setPreview(null)} title={t('settings.sync.conflictTitle')}>
           <p className="mb-3 text-sm text-sub">
-            The cloud already holds a snapshot
-            {preview.remoteSummary && preview.remoteSummary.exportedAt > 0 && (
-              <> ({preview.remoteSummary.sessions} sessions, {preview.remoteSummary.foodLogs} food logs,
-              saved {fmtDateTime(preview.remoteSummary.exportedAt)})</>
-            )}
-            , and this device has its own data. How should they combine?
+            {preview.remoteSummary && preview.remoteSummary.exportedAt > 0
+              ? t('settings.sync.conflictBodySummary', {
+                  sessions: tp('settings.sync.sessions', preview.remoteSummary.sessions),
+                  foodLogs: tp('settings.sync.foodLogs', preview.remoteSummary.foodLogs),
+                  date: fmtDateTime(preview.remoteSummary.exportedAt),
+                })
+              : t('settings.sync.conflictBody')}
           </p>
           <div className="space-y-2">
             <button
               onClick={() => finish('merge')}
               className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
             >
-              Merge both (recommended)
+              {t('settings.sync.merge')}
             </button>
             <button
               onClick={() => finish('use-remote')}
               className="w-full rounded-2xl bg-muted/40 py-3.5 font-display text-lg font-bold active:bg-muted"
             >
-              Use cloud data (replace this device)
+              {t('settings.sync.useRemote')}
             </button>
             <button
               onClick={() => finish('overwrite-remote')}
               className="w-full rounded-2xl border border-danger/40 py-3 font-display text-base font-bold text-danger active:bg-danger/10"
             >
-              Overwrite cloud with this device
+              {t('settings.sync.overwriteRemote')}
             </button>
           </div>
         </Sheet>

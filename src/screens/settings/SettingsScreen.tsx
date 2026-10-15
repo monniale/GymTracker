@@ -22,6 +22,7 @@ import ImportHistorySheet from "./ImportHistorySheet";
 import { isNative } from "../../native/platform";
 import { useUiStore, type Lang } from "../../lib/uiStore";
 import type { Settings } from "../../types";
+import { t } from "../../i18n";
 
 const PLATE_CATALOG = [25, 20, 15, 10, 5, 2.5, 1.25, 1, 0.5];
 
@@ -74,22 +75,20 @@ export default function SettingsScreen() {
 
   async function onImportFile(file: File) {
     if (
-      !window.confirm(
-        "Importing replaces ALL current data with the backup. Continue?",
-      )
+      !window.confirm(t("settings.data.importConfirm"))
     )
       return;
     try {
       await importBackup(await file.text());
-      setImportMsg("Backup imported successfully.");
+      setImportMsg(t("settings.data.imported"));
     } catch (e) {
-      setImportMsg(`Import failed: ${(e as Error).message}`);
+      setImportMsg(t("settings.data.importFailed", { error: (e as Error).message }));
     }
   }
 
   async function resetSeason() {
     if (
-      !window.confirm("End the current season now? Points carry over at 20%.")
+      !window.confirm(t("settings.danger.endSeasonConfirm"))
     )
       return;
     await archiveCurrentSeason(localDateStr());
@@ -97,12 +96,12 @@ export default function SettingsScreen() {
 
   return (
     <div className="pt-4">
-      <h1 className="mb-4 font-display text-3xl font-bold">Settings</h1>
+      <h1 className="mb-4 font-display text-3xl font-bold">{t("settings.title")}</h1>
 
-      <Section title="Profile">
+      <Section title={t("settings.profile.title")}>
         <div className="flex flex-wrap justify-around gap-3">
           <NumberStepper
-            label="Bodyweight"
+            label={t("settings.profile.bodyweight")}
             compact="narrow"
             value={settings.bodyweightKg}
             onChange={(v) => {
@@ -115,7 +114,7 @@ export default function SettingsScreen() {
             unit="kg"
           />
           <NumberStepper
-            label="Sessions / week"
+            label={t("settings.profile.sessionsPerWeek")}
             compact="narrow"
             value={settings.weeklySessionTarget}
             onChange={(v) => update({ weeklySessionTarget: Math.round(v) })}
@@ -125,17 +124,16 @@ export default function SettingsScreen() {
           />
         </div>
         <p className="mt-2 text-xs text-sub">
-          Bodyweight normalizes your score (relative strength). The weekly
-          target drives the streak multiplier.
+          {t("settings.profile.hint")}
         </p>
       </Section>
 
       <LanguageSection />
 
-      <Section title="Training day targets">
+      <Section title={t("settings.targets.training")}>
         <div className="grid grid-cols-2 gap-y-4">
           <NumberStepper
-            label="kcal"
+            label={t("units.kcal")}
             compact="narrow"
             value={settings.kcalTarget}
             onChange={(v) => update({ kcalTarget: Math.round(v) })}
@@ -144,7 +142,7 @@ export default function SettingsScreen() {
             max={8000}
           />
           <NumberStepper
-            label="Protein g"
+            label={t("settings.targets.protein")}
             compact="narrow"
             value={settings.proteinTarget}
             onChange={(v) => update({ proteinTarget: Math.round(v) })}
@@ -153,7 +151,7 @@ export default function SettingsScreen() {
             max={500}
           />
           <NumberStepper
-            label="Carbs g"
+            label={t("settings.targets.carbs")}
             compact="narrow"
             value={settings.carbsTarget}
             onChange={(v) => update({ carbsTarget: Math.round(v) })}
@@ -162,7 +160,7 @@ export default function SettingsScreen() {
             max={1000}
           />
           <NumberStepper
-            label="Fat g"
+            label={t("settings.targets.fat")}
             compact="narrow"
             value={settings.fatTarget}
             onChange={(v) => update({ fatTarget: Math.round(v) })}
@@ -173,10 +171,10 @@ export default function SettingsScreen() {
         </div>
       </Section>
 
-      <Section title="Rest day targets">
+      <Section title={t("settings.targets.rest")}>
         <div className="grid grid-cols-2 gap-y-4">
           <NumberStepper
-            label="kcal"
+            label={t("units.kcal")}
             compact="narrow"
             value={settings.restKcalTarget ?? settings.kcalTarget}
             onChange={(v) => update({ restKcalTarget: Math.round(v) })}
@@ -185,7 +183,7 @@ export default function SettingsScreen() {
             max={8000}
           />
           <NumberStepper
-            label="Protein g"
+            label={t("settings.targets.protein")}
             compact="narrow"
             value={settings.restProteinTarget ?? settings.proteinTarget}
             onChange={(v) => update({ restProteinTarget: Math.round(v) })}
@@ -194,7 +192,7 @@ export default function SettingsScreen() {
             max={500}
           />
           <NumberStepper
-            label="Carbs g"
+            label={t("settings.targets.carbs")}
             compact="narrow"
             value={settings.restCarbsTarget ?? settings.carbsTarget}
             onChange={(v) => update({ restCarbsTarget: Math.round(v) })}
@@ -203,7 +201,7 @@ export default function SettingsScreen() {
             max={1000}
           />
           <NumberStepper
-            label="Fat g"
+            label={t("settings.targets.fat")}
             compact="narrow"
             value={settings.restFatTarget ?? settings.fatTarget}
             onChange={(v) => update({ restFatTarget: Math.round(v) })}
@@ -214,7 +212,7 @@ export default function SettingsScreen() {
         </div>
         <div className="mt-4 flex justify-center border-t border-edge/50 pt-3">
           <NumberStepper
-            label="Water target"
+            label={t("settings.targets.water")}
             value={settings.waterTargetMl ?? 2500}
             onChange={(v) => update({ waterTargetMl: Math.round(v) })}
             step={250}
@@ -224,16 +222,14 @@ export default function SettingsScreen() {
           />
         </div>
         <p className="mt-2 text-xs text-sub">
-          The Diet tab switches automatically: a day with a logged workout uses
-          training targets. Tap the Training/Rest chip on the Diet tab to
-          override a specific day.
+          {t("settings.targets.hint")}
         </p>
       </Section>
 
-      <Section title="Barbell">
+      <Section title={t("settings.barbell.title")}>
         <div className="flex items-start justify-between gap-3">
           <NumberStepper
-            label="Bar weight"
+            label={t("settings.barbell.barWeight")}
             compact="narrow"
             value={settings.barWeightKg ?? DEFAULT_BAR_KG}
             onChange={(v) => update({ barWeightKg: v })}
@@ -244,7 +240,7 @@ export default function SettingsScreen() {
           />
           <div className="flex-1">
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-sub">
-              Plates you own
+              {t("settings.barbell.plates")}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {PLATE_CATALOG.map((p) => {
@@ -275,15 +271,14 @@ export default function SettingsScreen() {
           </div>
         </div>
         <p className="mt-2 text-xs text-sub">
-          Used by the plate calculator shown when adjusting a barbell set's
-          weight.
+          {t("settings.barbell.hint")}
         </p>
       </Section>
 
-      <Section title="Rest timer">
+      <Section title={t("settings.restTimer.title")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <NumberStepper
-            label="Default rest"
+            label={t("settings.restTimer.defaultRest")}
             compact="narrow"
             value={settings.defaultRestSec}
             onChange={(v) => update({ defaultRestSec: Math.round(v) })}
@@ -300,7 +295,7 @@ export default function SettingsScreen() {
               if (next) beep(1);
             }}
             aria-pressed={settings.soundEnabled}
-            className={`flex min-h-[48px] items-center gap-2 rounded-xl px-4 font-semibold ${
+            className={`flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-xl px-4 font-semibold ${
               settings.soundEnabled
                 ? "bg-primary/15 text-primary"
                 : "bg-muted/40 text-sub"
@@ -311,13 +306,15 @@ export default function SettingsScreen() {
             ) : (
               <VolumeX size={20} />
             )}
-            Sound {settings.soundEnabled ? "on" : "off"}
+            {settings.soundEnabled
+              ? t("settings.restTimer.soundOn")
+              : t("settings.restTimer.soundOff")}
           </button>
         </div>
         <p className="mt-2 text-xs text-sub">
           {isNative
-            ? "Sound is the in-app beep when a rest ends while GymTracker is on screen. Toggling it on plays a test beep."
-            : "Toggling sound on plays a test beep. iOS only allows audio while the app is open — the screen stays awake during workouts so the timer keeps running."}
+            ? t("settings.restTimer.hintNative")
+            : t("settings.restTimer.hintWeb")}
         </p>
         {RestTimerNativeSettings && (
           <Suspense fallback={null}>
@@ -344,24 +341,24 @@ export default function SettingsScreen() {
 
       <AiSection />
 
-      <Section title="Data" id="settings-data">
+      <Section title={t("settings.data.title")} id="settings-data">
         <div className="flex gap-2">
           <button
             onClick={() =>
               // Android rethrows share failures (e.g. a second tap while the sheet is open).
               exportBackup().catch((e) =>
-                setImportMsg(`Export failed: ${(e as Error).message}`),
+                setImportMsg(t("settings.data.exportFailed", { error: (e as Error).message })),
               )
             }
             className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-muted/40 font-semibold active:bg-muted"
           >
-            <Download size={18} /> Export
+            <Download size={18} className="shrink-0" /> {t("settings.data.export")}
           </button>
           <button
             onClick={() => fileRef.current?.click()}
             className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-muted/40 font-semibold active:bg-muted"
           >
-            <Upload size={18} /> Import
+            <Upload size={18} className="shrink-0" /> {t("settings.data.import")}
           </button>
           <input
             ref={fileRef}
@@ -380,7 +377,7 @@ export default function SettingsScreen() {
           onClick={() => csvRef.current?.click()}
           className="mt-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-muted/40 px-3 text-center font-semibold active:bg-muted"
         >
-          <FileSpreadsheet size={18} className="shrink-0" /> Import from Strong / Hevy (.csv)
+          <FileSpreadsheet size={18} className="shrink-0" /> {t("settings.data.importCsv")}
         </button>
         <input
           ref={csvRef}
@@ -394,7 +391,7 @@ export default function SettingsScreen() {
             if (!f) return;
             f.text()
               .then(setHistoryCsv)
-              .catch((err) => setImportMsg(`Could not read the file: ${(err as Error).message}`));
+              .catch((err) => setImportMsg(t("settings.data.readFailed", { error: (err as Error).message })));
           }}
         />
         {historyCsv !== null && (
@@ -410,17 +407,17 @@ export default function SettingsScreen() {
         {importMsg && <p className="mt-2 text-sm text-sub">{importMsg}</p>}
         <p className="mt-2 text-xs text-sub">
           {isNative
-            ? "Export opens the share sheet — save it to Drive or Files. Uninstalling the app deletes its data: keep GitHub Sync on or export regularly."
-            : "All data lives on this device. Export a JSON backup now and then (share it to Files/iCloud)."}
+            ? t("settings.data.hintNative")
+            : t("settings.data.hintWeb")}
         </p>
       </Section>
 
-      <Section title="Danger zone">
+      <Section title={t("settings.danger.title")}>
         <button
           onClick={resetSeason}
           className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-danger/40 font-semibold text-danger active:bg-danger/10"
         >
-          <AlertTriangle size={18} /> End season now
+          <AlertTriangle size={18} className="shrink-0" /> {t("settings.danger.endSeason")}
         </button>
       </Section>
 
@@ -460,10 +457,13 @@ function VersionFooter() {
         </p>
       )}
       <p>
-        Build {__BUILD_SHA__} · {localDateStr(built)}{" "}
-        {built.toTimeString().slice(0, 5)}
+        {t("settings.version.build", {
+          sha: __BUILD_SHA__,
+          date: localDateStr(built),
+          time: built.toTimeString().slice(0, 5),
+        })}
       </p>
-      <p>Database schema v{db.verno}</p>
+      <p>{t("settings.version.schema", { version: db.verno })}</p>
     </footer>
   );
 }
@@ -481,8 +481,8 @@ function LanguageSection() {
     window.location.reload();
   };
   return (
-    <Section title="Language">
-      <div className="flex gap-2" role="group" aria-label="Language">
+    <Section title={t("settings.language.title")}>
+      <div className="flex gap-2" role="group" aria-label={t("settings.language.title")}>
         {(
           [
             ["en", "English"],
