@@ -5,7 +5,7 @@ const components: Dict['components'] = {
     workout: 'Workout',
     diet: 'Dieta',
     progress: 'Progressi',
-    rank: 'Rango',
+    rank: 'Rank',
     settings: 'Opzioni',
   },
   aiReport: {

@@ -35,7 +35,7 @@ const data: Dict['data'] = {
   shareCard: {
     points: 'PUNTI',
     pointsPrs: { one: 'PUNTI · {n} PR', other: 'PUNTI · {n} PR' },
-    rankUp: 'NUOVO RANGO!',
+    rankUp: 'NUOVO RANK!',
     volumePr: 'PR VOL.',
     e1rmPr: 'PR e1RM',
     setsBest: '{sets} · migliore {weight} kg × {reps}',
