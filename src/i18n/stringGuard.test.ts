@@ -18,7 +18,7 @@ const ALLOW = new Set([
 ])
 
 /** Text between `>` and `<` that is really code (comparisons such as `a > b … c < d`). */
-const CODE = /\b(const|let|return|useState|useRef|Promise|null|undefined|await|async)\b|=>|===|!==|&&|\|\||[;{}]|\w\(|^\s*[=(!]/
+const CODE = /\b(const|let|return|useState|useRef|Promise|null|undefined|await|async)\b|=>|===|!==|&&|\|\||[;{}]|\w\(|^\s*[=(!]|^\w+\.\w+|\?\s*\(|\)\s*:/
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
