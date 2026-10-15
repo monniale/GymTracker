@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, ChevronDown, Plus, Trash2, TrendingDown, TrendingUp, Minus, Flag, Award } from 'lucide-react'
 import { db, deleteWithTombstone } from '../../db/db'
-import { localDateStr, fmtDate, monthLabel, startOfMonth, parseLocalDate } from '../../lib/dates'
+import { localDateStr, fmtDate, monthLabel, startOfMonth, parseLocalDate, MONTH_NAMES } from '../../lib/dates'
 import { useLocalToday } from '../../lib/hooks'
 import {
   inRange, movingAverage, weeklyRate, buildWeightStory, dateMs,
@@ -12,25 +12,27 @@ import {
 import { LineChart, type ChartPoint } from '../../components/Charts'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
+import { t, tp, fmtNum } from '../../i18n'
 
 const GREEN = '#22C55E'
 const RANGES: { id: WeightRange; label: string }[] = [
-  { id: '1m', label: '1M' },
-  { id: '3m', label: '3M' },
-  { id: '6m', label: '6M' },
-  { id: '1y', label: '1Y' },
-  { id: 'all', label: 'All' },
+  { id: '1m', label: t('progress.weight.range1m') },
+  { id: '3m', label: t('progress.weight.range3m') },
+  { id: '6m', label: t('progress.weight.range6m') },
+  { id: '1y', label: t('progress.weight.range1y') },
+  { id: 'all', label: t('progress.weight.rangeAll') },
 ]
 /** Months shown expanded by default; older ones open on tap so a long history stays scannable. */
 const OPEN_MONTHS = 2
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const round1 = (v: number) => Math.round(v * 10) / 10
-const signed = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(1)}`
+/** One decimal in the UI language ("75.4" / "75,4"). */
+const fmt1 = (v: number) => fmtNum(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const signed = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${fmt1(Math.abs(v))}`
 
 function shortDate(ms: number): string {
   const d = new Date(ms)
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`
 }
 
 /** Progress › Bodyweight: the whole weigh-in history — trend chart, stats and a month-by-month story. */
@@ -84,7 +86,7 @@ export default function WeightHistory() {
   }
 
   async function remove(date: string) {
-    if (!window.confirm(`Delete the weigh-in of ${fmtDate(date)}?`)) return
+    if (!window.confirm(t('progress.weight.deleteConfirm', { date: fmtDate(date) }))) return
     await deleteWithTombstone('bodyLog', date)
     const newest = await db.bodyLog.orderBy('date').last()
     if (latest?.date === date && newest) await db.settings.update(1, { bodyweightKg: newest.weightKg })
@@ -96,15 +98,15 @@ export default function WeightHistory() {
       <div className="mb-4 flex items-center gap-2">
         <Link
           to="/progress"
-          aria-label="Back"
+          aria-label={t('common.back')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={24} />
         </Link>
-        <h1 className="min-w-0 flex-1 truncate font-display text-3xl font-bold">Bodyweight</h1>
+        <h1 className="min-w-0 flex-1 truncate font-display text-3xl font-bold">{t('progress.weight.title')}</h1>
         <button
           onClick={() => setEditing({ date: today, weightKg: latest?.weightKg ?? 75, isNew: true })}
-          aria-label="Log a weigh-in"
+          aria-label={t('progress.weight.logAria')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary active:bg-primary/30"
         >
           <Plus size={20} />
@@ -113,35 +115,35 @@ export default function WeightHistory() {
 
       {log === undefined ? null : entries.length === 0 ? (
         <div className="rounded-2xl border border-edge bg-card p-6 text-center">
-          <p className="text-sm text-sub">No weigh-ins yet. Log your weight to start your history.</p>
+          <p className="text-sm text-sub">{t('progress.weight.empty')}</p>
           <button
             onClick={() => setEditing({ date: today, weightKg: 75, isNew: true })}
             className="mt-4 rounded-2xl bg-primary px-5 py-3 font-display text-lg font-bold text-bg active:opacity-90"
           >
-            Log weight
+            {t('progress.weight.logWeight')}
           </button>
         </div>
       ) : (
         <>
           {/* Summary */}
           <section className="rounded-2xl border border-edge bg-card p-4">
-            <p className="text-xs text-sub">Latest · {fmtDate(latest.date)}</p>
-            <p className="num font-display text-4xl font-bold">{latest.weightKg.toFixed(1)} kg</p>
+            <p className="text-xs text-sub">{t('progress.weight.latest', { date: fmtDate(latest.date) })}</p>
+            <p className="num font-display text-4xl font-bold">{fmt1(latest.weightKg)} kg</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <Stat
-                label={`Since ${shortDate(dateMs(first.date))}`}
+                label={t('progress.weight.since', { date: shortDate(dateMs(first.date)) })}
                 value={entries.length > 1 ? `${signed(round1(latest.weightKg - first.weightKg))} kg` : '—'}
               />
-              <Stat label="Trend (4 weeks)" value={rate === null ? '—' : `${signed(rate)} kg/wk`} />
-              <Stat label="Lowest" value={lowest ? `${lowest.weightKg.toFixed(1)} kg` : '—'} hint={lowest ? shortDate(dateMs(lowest.date)) : undefined} />
-              <Stat label="Highest" value={highest ? `${highest.weightKg.toFixed(1)} kg` : '—'} hint={highest ? shortDate(dateMs(highest.date)) : undefined} />
+              <Stat label={t('progress.weight.trend4w')} value={rate === null ? '—' : t('progress.weight.perWeek', { value: signed(rate) })} />
+              <Stat label={t('progress.weight.lowest')} value={lowest ? `${fmt1(lowest.weightKg)} kg` : '—'} hint={lowest ? shortDate(dateMs(lowest.date)) : undefined} />
+              <Stat label={t('progress.weight.highest')} value={highest ? `${fmt1(highest.weightKg)} kg` : '—'} hint={highest ? shortDate(dateMs(highest.date)) : undefined} />
             </div>
           </section>
 
           {/* Chart */}
           <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex gap-1" role="tablist" aria-label="Chart range">
+              <div className="flex gap-1" role="tablist" aria-label={t('progress.weight.rangeAria')}>
                 {RANGES.map(r => (
                   <button
                     key={r.id}
@@ -167,27 +169,27 @@ export default function WeightHistory() {
                   trend={points.length > 2 ? trend : undefined}
                   color={GREEN}
                   height={180}
-                  yFmt={v => v.toFixed(1)}
+                  yFmt={fmt1}
                   xFmt={shortDate}
                 />
                 <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-sub">
                   <span className="flex items-center gap-1.5 whitespace-nowrap">
-                    <span className="h-0.5 w-4 rounded-full" style={{ background: GREEN }} /> Weigh-ins
+                    <span className="h-0.5 w-4 rounded-full" style={{ background: GREEN }} /> {t('progress.weight.weighIns')}
                   </span>
                   {points.length > 2 && (
                     <span className="flex items-center gap-1.5 whitespace-nowrap">
-                      <span className="w-4 border-t-2 border-dashed border-sub" /> 7-day average
+                      <span className="w-4 border-t-2 border-dashed border-sub" /> {t('progress.weight.average7')}
                     </span>
                   )}
                 </p>
               </>
             ) : (
-              <p className="py-6 text-center text-sm text-sub">No weigh-ins in this range.</p>
+              <p className="py-6 text-center text-sm text-sub">{t('progress.weight.noneInRange')}</p>
             )}
           </section>
 
           {/* Story */}
-          <h2 className="mb-2 mt-6 font-display text-xl font-semibold">History</h2>
+          <h2 className="mb-2 mt-6 font-display text-xl font-semibold">{t('common.history')}</h2>
           <div className="space-y-4">
             {story.map((m, i) => {
               const workouts = workoutsByMonth?.get(m.month) ?? 0
@@ -203,8 +205,8 @@ export default function WeightHistory() {
                       <h3 className="font-display text-lg font-semibold">{monthLabel(m.month)}</h3>
                       <p className="num whitespace-nowrap text-xs text-sub">
                         <span className={m.change < 0 ? 'text-accent' : ''}>{signed(m.change)} kg</span>
-                        {' · '}avg {m.avg.toFixed(1)}
-                        {workouts > 0 && ` · ${workouts} workout${workouts === 1 ? '' : 's'}`}
+                        {' · '}{t('progress.weight.monthAvg', { value: fmt1(m.avg) })}
+                        {workouts > 0 && ` · ${tp('units.workouts', workouts)}`}
                       </p>
                     </div>
                     <ChevronDown size={18} className={`shrink-0 text-sub transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
@@ -249,10 +251,11 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 
 function badgeView(b: WeightBadge): { label: string; Icon: typeof Flag } {
   switch (b.kind) {
-    case 'start': return { label: 'First weigh-in', Icon: Flag }
-    case 'low': return { label: 'New low', Icon: TrendingDown }
-    case 'high': return { label: 'New high', Icon: TrendingUp }
-    case 'milestone': return { label: `${b.kg > 0 ? '+' : '−'}${Math.abs(b.kg)} kg since start`, Icon: Award }
+    case 'start': return { label: t('progress.weight.badgeStart'), Icon: Flag }
+    case 'low': return { label: t('progress.weight.badgeLow'), Icon: TrendingDown }
+    case 'high': return { label: t('progress.weight.badgeHigh'), Icon: TrendingUp }
+    case 'milestone':
+      return { label: t('progress.weight.badgeMilestone', { kg: `${b.kg > 0 ? '+' : '−'}${fmtNum(Math.abs(b.kg))}` }), Icon: Award }
   }
 }
 
@@ -270,7 +273,7 @@ function StoryRow({ entry, onEdit }: { entry: StoryEntry; onEdit: () => void }) 
             </span>
           )}
           <span className="num w-[4.5rem] shrink-0 text-right font-display text-lg font-semibold">
-            {entry.weightKg.toFixed(1)}
+            {fmt1(entry.weightKg)}
           </span>
         </div>
         {/* Own full-width row: a badge never squeezes the date or overlaps the numbers. */}
@@ -322,11 +325,11 @@ function EntrySheet({
     <Sheet
       open={editing !== null}
       onClose={onClose}
-      title={editing?.isNew ? 'Log weigh-in' : `Weigh-in · ${editing ? fmtDate(editing.date) : ''}`}
+      title={editing?.isNew ? t('progress.weight.sheetNew') : t('progress.weight.sheetEdit', { date: editing ? fmtDate(editing.date) : '' })}
     >
       {editing?.isNew && (
         <label className="mb-4 block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Date</span>
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.weight.date')}</span>
           <input
             type="date"
             value={date}
@@ -334,25 +337,25 @@ function EntrySheet({
             onChange={e => setDate(e.target.value)}
             className="num min-h-[48px] w-full rounded-xl bg-card px-3 text-base"
           />
-          {replacing && <span className="mt-1 block text-xs text-sub">Replaces the weigh-in already logged that day.</span>}
+          {replacing && <span className="mt-1 block text-xs text-sub">{t('progress.weight.replaces')}</span>}
         </label>
       )}
       <div className="flex justify-center">
-        <NumberStepper label="Weight" value={weight} onChange={setWeight} step={0.1} min={30} max={300} unit="kg" />
+        <NumberStepper label={t('progress.weight.weight')} value={weight} onChange={setWeight} step={0.1} min={30} max={300} unit="kg" />
       </div>
       <button
         onClick={() => onSave(date, weight)}
         disabled={!validDate}
         className="mt-4 w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
-        Save
+        {t('common.save')}
       </button>
       {editing && !editing.isNew && (
         <button
           onClick={() => onDelete(editing.date)}
           className="mt-2 flex w-full items-center justify-center gap-1.5 py-3 text-sm font-semibold text-danger"
         >
-          <Trash2 size={15} /> Delete weigh-in
+          <Trash2 size={15} /> {t('progress.weight.delete')}
         </button>
       )}
     </Sheet>
