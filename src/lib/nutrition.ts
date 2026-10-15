@@ -49,7 +49,7 @@ export function addTotals(a: MacroTotals, b: MacroTotals): MacroTotals {
   }
 }
 
-export function totalsForLogs(logs: FoodLog[], foodsById: Map<Id, Food>): MacroTotals {
+export function totalsForLogs(logs: Pick<FoodLog, 'foodId' | 'grams'>[], foodsById: Map<Id, Food>): MacroTotals {
   let acc = EMPTY_TOTALS
   for (const log of logs) {
     const food = foodsById.get(log.foodId)

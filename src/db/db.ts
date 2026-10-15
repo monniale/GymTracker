@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
-  SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
+  PlannedFood, SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
   BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone,
   CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Id,
 } from '../types'
@@ -11,6 +11,7 @@ import type {
 const UUID_TABLES = new Set([
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'scoreEvents', 'seasons', 'waterLogs', 'tombstones', 'coachHistory',
+  'plannedFoods',
 ])
 
 /* ---------- sync tracking (dirty flag + suspension during imports) ---------- */
@@ -107,6 +108,8 @@ export class GymDB extends Dexie {
   dietSuggestions!: Table<DietSuggestionRow, string>
   /** Stored AI coach verdicts (workout + diet), append-only. Synced user data, unlike the caches. */
   coachHistory!: Table<CoachJudgement, Id>
+  /** Planned meals (not eaten yet). Synced user data; invisible to totals/quests/reports. */
+  plannedFoods!: Table<PlannedFood, Id>
 
   constructor() {
     super('gymtracker')
@@ -155,6 +158,10 @@ export class GymDB extends Dexie {
     // sync and back up like real data; the caches above stay device-local.
     this.version(8).stores({
       coachHistory: '++id, sessionId, date, generatedAt',
+    })
+    // Meal plan (e.g. tomorrow's menu). UUID ids, synced and backed up (a late table).
+    this.version(9).stores({
+      plannedFoods: '++id, date, [date+meal], foodId',
     })
 
     // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking.

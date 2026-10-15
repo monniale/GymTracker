@@ -19,11 +19,13 @@
  *   than the row's last update.
  * - coachHistory (stored AI verdicts) unions by id; a snapshot from a build that
  *   predates the table has none, which never deletes the other side's rows.
+ * - plannedFoods (meal plan) likewise: union by id, optional per side, foodId
+ *   remapped with the barcode dedupe.
  */
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog, SavedMeal,
   Settings, RankState, ScoreEvent, Season, DayType, BodyLogEntry, WaterLog,
-  AchievementUnlock, QuestState, Tombstone, CoachJudgement, Id,
+  AchievementUnlock, QuestState, Tombstone, CoachJudgement, PlannedFood, Id,
 } from '../types'
 import { SEASON_CARRYOVER } from './ranks'
 
@@ -47,6 +49,8 @@ export interface SnapshotTables {
   tombstones: Tombstone[]
   /** Optional: absent in snapshots from builds before the table existed. */
   coachHistory?: CoachJudgement[]
+  /** Optional: absent in snapshots from builds before the meal plan existed. */
+  plannedFoods?: PlannedFood[]
 }
 
 export interface SyncPayload {
@@ -134,6 +138,8 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     .filter(alive('waterLogs', byId))
   const coachHistory = unionByKey(L.coachHistory ?? [], R.coachHistory ?? [], byId)
     .filter(alive('coachHistory', byId))
+  const plannedFoodsRaw = unionByKey(L.plannedFoods ?? [], R.plannedFoods ?? [], byId)
+    .filter(alive('plannedFoods', byId))
   const bodyLog = unionByKey(L.bodyLog, R.bodyLog, row => row.date)
     .filter(alive('bodyLog', row => row.date))
   const dayTypes = unionByKey(L.dayTypes, R.dayTypes, row => row.date)
@@ -213,6 +219,8 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
   const foods = foodsUnion.filter(f => !dropped.has(String(f.id)))
   const foodLogs = foodLogsRaw.map(log =>
     remap.has(String(log.foodId)) ? { ...log, foodId: remap.get(String(log.foodId))! } : log)
+  const plannedFoods = plannedFoodsRaw.map(p =>
+    remap.has(String(p.foodId)) ? { ...p, foodId: remap.get(String(p.foodId))! } : p)
   const savedMeals = savedMealsRaw.map(meal => ({
     ...meal,
     items: meal.items.map(it =>
@@ -230,7 +238,7 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     tables: {
       exercises, templates, sessions, sets, foods, foodLogs, savedMeals,
       settings, rankState, scoreEvents, seasons, dayTypes, bodyLog, waterLogs,
-      achievements, quests, tombstones, coachHistory,
+      achievements, quests, tombstones, coachHistory, plannedFoods,
     },
     notes,
   }

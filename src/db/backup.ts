@@ -6,6 +6,7 @@ export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'settings', 'rankState', 'scoreEvents', 'seasons', 'dayTypes',
   'bodyLog', 'waterLogs', 'achievements', 'quests', 'tombstones', 'coachHistory',
+  'plannedFoods',
 ] as const
 
 /**
@@ -14,7 +15,7 @@ export const TABLES = [
  * not yet updated, syncing with the phone): applying it keeps this device's rows
  * instead of clearing them, and the next push puts them back in the cloud copy.
  */
-const LATE_TABLES: ReadonlySet<TableName> = new Set<TableName>(['coachHistory'])
+const LATE_TABLES: ReadonlySet<TableName> = new Set<TableName>(['coachHistory', 'plannedFoods'])
 
 export type TableName = (typeof TABLES)[number]
 export type TableDump = Record<TableName, unknown[]>
