@@ -394,7 +394,10 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
       const streakWeeks = alive && rank ? rank.streakWeeks : 0
       const body = `${prefix}: ${plural(data.recap.sessions, 'session')}, +${Math.round(data.recap.points)} pts`
         + `${streakWeeks > 0 ? `, ${streakWeeks}-week streak` : ''}.`
-      push(spec('recap', d, 0, atLocal(d, prefs.recap.time), 'Your weekly recap', body, '/progress/week', `recap:${d}`))
+      // Monday's recap covers a finished week: open its review. Sunday's covers the open week, which the
+      // review screen doesn't open on (it starts at the last finished week), so that one keeps Rank.
+      const route = prefs.recap.when === 'monday-morning' ? '/progress/week' : '/rank'
+      push(spec('recap', d, 0, atLocal(d, prefs.recap.time), 'Your weekly recap', body, route, `recap:${d}`))
     }
   }
 

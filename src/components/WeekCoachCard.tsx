@@ -34,10 +34,14 @@ export default function WeekCoachCard({ briefing, autoEligible }: { briefing: We
   const autoGenerate = useMemo(() => autoEligible && !autoDoneFor(monday), [autoEligible, monday])
 
   async function generate(): Promise<CoachNote> {
-    try {
-      localStorage.setItem(AUTO_KEY, monday)
-    } catch {
-      /* storage unavailable: auto-generation is off anyway */
+    // Only the auto-eligible week moves the marker: a manual review of another week must not
+    // re-arm it (a deleted review of the last week would then come back by itself).
+    if (autoEligible) {
+      try {
+        localStorage.setItem(AUTO_KEY, monday)
+      } catch {
+        /* storage unavailable: auto-generation is off anyway */
+      }
     }
     const fresh = await gatherWeekBriefing(monday)
     return generateWeekNote(formatWeekBriefing(fresh), aiRequestOpts(m => { usedModel.current = m }))
