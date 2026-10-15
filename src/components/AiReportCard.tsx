@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Sparkles, Loader2, RefreshCw, AlertTriangle, WifiOff, History } from 'lucide-react'
 import { useAiStore } from '../lib/aiStore'
 import { GeminiError } from '../lib/gemini'
+import { t, tp } from '../i18n'
 import type { CoachInsightTone, CoachNote } from '../types'
 
 type Status = 'idle' | 'loading' | 'error'
@@ -28,14 +29,14 @@ export function errMsg(e: unknown): string {
   if (e instanceof GeminiError) {
     switch (e.kind) {
       case 'auth':
-      case 'bad-key': return 'Gemini key rejected — update it in Settings.'
-      case 'rate-limit': return 'Daily free limit reached — try again later.'
-      case 'network': return 'Network error — check your connection.'
-      case 'blocked': return 'Gemini couldn’t generate a note — try again.'
-      default: return e.message || 'Generation failed — try again.'
+      case 'bad-key': return t('components.aiReport.errKey')
+      case 'rate-limit': return t('components.aiReport.errRateLimit')
+      case 'network': return t('components.aiReport.errNetwork')
+      case 'blocked': return t('components.aiReport.errBlocked')
+      default: return e.message || t('components.aiReport.errGeneric')
     }
   }
-  return (e as Error)?.message || 'Generation failed — try again.'
+  return (e as Error)?.message || t('components.aiReport.errGeneric')
 }
 
 const shell = 'mt-4 rounded-2xl border border-edge bg-card p-4 text-left'
@@ -58,7 +59,7 @@ export interface AiReportCardProps<T> {
   canGenerate?: boolean
   /** Shown when no key is set. */
   noKeyHint: ReactNode
-  /** Label for the manual generate button. */
+  /** Label for the manual generate button. Default "Generate report". */
   generateLabel?: string
   /** Progress copy while generating. Default "Reviewing…". */
   loadingLabel?: string
@@ -78,8 +79,8 @@ export default function AiReportCard<T>({
   autoGenerate,
   canGenerate = true,
   noKeyHint,
-  generateLabel = 'Generate report',
-  loadingLabel = 'Reviewing…',
+  generateLabel = t('components.aiReport.generate'),
+  loadingLabel = t('components.aiReport.reviewing'),
   emptyHint,
   footer,
 }: AiReportCardProps<T>) {
@@ -163,7 +164,7 @@ export default function AiReportCard<T>({
         <p className="mt-2 flex items-start gap-1.5 text-sm text-danger">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
         </p>
-        {canRun && <ActionButton onClick={run} icon={<RefreshCw size={14} />} label="Try again" />}
+        {canRun && <ActionButton onClick={run} icon={<RefreshCw size={14} />} label={t('common.tryAgain')} />}
       </div>
     )
   }
@@ -180,7 +181,7 @@ export default function AiReportCard<T>({
       <div className={shell}>
         <Header title={title} />
         <p className="mt-2 flex items-center gap-1.5 text-sm text-sub">
-          <WifiOff size={16} className="shrink-0" /> Offline — connect to generate.
+          <WifiOff size={16} className="shrink-0" /> {t('components.aiReport.offline')}
         </p>
       </div>
     )
@@ -212,7 +213,7 @@ function Header({ title }: { title: string }) {
   )
 }
 
-function LoadingView({ title, label = 'Reviewing…' }: { title: string; label?: string }) {
+function LoadingView({ title, label = t('components.aiReport.reviewing') }: { title: string; label?: string }) {
   return (
     <div className={shell}>
       <Header title={title} />
@@ -284,7 +285,7 @@ function NoteView<T>({
               onClick={() => void onRegenerate()}
               className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-sub active:text-ink"
             >
-              <RefreshCw size={13} /> Regenerate
+              <RefreshCw size={13} /> {t('components.aiReport.regenerate')}
             </button>
           ) : (
             <span />
@@ -304,8 +305,21 @@ export function HistoryLink({ kind, earlier }: { kind: 'workout' | 'diet' | 'wee
       className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-primary active:opacity-70"
     >
       <History size={13} aria-hidden />
-      {earlier > 0 ? `${earlier} earlier · History` : 'History'}
+      {earlier > 0 ? tp('components.aiReport.historyEarlier', earlier) : t('common.history')}
     </Link>
+  )
+}
+
+/** No-key hint of an AI card: the card's pitch, then a link to Settings to add a Gemini key. */
+export function GeminiKeyHint({ pitch }: { pitch: string }) {
+  return (
+    <>
+      {pitch}{' '}
+      <Link to="/settings" className="font-semibold text-primary">
+        {t('components.aiReport.addKey')}
+      </Link>{' '}
+      {t('components.aiReport.inSettings')}
+    </>
   )
 }
 

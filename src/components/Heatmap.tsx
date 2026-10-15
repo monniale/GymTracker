@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { GRID, INK, SUB } from './Charts'
 import { heatLevel, type TrainingHeatmap, type HeatCell } from '../lib/heatmap'
 import { fmtDate } from '../lib/dates'
+import { t, tp } from '../i18n'
 
 const ORANGE = '#F97316'
 const TODAY_RING = '#FB923C'
@@ -13,7 +14,7 @@ const GAP = 2.5
 const STEP = CELL + GAP
 const LEFT = 23 // weekday labels
 const TOP = 15 // month labels
-const ROW_LABELS: [number, string][] = [[0, 'Mon'], [2, 'Wed'], [4, 'Fri']]
+const ROW_LABELS: [number, string][] = [[0, t('components.heatmap.mon')], [2, t('components.heatmap.wed')], [4, t('components.heatmap.fri')]]
 
 function cellFill(level: number) {
   return level === 0 ? GRID : ORANGE
@@ -48,7 +49,7 @@ export default function Heatmap({ data, today }: { data: TrainingHeatmap; today:
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
         role="img"
-        aria-label={`Training heatmap: ${total} workout${total === 1 ? '' : 's'} in the last ${cols} weeks`}
+        aria-label={t('components.heatmap.aria', { workouts: tp('units.workouts', total), weeks: tp('units.weeks', cols) })}
         onClick={pick}
         style={{ cursor: 'pointer' }}
       >
@@ -103,11 +104,11 @@ export default function Heatmap({ data, today }: { data: TrainingHeatmap; today:
       <div className="mt-1.5 flex items-center gap-2 text-xs text-sub">
         <span className="num min-w-0 flex-1 truncate" aria-live="polite">
           {sel
-            ? `${fmtDate(sel.date)} · ${sel.count === 0 ? 'rest day' : `${sel.count} workout${sel.count === 1 ? '' : 's'}`}`
-            : 'Tap a day'}
+            ? `${fmtDate(sel.date)} · ${sel.count === 0 ? t('components.heatmap.restDay') : tp('units.workouts', sel.count)}`
+            : t('components.heatmap.tapDay')}
         </span>
         <span className="flex shrink-0 items-center gap-1 whitespace-nowrap" aria-hidden>
-          Less
+          {t('components.heatmap.less')}
           {[0, 1, 2, 3].map(l => (
             <span
               key={l}
@@ -115,7 +116,7 @@ export default function Heatmap({ data, today }: { data: TrainingHeatmap; today:
               style={{ backgroundColor: cellFill(l), opacity: LEVEL_OPACITY[l] }}
             />
           ))}
-          More
+          {t('components.heatmap.more')}
         </span>
       </div>
     </div>
