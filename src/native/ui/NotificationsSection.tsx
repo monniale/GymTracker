@@ -12,7 +12,8 @@ import {
 import { useNotifyStore } from '../../lib/notifyStore'
 import type { IsoWeekday, NotifyPrefs } from '../../lib/notifyPrefs'
 import type { MealType } from '../../types'
-import { fmtDate, fmtDateTime } from '../../lib/dates'
+import { addDays, fmtDate, fmtDateTime, localDateStr } from '../../lib/dates'
+import { fmtNum, t, tp } from '../../i18n'
 import { useNativeStatus } from '../status'
 import type { NativeStatus } from '../status'
 import { openDeviceSettings } from '../deviceSettings'
@@ -94,7 +95,7 @@ export default function NotificationsSection() {
   return (
     <section className="mb-4 rounded-2xl border border-edge bg-card p-4">
       <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sub">
-        <Bell size={14} className={ready ? 'text-accent' : ''} /> Notifications
+        <Bell size={14} className={ready ? 'text-accent' : ''} /> {t('native.notifications.title')}
       </h2>
       <HealthPanel status={status} items={items} muted={muted} refresh={refresh} />
       <ScheduleLine status={status} />
@@ -124,7 +125,7 @@ function HealthPanel({
   if (!status)
     return (
       <div className="flex min-h-[48px] items-center rounded-xl bg-surface px-3 text-sm text-sub">
-        Checking notification settings…
+        {t('native.notifications.checking')}
       </div>
     )
 
@@ -147,12 +148,12 @@ function HealthPanel({
         <span className="min-w-0 flex-1">
           <span className={`block text-sm font-semibold ${warn ? 'text-danger' : ''}`}>
             {required
-              ? `${required} thing${required === 1 ? '' : 's'} need${required === 1 ? 's' : ''} attention`
+              ? tp('native.notifications.health.needAttention', required)
               : muted
-                ? `${muted} reminder type${muted === 1 ? ' is' : 's are'} muted in Android`
-                : 'Notifications ready'}
+                ? tp('native.notifications.health.mutedTypes', muted)
+                : t('native.notifications.health.ready')}
           </span>
-          {tips > 0 && <span className="block text-xs text-sub">{tips === 1 ? '1 optional tip' : `${tips} optional tips`}</span>}
+          {tips > 0 && <span className="block text-xs text-sub">{tp('native.notifications.health.tips', tips)}</span>}
         </span>
         <ChevronDown size={18} className={`shrink-0 text-sub transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -176,48 +177,51 @@ function HealthRow({ item, refresh }: { item: HealthItem; refresh: Refresh }) {
         <IssueRow
           title={
             item.state === 'prompt'
-              ? 'Notifications not allowed yet'
+              ? t('native.notifications.issue.notAllowedYet')
               : item.state === 'denied'
-                ? 'Notifications are blocked'
-                : 'Notifications are off for GymTracker'
+                ? t('native.notifications.issue.blocked')
+                : t('native.notifications.issue.offForApp')
           }
-          hint="Needed for reminders and for the rest alert with the screen off."
+          hint={t('native.notifications.issue.notificationsHint')}
         >
           {item.state === 'prompt' ? (
-            <ActionButton onClick={() => allowNotifications(refresh)}>Allow</ActionButton>
+            <ActionButton onClick={() => allowNotifications(refresh)}>{t('native.actions.allow')}</ActionButton>
           ) : (
-            <ActionButton onClick={() => openDeviceSettings('app_notifications')}>Open settings</ActionButton>
+            <ActionButton onClick={() => openDeviceSettings('app_notifications')}>{t('native.actions.openSettings')}</ActionButton>
           )}
         </IssueRow>
       )
     case 'exact':
       return (
-        <IssueRow title="Exact timing is off" hint="Reminders and the rest alert may arrive late.">
-          <ActionButton onClick={() => openExactAlarmSettings()}>Fix</ActionButton>
+        <IssueRow title={t('native.notifications.issue.exactOff')} hint={t('native.notifications.issue.exactHint')}>
+          <ActionButton onClick={() => openExactAlarmSettings()}>{t('native.actions.fix')}</ActionButton>
         </IssueRow>
       )
     case 'battery':
       return item.state === 'restricted' ? (
         <IssueRow
-          title="Battery: Restricted"
-          hint="Restricted apps lose their reminders. Open App info › Battery and choose Unrestricted."
+          title={t('native.notifications.issue.batteryRestricted')}
+          hint={t('native.notifications.issue.batteryRestrictedHint')}
         >
-          <ActionButton onClick={() => openDeviceSettings('app_details')}>Open</ActionButton>
+          <ActionButton onClick={() => openDeviceSettings('app_details')}>{t('native.actions.open')}</ActionButton>
         </IssueRow>
       ) : (
-        <IssueRow title="Battery: Optimised" hint="Set GymTracker to Unrestricted so Android doesn't hold back reminders.">
-          <ActionButton onClick={() => openDeviceSettings('battery_request')}>Allow</ActionButton>
+        <IssueRow
+          title={t('native.notifications.issue.batteryOptimised')}
+          hint={t('native.notifications.issue.batteryOptimisedHint')}
+        >
+          <ActionButton onClick={() => openDeviceSettings('battery_request')}>{t('native.actions.allow')}</ActionButton>
         </IssueRow>
       )
     case 'samsung':
       return (
         <IssueRow
-          title="Add to Never sleeping apps"
-          hint="One UI puts apps you haven't opened for a few days to sleep, and sleeping apps lose their alarms. Android can't report this setting, so tick it off once GymTracker is on the list."
+          title={t('native.notifications.issue.samsung')}
+          hint={t('native.notifications.issue.samsungHint')}
         >
-          <ActionButton onClick={() => openDeviceSettings('samsung_never_sleeping')}>Open list</ActionButton>
+          <ActionButton onClick={() => openDeviceSettings('samsung_never_sleeping')}>{t('native.actions.openList')}</ActionButton>
           <ActionButton tone="quiet" onClick={() => setSamsungDone(true)}>
-            Done
+            {t('common.done')}
           </ActionButton>
         </IssueRow>
       )
@@ -225,16 +229,31 @@ function HealthRow({ item, refresh }: { item: HealthItem; refresh: Refresh }) {
       return (
         <IssueRow
           tone="info"
-          title="Live countdown in the status bar"
-          hint="Optional: shows the rest countdown as a live chip. On One UI you may also need Developer options › Live notifications for all apps."
+          title={t('native.notifications.issue.promotion')}
+          hint={t('native.notifications.issue.promotionHint')}
         >
           <ActionButton tone="quiet" onClick={() => openDeviceSettings('promotion')}>
-            Settings
+            {t('native.actions.settings')}
           </ActionButton>
         </IssueRow>
       )
   }
 }
+
+/** One-word states of the diagnostics lines. */
+type DetailWord =
+  | 'allowed'
+  | 'notAsked'
+  | 'denied'
+  | 'off'
+  | 'on'
+  | 'restricted'
+  | 'unrestricted'
+  | 'optimised'
+  | 'persistent'
+  | 'bestEffort'
+  | 'notAllowed'
+  | 'inexact'
 
 /** Diagnostics for when something misbehaves; kept out of the way. */
 function Details({ status }: { status: NativeStatus }) {
@@ -262,40 +281,55 @@ function Details({ status }: { status: NativeStatus }) {
         onClick={() => setOpen(true)}
         className="flex min-h-[36px] items-center gap-1.5 px-1 text-xs font-medium text-sub"
       >
-        <Info size={13} /> Details
+        <Info size={13} /> {t('native.notifications.details.button')}
       </button>
     )
 
   const n = notificationsState(status)
   const bucket = bucketLabel(status.standbyBucket)
+  const d = (key: DetailWord) => t(`native.notifications.details.${key}`)
+  const notifState: Record<typeof n, DetailWord> = { ok: 'allowed', prompt: 'notAsked', denied: 'denied', off: 'off' }
   return (
     <div className="space-y-0.5 px-1 pb-1 text-xs leading-relaxed text-sub">
       <p>
-        Notifications {n === 'ok' ? 'allowed' : n === 'prompt' ? 'not asked' : n} · exact timing{' '}
-        {status.exact ? 'on' : 'off'}
+        {t('native.notifications.details.notifications', {
+          state: d(notifState[n]),
+          exact: d(status.exact ? 'on' : 'off'),
+        })}
       </p>
       <p>
-        Battery {status.backgroundRestricted ? 'restricted' : status.ignoringBattery ? 'unrestricted' : 'optimised'}
-        {bucket && <> · standby {bucket}</>}
-        {persisted !== null && <> · storage {persisted ? 'persistent' : 'best effort'}</>}
+        {t('native.notifications.details.battery', {
+          state: d(status.backgroundRestricted ? 'restricted' : status.ignoringBattery ? 'unrestricted' : 'optimised'),
+        })}
+        {bucket && <> · {t('native.notifications.details.standby', { bucket })}</>}
+        {persisted !== null && (
+          <> · {t('native.notifications.details.storage', { state: d(persisted ? 'persistent' : 'bestEffort') })}</>
+        )}
       </p>
       <p>
-        {status.manufacturer || 'Android'} · API {status.sdkInt} · live countdown{' '}
-        {status.promotedAllowed ? 'allowed' : 'not allowed'}
+        {t('native.notifications.details.device', {
+          maker: status.manufacturer || 'Android',
+          sdk: status.sdkInt,
+          state: d(status.promotedAllowed ? 'allowed' : 'notAllowed'),
+        })}
       </p>
       {lastResync && (
         <p>
-          Last plan {fmtDateTime(lastResync.at)} ({lastResync.reason}) ·{' '}
-          {lastResync.skipped ? `skipped: ${lastResync.skipped}` : `${lastResync.scheduled} scheduled`}
-          {!lastResync.exact && ' · inexact'}
+          {t('native.notifications.details.lastPlan', { when: fmtDateTime(lastResync.at), reason: lastResync.reason })} ·{' '}
+          {lastResync.skipped
+            ? t('native.notifications.details.skipped', { reason: lastResync.skipped })
+            : tp('native.notifications.details.scheduled', lastResync.scheduled)}
+          {!lastResync.exact && ` · ${d('inexact')}`}
         </p>
       )}
-      {lastResync?.error && <p className="text-danger">Error: {lastResync.error}</p>}
+      {lastResync?.error && (
+        <p className="text-danger">{t('native.notifications.details.error', { error: lastResync.error })}</p>
+      )}
       {isSamsung(status) && samsungDone && (
         <p>
-          Never sleeping apps: ticked off ·{' '}
+          {t('native.notifications.details.samsungDone')} ·{' '}
           <button type="button" onClick={() => setSamsungDone(false)} className="font-semibold text-primary">
-            Undo
+            {t('native.actions.undo')}
           </button>
         </p>
       )}
@@ -312,8 +346,10 @@ interface Summary {
 }
 
 function dayWord(date: string): string {
-  const d = fmtDate(date)
-  return d === 'Today' || d === 'Tomorrow' ? d.toLowerCase() : d
+  const today = localDateStr()
+  if (date === today) return t('native.notifications.schedule.today')
+  if (date === addDays(today, 1)) return t('native.notifications.schedule.tomorrow')
+  return fmtDate(date)
 }
 
 function ScheduleLine({ status }: { status: Status }) {
@@ -334,22 +370,25 @@ function ScheduleLine({ status }: { status: Status }) {
   const blocked = !!status && notificationsState(status) !== 'ok'
   const horizon = summary?.horizon ?? lastResync?.horizon
   let main: React.ReactNode
-  if (!prefs.enabled) main = 'Reminders are off.'
-  else if (blocked) main = "Reminders can't be scheduled until notifications are allowed."
+  if (!prefs.enabled) main = t('native.notifications.schedule.off')
+  else if (blocked) main = t('native.notifications.schedule.blocked')
   else if (!summary) main = null
-  else if (summary.count === 0) main = remindersActive(prefs) ? 'Nothing scheduled right now.' : 'No reminders turned on.'
+  else if (summary.count === 0)
+    main = remindersActive(prefs) ? t('native.notifications.schedule.nothing') : t('native.notifications.schedule.noneOn')
   else
     main = (
       <>
         <span className="block font-semibold text-ink">
-          {horizon ? `Reminders scheduled through ${dayWord(throughDate(horizon))}` : `${summary.count} reminders scheduled`}
+          {horizon
+            ? t('native.notifications.schedule.through', { day: dayWord(throughDate(horizon)) })
+            : tp('native.notifications.schedule.count', summary.count)}
         </span>
         {summary.next && (
           <span className="block truncate">
-            Next: {fmtDateTime(summary.next.atMs)} — {summary.next.title}
+            {t('native.notifications.schedule.next', { when: fmtDateTime(summary.next.atMs), title: summary.next.title })}
           </span>
         )}
-        <span className="block">Opening the app extends the plan.</span>
+        <span className="block">{t('native.notifications.schedule.extends')}</span>
       </>
     )
   const keepAliveMuted = !blocked && remindersActive(prefs) && isMuted(status?.channels, CHANNEL.status)
@@ -358,44 +397,50 @@ function ScheduleLine({ status }: { status: Status }) {
     <div className="mt-3 space-y-2 px-1">
       {main && <p className="text-xs leading-relaxed text-sub">{main}</p>}
       {keepAliveMuted && (
-        <IssueRow title="“Open GymTracker” notices are muted" hint="They tell you when the reminder plan is about to run out.">
-          <ActionButton onClick={() => openDeviceSettings('channel', CHANNEL.status)}>Open</ActionButton>
+        <IssueRow
+          title={t('native.notifications.schedule.keepAliveMuted')}
+          hint={t('native.notifications.schedule.keepAliveHint')}
+        >
+          <ActionButton onClick={() => openDeviceSettings('channel', CHANNEL.status)}>{t('native.actions.open')}</ActionButton>
         </IssueRow>
       )}
-      {lastResync?.error && <p className="text-xs text-danger">Last re-plan failed: {lastResync.error}</p>}
+      {lastResync?.error && (
+        <p className="text-xs text-danger">{t('native.notifications.schedule.replanFailed', { error: lastResync.error })}</p>
+      )}
     </div>
   )
 }
 
 // ── Reminders ────────────────────────────────────────────────────────────────────────────
 
-const WEEKDAYS: { d: IsoWeekday; short: string; long: string }[] = [
-  { d: 1, short: 'M', long: 'Monday' },
-  { d: 2, short: 'T', long: 'Tuesday' },
-  { d: 3, short: 'W', long: 'Wednesday' },
-  { d: 4, short: 'T', long: 'Thursday' },
-  { d: 5, short: 'F', long: 'Friday' },
-  { d: 6, short: 'S', long: 'Saturday' },
-  { d: 7, short: 'S', long: 'Sunday' },
-]
+// Built with t() at module load: changing the language reloads the app.
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+const WEEKDAYS: { d: IsoWeekday; short: string; long: string }[] = WEEKDAY_KEYS.map((k, i) => ({
+  d: (i + 1) as IsoWeekday,
+  short: t(`native.notifications.weekday.${k}Short`),
+  long: t(`native.notifications.weekday.${k}`),
+}))
 
-const MEALS: { meal: MealType; label: string }[] = [
-  { meal: 'breakfast', label: 'Breakfast' },
-  { meal: 'lunch', label: 'Lunch' },
-  { meal: 'snack', label: 'Snack' },
-  { meal: 'dinner', label: 'Dinner' },
-]
+const MEALS: { meal: MealType; label: string }[] = (['breakfast', 'lunch', 'snack', 'dinner'] as const).map(meal => ({
+  meal,
+  label: t(`native.notifications.meals.${meal}`),
+}))
 
-const WATER_EVERY: { value: NotifyPrefs['water']['intervalMin']; label: string }[] = [
-  { value: 60, label: '1 h' },
-  { value: 90, label: '1.5 h' },
-  { value: 120, label: '2 h' },
-  { value: 180, label: '3 h' },
-]
+const WATER_EVERY: { value: NotifyPrefs['water']['intervalMin']; label: string }[] = ([60, 90, 120, 180] as const).map(
+  value => ({ value, label: t('native.notifications.water.hours', { n: fmtNum(value / 60) }) }),
+)
 
 const RECAP_WHEN: { value: NotifyPrefs['recap']['when']; title: string; sub: string }[] = [
-  { value: 'monday-morning', title: 'Monday', sub: 'Last week' },
-  { value: 'sunday-evening', title: 'Sunday', sub: 'This week so far' },
+  {
+    value: 'monday-morning',
+    title: t('native.notifications.recap.monday'),
+    sub: t('native.notifications.recap.mondaySub'),
+  },
+  {
+    value: 'sunday-evening',
+    title: t('native.notifications.recap.sunday'),
+    sub: t('native.notifications.recap.sundaySub'),
+  },
 ]
 
 function RemindersCard({ status, muted, refresh }: { status: Status; muted: number; refresh: Refresh }) {
@@ -409,7 +454,11 @@ function RemindersCard({ status, muted, refresh }: { status: Status; muted: numb
   const prefs = useNotifyStore(s => s.prefs)
   const setPrefs = useNotifyStore(s => s.setPrefs)
   const on = enabledCategoryCount(prefs)
-  const sub = !prefs.enabled ? 'All off' : on === 0 ? 'None turned on' : `${on} of ${CATEGORY_KEYS.length} on`
+  const sub = !prefs.enabled
+    ? t('native.notifications.reminders.allOff')
+    : on === 0
+      ? t('native.notifications.reminders.noneOn')
+      : t('native.notifications.reminders.countOn', { on, total: CATEGORY_KEYS.length })
 
   /** Update prefs; when this turns something on, ask for the permission first if possible. */
   const update = (fn: (p: NotifyPrefs) => NotifyPrefs, turningOn = false) => {
@@ -428,10 +477,10 @@ function RemindersCard({ status, muted, refresh }: { status: Status; muted: numb
         >
           <ChevronDown size={18} className={`shrink-0 text-sub transition-transform ${open ? '' : '-rotate-90'}`} />
           <span className="min-w-0">
-            <span className="block text-sm font-semibold">Reminders</span>
+            <span className="block text-sm font-semibold">{t('native.notifications.reminders.title')}</span>
             <span className="block truncate text-xs text-sub">
               {sub}
-              {anyMuted && <span className="text-danger"> · {muted} muted in Android</span>}
+              {anyMuted && <span className="text-danger"> · {tp('native.notifications.reminders.muted', muted)}</span>}
             </span>
           </span>
         </button>
@@ -439,7 +488,7 @@ function RemindersCard({ status, muted, refresh }: { status: Status; muted: numb
           type="button"
           role="switch"
           aria-checked={prefs.enabled}
-          aria-label="All reminders"
+          aria-label={t('native.notifications.reminders.allSwitch')}
           onClick={() => update(p => ({ ...p, enabled: !p.enabled }), !prefs.enabled)}
           className="flex min-h-[48px] shrink-0 items-center"
         >
@@ -458,7 +507,7 @@ function RemindersCard({ status, muted, refresh }: { status: Status; muted: numb
             <WeighInCard status={status} update={update} />
           </div>
         ) : (
-          <p className="mt-2 px-1 text-xs text-sub">Turn reminders on to choose which ones you get.</p>
+          <p className="mt-2 px-1 text-xs text-sub">{t('native.notifications.reminders.turnOnHint')}</p>
         ))}
     </div>
   )
@@ -521,8 +570,8 @@ function WorkoutCard({ status, update }: CardProps) {
       status={status}
       header={
         <SwitchRow
-          label="Training days"
-          hint="Unless you've already trained that day"
+          label={t('native.notifications.workout.label')}
+          hint={t('native.notifications.workout.hint')}
           on={w.enabled}
           onChange={v => set({ enabled: v }, v)}
         />
@@ -549,20 +598,20 @@ function WorkoutCard({ status, update }: CardProps) {
               )
             })}
           </div>
-          {w.days.length === 0 && <p className="text-xs text-primary">Pick the days you train.</p>}
-          <FieldRow label="Remind at">
-            <TimeInput label="Training reminder time" value={w.time} onChange={time => set({ time })} />
+          {w.days.length === 0 && <p className="text-xs text-primary">{t('native.notifications.workout.pickDays')}</p>}
+          <FieldRow label={t('native.notifications.workout.remindAt')}>
+            <TimeInput label={t('native.notifications.workout.timeLabel')} value={w.time} onChange={time => set({ time })} />
           </FieldRow>
           <SwitchRow
-            label="Skip once the weekly target is met"
+            label={t('native.notifications.workout.skipTarget')}
             on={w.skipWhenTargetMet}
             onChange={v => set({ skipWhenTargetMet: v })}
           />
         </>
       )}
       <SwitchRow
-        label="Workout left open"
-        hint="Nudge 3 h after starting if it's still running"
+        label={t('native.notifications.workout.openSession')}
+        hint={t('native.notifications.workout.openSessionHint')}
         on={w.openSessionNudge}
         onChange={v => set({ openSessionNudge: v }, v)}
       />
@@ -575,7 +624,7 @@ function MealsCard({ status, update }: CardProps) {
   const set = (meal: MealType, patch: Partial<NotifyPrefs['meals'][MealType]>, turningOn = false) =>
     update(p => ({ ...p, meals: { ...p.meals, [meal]: { ...p.meals[meal], ...patch } } }), turningOn)
   return (
-    <Card k="meals" status={status} header={<CardTitle>Meals</CardTitle>}>
+    <Card k="meals" status={status} header={<CardTitle>{t('native.notifications.meals.title')}</CardTitle>}>
       {MEALS.map(({ meal, label }) => (
         <div key={meal} className="flex flex-wrap items-center justify-end gap-x-2">
           <SwitchRow
@@ -585,14 +634,14 @@ function MealsCard({ status, update }: CardProps) {
             onChange={v => set(meal, { enabled: v }, v)}
           />
           <TimeInput
-            label={`${label} reminder time`}
+            label={t('native.notifications.meals.timeLabel', { meal: label })}
             value={meals[meal].time}
             disabled={!meals[meal].enabled}
             onChange={time => set(meal, { time })}
           />
         </div>
       ))}
-      <p className="text-xs text-sub">Skipped when that meal is already logged.</p>
+      <p className="text-xs text-sub">{t('native.notifications.meals.skipped')}</p>
     </Card>
   )
 }
@@ -605,22 +654,39 @@ function WaterCard({ status, update }: CardProps) {
     <Card
       k="water"
       status={status}
-      header={<SwitchRow label="Water" on={water.enabled} onChange={v => set({ enabled: v }, v)} />}
+      header={
+        <SwitchRow label={t('native.notifications.water.label')} on={water.enabled} onChange={v => set({ enabled: v }, v)} />
+      }
     >
       {water.enabled && (
         <>
           <div className="grid grid-cols-2 gap-2 pt-1">
             <label className="min-w-0">
-              <span className="mb-0.5 block text-xs text-sub">From</span>
-              <TimeInput label="Water reminders from" value={water.start} onChange={start => set({ start })} className="w-full" />
+              <span className="mb-0.5 block text-xs text-sub">{t('native.notifications.water.from')}</span>
+              <TimeInput
+                label={t('native.notifications.water.fromLabel')}
+                value={water.start}
+                onChange={start => set({ start })}
+                className="w-full"
+              />
             </label>
             <label className="min-w-0">
-              <span className="mb-0.5 block text-xs text-sub">To</span>
-              <TimeInput label="Water reminders until" value={water.end} onChange={end => set({ end })} className="w-full" />
+              <span className="mb-0.5 block text-xs text-sub">{t('native.notifications.water.to')}</span>
+              <TimeInput
+                label={t('native.notifications.water.toLabel')}
+                value={water.end}
+                onChange={end => set({ end })}
+                className="w-full"
+              />
             </label>
           </div>
-          <FieldRow label="Every">
-            <Select label="Water reminder interval" value={water.intervalMin} options={WATER_EVERY} onChange={intervalMin => set({ intervalMin })} />
+          <FieldRow label={t('native.notifications.water.every')}>
+            <Select
+              label={t('native.notifications.water.everyLabel')}
+              value={water.intervalMin}
+              options={WATER_EVERY}
+              onChange={intervalMin => set({ intervalMin })}
+            />
           </FieldRow>
         </>
       )}
@@ -633,26 +699,36 @@ function RankCard({ status, update }: CardProps) {
   const set = (patch: Partial<NotifyPrefs['rank']>, turningOn = false) =>
     update(p => ({ ...p, rank: { ...p.rank, ...patch } }), turningOn)
   return (
-    <Card k="rank" status={status} header={<CardTitle>Rank &amp; streak</CardTitle>}>
+    <Card k="rank" status={status} header={<CardTitle>{t('native.notifications.rank.title')}</CardTitle>}>
       <div className="flex flex-wrap items-center justify-end gap-x-2">
         <SwitchRow
-          label="Rank decay"
+          label={t('native.notifications.rank.decay')}
           basis="basis-36"
-          hint="The day before idle decay starts"
+          hint={t('native.notifications.rank.decayHint')}
           on={r.decayWarning}
           onChange={v => set({ decayWarning: v }, v)}
         />
-        <TimeInput label="Rank decay warning time" value={r.decayTime} disabled={!r.decayWarning} onChange={decayTime => set({ decayTime })} />
+        <TimeInput
+          label={t('native.notifications.rank.decayTime')}
+          value={r.decayTime}
+          disabled={!r.decayWarning}
+          onChange={decayTime => set({ decayTime })}
+        />
       </div>
       <div className="flex flex-wrap items-center justify-end gap-x-2">
         <SwitchRow
-          label="Streak at risk"
+          label={t('native.notifications.rank.streak')}
           basis="basis-36"
-          hint="When the weekly target is still open"
+          hint={t('native.notifications.rank.streakHint')}
           on={r.streakWarning}
           onChange={v => set({ streakWarning: v }, v)}
         />
-        <TimeInput label="Streak warning time" value={r.streakTime} disabled={!r.streakWarning} onChange={streakTime => set({ streakTime })} />
+        <TimeInput
+          label={t('native.notifications.rank.streakTime')}
+          value={r.streakTime}
+          disabled={!r.streakWarning}
+          onChange={streakTime => set({ streakTime })}
+        />
       </div>
     </Card>
   )
@@ -666,20 +742,30 @@ function RecapCard({ status, update }: CardProps) {
     <Card
       k="recap"
       status={status}
-      header={<SwitchRow label="Weekly recap" on={r.enabled} onChange={v => set(x => ({ ...x, enabled: v }), v)} />}
+      header={
+        <SwitchRow
+          label={t('native.notifications.recap.label')}
+          on={r.enabled}
+          onChange={v => set(x => ({ ...x, enabled: v }), v)}
+        />
+      }
     >
       {r.enabled && (
         <>
           <div className="pt-1">
             <Segment
-              label="Weekly recap day"
+              label={t('native.notifications.recap.dayLabel')}
               value={r.when}
               options={RECAP_WHEN}
               onChange={when => set(x => recapWithWhen(x, when))}
             />
           </div>
-          <FieldRow label="At">
-            <TimeInput label="Weekly recap time" value={r.time} onChange={time => set(x => ({ ...x, time }))} />
+          <FieldRow label={t('native.notifications.recap.at')}>
+            <TimeInput
+              label={t('native.notifications.recap.timeLabel')}
+              value={r.time}
+              onChange={time => set(x => ({ ...x, time }))}
+            />
           </FieldRow>
         </>
       )}
@@ -697,22 +783,22 @@ function WeighInCard({ status, update }: CardProps) {
       status={status}
       header={
         <SwitchRow
-          label="Weigh-in"
-          hint="Weekly; skipped if you've logged your weight that day"
+          label={t('native.notifications.weighIn.label')}
+          hint={t('native.notifications.weighIn.hint')}
           on={wi.enabled}
           onChange={v => set({ enabled: v }, v)}
         />
       }
     >
       {wi.enabled && (
-        <FieldRow label="On">
+        <FieldRow label={t('native.notifications.weighIn.on')}>
           <Select
-            label="Weigh-in day"
+            label={t('native.notifications.weighIn.dayLabel')}
             value={wi.weekday}
             options={WEEKDAYS.map(x => ({ value: x.d, label: x.long }))}
             onChange={weekday => set({ weekday })}
           />
-          <TimeInput label="Weigh-in time" value={wi.time} onChange={time => set({ time })} />
+          <TimeInput label={t('native.notifications.weighIn.timeLabel')} value={wi.time} onChange={time => set({ time })} />
         </FieldRow>
       )}
     </Card>
@@ -720,6 +806,13 @@ function WeighInCard({ status, update }: CardProps) {
 }
 
 // ── Footer ───────────────────────────────────────────────────────────────────────────────
+
+/** Why a re-plan scheduled nothing, for the footer line (unknown codes as they are). */
+function skippedReason(skipped: string): string {
+  if (skipped === 'permission') return t('native.notifications.footer.skippedPermission')
+  if (skipped === 'disabled') return t('native.notifications.footer.skippedDisabled')
+  return skipped
+}
 
 function FooterButtons({ status, refresh }: { status: Status; refresh: Refresh }) {
   const lastResync = useNotifyStore(s => s.lastResync)
@@ -729,8 +822,8 @@ function FooterButtons({ status, refresh }: { status: Status; refresh: Refresh }
 
   useEffect(() => {
     if (!msg) return
-    const t = setTimeout(() => setMsg(null), 20_000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setMsg(null), 20_000)
+    return () => clearTimeout(timer)
   }, [msg])
 
   function sendTest() {
@@ -738,15 +831,15 @@ function FooterButtons({ status, refresh }: { status: Status; refresh: Refresh }
       let state = status ? notificationsState(status) : 'ok'
       if (state === 'prompt') state = (await allowNotifications(refresh)) === 'granted' ? 'ok' : 'denied'
       if (state !== 'ok') {
-        setMsg('Notifications are blocked — fix that above first.')
+        setMsg(t('native.notifications.footer.blocked'))
         return
       }
       try {
         await sendTestReminder(15)
-        setMsg('Test reminder in 15 s — lock your phone now.')
+        setMsg(t('native.notifications.footer.testSent'))
       } catch (e) {
         // e.g. notifications switched off in Android since the status was read
-        setMsg(e instanceof Error ? e.message : 'Could not schedule the test reminder.')
+        setMsg(e instanceof Error ? e.message : t('native.notifications.footer.testFailed'))
       }
     })
   }
@@ -761,7 +854,7 @@ function FooterButtons({ status, refresh }: { status: Status; refresh: Refresh }
           disabled={testing}
           className="flex min-h-[44px] shrink-0 grow items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary/15 px-3 text-sm font-semibold text-primary active:bg-primary/30 disabled:opacity-50"
         >
-          <Send size={16} /> Send test reminder (15 s)
+          <Send size={16} /> {t('native.notifications.footer.sendTest')}
         </button>
         <button
           type="button"
@@ -772,24 +865,25 @@ function FooterButtons({ status, refresh }: { status: Status; refresh: Refresh }
           }}
           className="flex min-h-[44px] shrink-0 grow items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-muted/40 px-3 text-sm font-semibold active:bg-muted"
         >
-          <RefreshCw size={16} className={replanFrom !== null && !replanned ? 'animate-spin' : ''} /> Reschedule now
+          <RefreshCw size={16} className={replanFrom !== null && !replanned ? 'animate-spin' : ''} />{' '}
+          {t('native.notifications.footer.reschedule')}
         </button>
         <button
           type="button"
           onClick={() => void openDeviceSettings('app_notifications').catch(() => {})}
           className="flex min-h-[44px] shrink-0 grow items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-muted/40 px-3 text-sm font-semibold active:bg-muted"
         >
-          <Settings2 size={16} /> All notification settings
+          <Settings2 size={16} /> {t('native.notifications.footer.allSettings')}
         </button>
       </div>
       {msg && <p className="mt-2 text-xs text-sub">{msg}</p>}
       {replanned && lastResync && !msg && (
         <p className="mt-2 text-xs text-sub">
           {lastResync.error
-            ? `Re-plan failed: ${lastResync.error}`
+            ? t('native.notifications.footer.replanFailed', { error: lastResync.error })
             : lastResync.skipped
-              ? `Nothing scheduled (${lastResync.skipped === 'permission' ? 'notifications not allowed' : lastResync.skipped}).`
-              : `Rescheduled ${lastResync.scheduled} reminder${lastResync.scheduled === 1 ? '' : 's'}.`}
+              ? t('native.notifications.footer.nothingScheduled', { reason: skippedReason(lastResync.skipped) })
+              : tp('native.notifications.footer.rescheduled', lastResync.scheduled)}
         </p>
       )}
     </div>
@@ -801,8 +895,8 @@ function HapticsRow() {
   const setHaptics = useNotifyStore(s => s.setHaptics)
   return (
     <SwitchRow
-      label="Haptics"
-      hint="Vibrate when you log a set, finish a workout or scan"
+      label={t('native.notifications.haptics.label')}
+      hint={t('native.notifications.haptics.hint')}
       on={haptics}
       onChange={v => {
         setHaptics(v)

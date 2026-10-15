@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Italian. Keys and comments live in values/strings.xml. -->
+<resources>
+    <!-- Home-screen widget -->
+    <string name="widget_description">Rank, punti, streak e allenamenti della settimana</string>
+    <string name="widget_empty">Apri GymTracker per caricare il tuo rank</string>
+    <string name="widget_points">%1$s pt</string>
+    <plurals name="widget_streak">
+        <item quantity="one">Streak di %d settimana</item>
+        <item quantity="many">Streak di %d settimane</item>
+        <item quantity="other">Streak di %d settimane</item>
+    </plurals>
+    <string name="widget_no_streak">Nessuna streak per ora</string>
+    <string name="widget_week">%1$d / %2$d allenamenti in settimana</string>
+    <string name="widget_next">Prossimo: %1$s</string>
+    <string name="widget_sample_tier">Oro II</string>
+    <string name="widget_sample_points">2.850 pt</string>
+    <string name="widget_sample_streak">Streak di 4 settimane</string>
+    <string name="widget_sample_week">2 / 3 allenamenti in settimana</string>
+    <string name="widget_sample_next">Prossimo: Push Day</string>
+    <!-- Rest timer -->
+    <string name="rest_title">Recupero</string>
+    <string name="rest_action_skip">Salta</string>
+    <string name="rest_over_title">Recupero finito</string>
+    <string name="rest_over_body">Tocca alla prossima serie</string>
+    <string name="rest_channel_countdown">Timer di recupero (conto alla rovescia)</string>
+    <string name="rest_channel_countdown_desc">Conto alla rovescia live durante il recupero tra le serie</string>
+    <string name="rest_channel_quiet">Fine recupero — discreto (segue la suoneria)</string>
+    <string name="rest_channel_quiet_desc">Suono e vibrazione a fine recupero. Segue la modalità suoneria; suona negli auricolari.</string>
+    <string name="rest_channel_loud">Fine recupero — forte (volume sveglia)</string>
+    <string name="rest_channel_loud_desc">Suono a volume sveglia a fine recupero. Suona anche in silenzioso, dall’altoparlante del telefono.</string>
+</resources>
