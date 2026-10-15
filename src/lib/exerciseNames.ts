@@ -95,5 +95,6 @@ export const CATALOG_NAMES_TRANSLATED: readonly string[] = Object.keys(IT)
  */
 export function exerciseDisplayName(name: string): string {
   if (getLang() !== 'it') return name
-  return IT[name] ?? name
+  // Own keys only: a custom exercise named "constructor" must not hit Object.prototype.
+  return Object.prototype.hasOwnProperty.call(IT, name) ? IT[name] : name
 }

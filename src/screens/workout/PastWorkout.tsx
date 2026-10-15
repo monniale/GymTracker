@@ -12,7 +12,7 @@ import NumberStepper from '../../components/NumberStepper'
 import { EQUIPMENT_LABEL } from '../../lib/equipment'
 import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet } from '../../lib/cardio'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
-import { t } from '../../i18n'
+import { t, fmtNum } from '../../i18n'
 import type { Equipment, Exercise, SetRow } from '../../types'
 
 /** View & edit a finished workout: per-set weight/reps, add/remove sets, and
@@ -151,7 +151,7 @@ export default function PastWorkout() {
                 >
                   <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                   <span className="num flex-1 font-display text-lg font-semibold">
-                    {isCardioSet(s) ? fmtCardioSet(s) : `${s.weightKg} kg × ${s.reps}`}
+                    {isCardioSet(s) ? fmtCardioSet(s) : `${fmtNum(s.weightKg)} kg × ${s.reps}`}
                     {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                   </span>
                   <Pencil size={15} className="shrink-0 text-sub" />

@@ -18,7 +18,7 @@ import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
-import { t, tp } from '../../i18n'
+import { t, tp, fmtNum } from '../../i18n'
 import type { Equipment, Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
 
 const WARMUP_REST_SEC = 30
@@ -315,7 +315,7 @@ function ExerciseCard({
         target = fmtCardioSet(cardioDraftForWork(done, lastWork))
       } else {
         const next = draftForWork(done, lastWork)
-        target = next.weightKg > 0 ? `${next.weightKg} kg × ${next.reps}` : tp('units.reps', next.reps)
+        target = next.weightKg > 0 ? `${fmtNum(next.weightKg)} kg × ${next.reps}` : tp('units.reps', next.reps)
       }
       return t('workout.rest.setTarget', {
         name: name ?? t('workout.rest.nextSet'), n: done + 1, total: planned, target,
@@ -444,7 +444,7 @@ function ExerciseCard({
               >
                 <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                 <span className="num flex-1 font-display text-lg font-semibold">
-                  {isCardioSet(s) ? fmtCardioSet(s) : `${s.weightKg} kg × ${s.reps}`}
+                  {isCardioSet(s) ? fmtCardioSet(s) : `${fmtNum(s.weightKg)} kg × ${s.reps}`}
                   {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                 </span>
                 <Check size={18} className="text-accent" aria-hidden />
@@ -493,7 +493,7 @@ function ExerciseCard({
               <span className="num flex-1 text-base text-sub">
                 {cardio
                   ? fmtCardioSet(cardioDraftFor(i))
-                  : ghost.weightKg > 0 ? `${ghost.weightKg} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
+                  : ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
               </span>
               {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label={t('workout.session.aiSuggestion')} />}
             </div>
@@ -651,7 +651,7 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
           }}
           className="num mb-1.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary active:bg-primary/30"
         >
-          ↑ {suggestion.weightKg} kg × {suggestion.reps}
+          ↑ {fmtNum(suggestion.weightKg)} kg × {suggestion.reps}
           <span className="font-medium opacity-70">
             {suggestion.reason === 'weight-up' ? t('workout.pending.newWeight') : t('workout.pending.oneMoreRep')}
           </span>
@@ -669,7 +669,7 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
           className="num flex-1 py-1 text-left font-display text-xl font-bold active:opacity-70"
           aria-label={t('workout.pending.adjust')}
         >
-          {weight > 0 ? `${weight} kg` : '— kg'} × {reps}
+          {weight > 0 ? `${fmtNum(weight)} kg` : '— kg'} × {reps}
         </button>
         <button
           onClick={() => setWarmup(w => !w)}

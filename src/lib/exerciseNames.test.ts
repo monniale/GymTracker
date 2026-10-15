@@ -31,3 +31,15 @@ describe('exerciseDisplayName', () => {
     for (const n of SEED_NAMES) expect(exerciseDisplayName(n).trim()).not.toBe('')
   })
 })
+
+describe('exerciseDisplayName with prototype names', () => {
+  it('passes custom names like "constructor" through in Italian', () => {
+    useUiStore.setState({ language: 'it' })
+    try {
+      expect(exerciseDisplayName('constructor')).toBe('constructor')
+      expect(exerciseDisplayName('toString')).toBe('toString')
+    } finally {
+      useUiStore.setState({ language: 'en' })
+    }
+  })
+})
