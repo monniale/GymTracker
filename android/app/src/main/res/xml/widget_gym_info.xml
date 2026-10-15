@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- No periodic updates: the app pushes new numbers while it runs (WidgetPlugin.update). -->
+<!-- The app pushes new numbers while it runs (WidgetPlugin.update). The 3-hour redraw only re-reads
+     them, so "this week" drops to 0 after Monday 00:00 even if the app stays closed. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_description"
     android:initialLayout="@layout/widget_gym"
@@ -11,5 +12,5 @@
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"
     android:targetCellWidth="4"
-    android:updatePeriodMillis="0"
+    android:updatePeriodMillis="10800000"
     android:widgetCategory="home_screen" />

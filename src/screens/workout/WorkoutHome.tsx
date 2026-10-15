@@ -19,8 +19,10 @@ export default function WorkoutHome() {
   const navigate = useNavigate()
   const templates = useLiveQuery(() => db.templates.orderBy('position').toArray())
   // Rotation hint (the Android widget shows the same "Next" workout).
-  const lastFinished = useLiveQuery(() => db.sessions.orderBy('startedAt').reverse().filter(s => s.endedAt !== undefined).first())
-  const upNext = templates ? nextTemplate(templates, lastFinished) : null
+  // null = no finished session yet; undefined = still loading (no badge, so it doesn't jump).
+  const lastFinished = useLiveQuery(async () =>
+    (await db.sessions.orderBy('startedAt').reverse().filter(s => s.endedAt !== undefined).first()) ?? null)
+  const upNext = templates && lastFinished !== undefined ? nextTemplate(templates, lastFinished ?? undefined) : null
   const settings = useLiveQuery(() => db.settings.get(1))
   const activeSessionId = useAppStore(s => s.activeSessionId)
   const setActiveSessionId = useAppStore(s => s.setActiveSessionId)

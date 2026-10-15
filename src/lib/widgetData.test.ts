@@ -27,7 +27,7 @@ describe('gatherWidgetState', () => {
     const s = await gatherWidgetState(T(2026, 10, 15, 12))
     expect(s).toEqual({
       points: 2450, tier: 'Gold III', tierColor: '#E8B93B', streakWeeks: 3,
-      weekDone: 1, weekTarget: 4, nextWorkout: 'Pull', updatedAt: T(2026, 10, 15, 12),
+      weekDone: 1, weekTarget: 4, nextWorkout: 'Pull', weekEndsAt: T(2026, 10, 19), updatedAt: T(2026, 10, 15, 12),
     })
   })
 
