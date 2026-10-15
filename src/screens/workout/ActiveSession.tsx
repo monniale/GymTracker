@@ -709,7 +709,6 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
   )
 }
 
-const r1 = (v: number) => Math.round(v * 10) / 10
 
 /** The next cardio row: minutes, seconds and an optional distance. Logging needs some time. */
 function CardioPendingRow({ setNumber, init, onLog }: {
@@ -719,7 +718,7 @@ function CardioPendingRow({ setNumber, init, onLog }: {
 }) {
   const [min, setMin] = useState(Math.floor(init.durationSec / 60))
   const [sec, setSec] = useState(init.durationSec % 60)
-  const [km, setKm] = useState(r1(init.distanceM / 1000))
+  const [km, setKm] = useState(init.distanceM / 1000)
   const [expanded, setExpanded] = useState(false)
 
   // Like PendingRow: late prefill never overwrites what the user already changed.
@@ -729,7 +728,7 @@ function CardioPendingRow({ setNumber, init, onLog }: {
     if (touched.current) return
     setMin(Math.floor(init.durationSec / 60))
     setSec(init.durationSec % 60)
-    setKm(r1(init.distanceM / 1000))
+    setKm(init.distanceM / 1000)
   }, [init.durationSec, init.distanceM])
 
   const durationSec = min * 60 + sec

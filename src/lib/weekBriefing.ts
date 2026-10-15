@@ -134,7 +134,7 @@ export async function gatherWeekBriefing(monday: string, today: string = localDa
       date: localDateStr(new Date(s.startedAt)),
       durationMin: Math.round(((s.endedAt ?? s.startedAt) - s.startedAt) / 60_000),
       points: eventBySession.get(String(s.id))?.total ?? 0,
-      workingSets: mine.length,
+      workingSets: mine.filter(x => !isCardioSet(x)).length,
       volumeKg: Math.round(mine.reduce((a, x) => a + x.weightKg * x.reps, 0)),
       exercises: exList,
     }

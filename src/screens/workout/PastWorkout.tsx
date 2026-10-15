@@ -222,7 +222,8 @@ function SetSheet({
   const cardio = isCardioSet(set)
   const [min, setMin] = useState(Math.floor((set.durationSec ?? 0) / 60))
   const [sec, setSec] = useState((set.durationSec ?? 0) % 60)
-  const [km, setKm] = useState(Math.round((set.distanceM ?? 0) / 100) / 10)
+  // Exact metres: an imported 3,250 m stays 3,250 m unless the distance is edited.
+  const [km, setKm] = useState((set.distanceM ?? 0) / 1000)
 
   async function save() {
     if (busy) return

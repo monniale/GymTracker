@@ -1,6 +1,6 @@
 import { db, type GymDB } from '../db/db'
 import { rankForPoints, rankLabel } from './ranks'
-import { localDateStr, mondayOf, parseLocalDate } from './dates'
+import { addDays, localDateStr, mondayOf, parseLocalDate } from './dates'
 import { nextTemplate } from './nextTemplate'
 
 /** What the Android home-screen widget shows (pushed to native by src/native/widget.ts). */
@@ -16,12 +16,16 @@ export interface WidgetState {
   weekTarget: number
   /** Next template in the rotation, '' when there is none. */
   nextWorkout: string
+  /** Next Monday 00:00 local: past it, the widget shows 0 for this week without waiting for the app. */
+  weekEndsAt: number
   updatedAt: number
 }
 
 /** Reads everything in one read-only transaction. */
 export async function gatherWidgetState(now = Date.now(), database: GymDB = db): Promise<WidgetState> {
-  const weekStartMs = parseLocalDate(mondayOf(localDateStr(new Date(now)))).getTime()
+  const monday = mondayOf(localDateStr(new Date(now)))
+  const weekStartMs = parseLocalDate(monday).getTime()
+  const weekEndsAt = parseLocalDate(addDays(monday, 7)).getTime()
   return database.transaction('r', [database.rankState, database.settings, database.sessions, database.templates], async () => {
     const [rank, settings, weekDone, templates, last] = await Promise.all([
       database.rankState.get(1),
@@ -41,6 +45,7 @@ export async function gatherWidgetState(now = Date.now(), database: GymDB = db):
       weekDone,
       weekTarget: settings?.weeklySessionTarget ?? 3,
       nextWorkout: nextTemplate(templates, last)?.name ?? '',
+      weekEndsAt,
       updatedAt: now,
     }
   })

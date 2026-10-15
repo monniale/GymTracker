@@ -18,8 +18,8 @@ import java.text.NumberFormat;
 
 /**
  * Home-screen widget: rank tier, points, streak, this week's sessions vs target and the next
- * workout. It only shows what the app last pushed (WidgetPlugin.update), so it refreshes while the
- * app runs; `updatePeriodMillis` is 0. A tap opens the Workout tab through the same `gt_route`
+ * workout. It shows what the app last pushed (WidgetPlugin.update), so the numbers refresh while
+ * the app runs; a 3-hour `updatePeriodMillis` redraws it so the week count resets on Monday. A tap opens the Workout tab through the same `gt_route`
  * extra as the rest-timer notification (RestTimerPlugin.handleOnNewIntent → JS openRoute).
  */
 public class GymWidgetProvider extends AppWidgetProvider {
@@ -33,6 +33,7 @@ public class GymWidgetProvider extends AppWidgetProvider {
     static final String K_WEEK_TARGET = "weekTarget";
     static final String K_NEXT = "nextWorkout";
     static final String K_UPDATED_AT = "updatedAt";
+    static final String K_WEEK_ENDS_AT = "weekEndsAt";
 
     /** PendingIntent request code of the widget tap (ROUTEMAP invariant 16). */
     private static final int RC_OPEN = 4301;
@@ -79,7 +80,10 @@ public class GymWidgetProvider extends AppWidgetProvider {
         try {
             int points = p.getInt(K_POINTS, 0);
             int streak = p.getInt(K_STREAK, 0);
-            int done = p.getInt(K_WEEK_DONE, 0);
+            // A new week started since the last push: nothing done yet (the system calls onUpdate
+            // every few hours, so this resets without the app running).
+            long weekEndsAt = p.getLong(K_WEEK_ENDS_AT, 0L);
+            int done = weekEndsAt > 0 && System.currentTimeMillis() >= weekEndsAt ? 0 : p.getInt(K_WEEK_DONE, 0);
             int target = Math.max(1, p.getInt(K_WEEK_TARGET, 3));
             String next = p.getString(K_NEXT, "");
 
