@@ -1,4 +1,6 @@
 import { App } from '@capacitor/app'
+import { syncAppLanguage } from './deviceSettings'
+import { getLang } from '../lib/uiStore'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { RestTimer } from './restTimerPlugin'
@@ -56,6 +58,9 @@ export async function initNative(): Promise<void> {
   started = true
   // The splash auto-hides (capacitor.config.ts); hiding again is harmless and covers a slow first paint.
   void step('splash hide', () => SplashScreen.hide({ fadeOutDuration: 200 }))
+  // Native strings (rest alert, channels, widget) follow the in-app language. Before the engines,
+  // so the rest-timer channels are (re)named in that language.
+  await step('app language', () => syncAppLanguage(getLang()))
   // Best effort: ask the WebView not to evict IndexedDB under storage pressure.
   void step('storage persist', async () => navigator.storage?.persist?.())
   engines = (async () => {
