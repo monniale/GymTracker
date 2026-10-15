@@ -1,65 +1,58 @@
-# Handoff: build the 9 planned features
+# Handoff: nine features built, PRs waiting to be opened
 
 **Generated**: 2026-10-15
-**Branch**: `main` (= `feature/android-app`), last commit `3e87ff3`
-**Status**: Plan ready, nothing built. One small uncommitted batch (rank emblems + particles), see below.
+**Branches**: nine stacked feature branches, all pushed to `origin`; `main` is unchanged (`826b0d6`)
+**Status**: all nine features from `docs/FEATURE_PLAN.md` are built, reviewed and pushed. **The PRs are not opened yet**: the GitHub MCP has no token and `gh` is not installed.
 
 ## Start here
 
-1. Read [`ROUTEMAP.md`](ROUTEMAP.md) (module index + **Invariants**). Load only the files a task needs; never scan `src/` blindly.
-2. Read [`docs/FEATURE_PLAN.md`](docs/FEATURE_PLAN.md): the full plan, with build order, file-level design, reuse list and verification steps.
-3. Begin with **Phase 1 · feature 1: training heatmap**. Then continue in order.
+1. Read [`ROUTEMAP.md`](ROUTEMAP.md) (module index + **Invariants**, now 19 of them). Load only the files a task needs; never scan `src/` blindly.
+2. `git branch -a` → `feat/01-training-heatmap` … `feat/09-italian`. Each branch builds on the previous one.
 
-## The 9 features, in build order
+## The stack (merge in this order)
 
-| # | Feature | Phase |
-|---|---------|-------|
-| 1 | Training heatmap (Progress tile) | 1 |
-| 2 | Rep-range PRs (1/3/5/8/10/12 RM) | 1 |
-| 3 | Shareable workout card (PNG) | 1 |
-| 4 | Tomorrow's meal plan (`plannedFoods`, Dexie v9) | 1 |
-| 5 | Weekly AI coach review (`/progress/week`, kind `'week'`) | 1 |
-| 6 | Cardio sets (duration + distance, no rank points) | 2 |
-| 7 | Import from Strong / Hevy CSV | 2 |
-| 8 | Android home-screen widget | 3 |
-| 9 | Italian translation (full i18n, no library) | 4 |
+| # | Branch | PR base | Feature |
+|---|--------|---------|---------|
+| 1 | `feat/01-training-heatmap` | `main` | Progress consistency heatmap |
+| 2 | `feat/02-rep-range-prs` | 01 | 1/3/5/8/10/12 RM table |
+| 3 | `feat/03-share-card` | 02 | Workout card PNG (web share / Android share sheet) |
+| 4 | `feat/04-meal-plan` | 03 | Plan tomorrow's meals (**Dexie v9** `plannedFoods`) |
+| 5 | `feat/05-week-review` | 04 | `/progress/week` + weekly AI review |
+| 6 | `feat/06-cardio` | 05 | Cardio sets (time + distance, no rank points) |
+| 7 | `feat/07-csv-import` | 06 | Strong / Hevy CSV import |
+| 8 | `feat/08-android-widget` | 07 | Android home-screen widget (**native**) |
+| 9 | `feat/09-italian` | 08 | Full English / Italian (**native**) |
+
+Fixes from the code reviews were committed on the branch that owns the code and merged upward (so later branches contain merge commits from earlier ones). Merge the PRs in order with a merge commit; GitHub retargets the next PR when the base branch is deleted.
+
+## Opening the PRs
+
+PR titles and descriptions are ready in `~/.claude/projects/-mnt-hdd-GymTracker/pr-drafts/` (`01.md`…`09.md`, `index.txt`). Once the owner runs `sudo apt install gh && gh auth login`, run `~/.claude/projects/-mnt-hdd-GymTracker/pr-drafts/create-prs.sh`. It skips PRs that already exist.
 
 ## Owner decisions (do not re-ask)
 
-- Build order as above.
-- Cardio earns **no** rank points. It is tracked and counts for the streak and weekly target. Keep the `cardioBonusPoints()` hook returning 0.
-- No real Strong/Hevy export is available. Build from the documented formats and test a real file later.
-- Italian covers **everything**: screens, dates, plurals, Android notifications including the rest timer, and AI notes.
+- One PR per feature, **stacked** (owner, 2026-10-15).
+- Cardio earns **no** rank points; it counts for the streak and the weekly target (`cardioBonusPoints()` returns 0).
+- No real Strong/Hevy export was available: the import is built from the documented formats.
+- Italian covers everything. "streak" and "rank" stay as loanwords in Italian.
 
-## Working rules (from the owner)
+## What is left
 
-- Commit and push **only when the owner asks**. A push to `main` deploys the website.
-- Never connect a debug/emulator build to the real `gymtracker-data` sync repo.
-- Never change the appId, the WebView origin or the signing key (`~/.android-keys/gymtracker/`). Never print or commit the keystore or its passwords.
-- After app changes the owner wants on the phone: run `scripts/android/release.sh` (needs a clean tree). The APK installs over the old one. Never tell them to uninstall.
-- Do not use graphify in this repo. The owner dropped it; `ROUTEMAP.md` is the map.
-- Keep every screen working at 360 px and 320 px (invariant 13).
+- Open the PRs (above), then merge in order. Merging `main` deploys the website.
+- After the merge: `scripts/android/release.sh` for a signed APK (features 3, 8 and 9 change native code), install over the old app, never uninstall.
+- Try a **real Strong or Hevy export** with Settings › Data › Import.
+- README screenshots for the new screens (heatmap, meal plan, week review, Italian) are not refreshed yet.
 
-## Uncommitted work (ask the owner before committing)
+## Verification done
 
-Rank emblems + particle effects. Tests (364), build and PWA dist check are green.
-- `src/assets/ranks/*.svg`: 22 emblems extracted from a bundle file (source HTML deleted on purpose).
-- `src/components/RankBadge.tsx`: renders the emblem per tier.
-- `src/components/RankParticles.tsx`: canvas aura per rank, with Champion = fire. The owner asked for fewer particles; rates are already reduced.
-- `src/screens/rank/RankScreen.tsx`: hero aura, "All ranks" rows with emblems and scores, tap → preview sheet.
-- `src/screens/workout/SessionSummary.tsx`: aura on rank-up.
-- `ROUTEMAP.md`: rows updated. `docs/FEATURE_PLAN.md` and this file are new or rewritten.
+- Every branch: `tsc` (app + node), `npm test` (468 on `feat/09-italian`, string guard enforced), `npm run build` + `check-pwa-dist.mjs`.
+- Headless Chrome (puppeteer-core in the session scratchpad, `vite preview --port 4317`) at 360 and 320 px for every new screen; Italian pass over every route.
+- Emulator (`.android-test/` AVD `s25ish`, see ANDROID.md §7): `smoke.sh` 46/46 on the widget build; `SMOKE_LANG=it smoke.sh --only "1 2 3 4"` 18/18; widget pin/tap/update, Android share sheet, Italian rest-timer notifications and per-app locale checked by hand.
+- Three code reviews (features 1–5, 6–8, i18n): no high-severity bugs; every medium/low finding fixed except the cosmetic ones listed in the PR descriptions.
 
-## Verification recipe (every feature)
+## Warnings
 
-- `npx tsc --noEmit && npx tsc -p tsconfig.node.json --noEmit`
-- `npm test` (`TZ=Europe/Rome` is set in the script)
-- `npm run build && node scripts/check-pwa-dist.mjs`
-- For layout and behaviour, use puppeteer-core in the session scratchpad: `npm i puppeteer-core@23.11.1` and `/usr/bin/google-chrome`, serving `npx vite preview --port 4317` (base `/GymTracker/`). Check 360 and 320 px for no horizontal overflow. The scratchpad is wiped between sessions.
-- Native features: `npm run android:debug` and `scripts/android/smoke.sh` on the S25-like AVD (see `ANDROID.md`). The toolchain is `JAVA_HOME=~/opt/jdk-21` and `ANDROID_HOME=~/Android/Sdk`.
-
-## Failed approaches (don't repeat)
-
-- `orderBy('id')` on synced tables: ids are UUIDs, so the order is random. Order by `date`/`startedAt` (invariant 10). Two such bugs were fixed in `be98823`.
-- `pkill -f "vite preview"` in the same shell command as other work: it can kill its own shell (exit 144). Run it as a separate command, with the pattern `[v]ite`.
-- Additive canvas blending (`'lighter'`) for flames: it washes them out to grey-white. Draw flame bodies with `source-over` and only the core additive.
+- Agent worktrees (`isolation: worktree`) start from **main**, not the current branch, and their tests get picked up by `npm test` in the main tree while they exist (see memory `agent-worktrees-start-from-main`).
+- `npm run android:debug` runs `cap sync`, which may rewrite `android/capacitor.settings.gradle`; restore it with `git checkout` if it shows up modified.
+- `orderBy('id')` on synced tables is wrong (UUIDs): order by `date`/`startedAt` (invariant 10).
+- Never connect a debug/emulator build to the real `gymtracker-data` sync repo; never change the appId, the WebView origin or the signing key.
