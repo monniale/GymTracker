@@ -7,6 +7,7 @@ import {
   localDateStr, monthGrid, monthLabel, addMonths, sameMonth, startOfMonth,
   fmtDate, fmtDateTime, fmtDuration, parseLocalDate, WEEKDAY_LABELS,
 } from '../../lib/dates'
+import { t, tp } from '../../i18n'
 import type { Session } from '../../types'
 
 export default function History() {
@@ -40,12 +41,12 @@ export default function History() {
       <div className="mb-4 flex items-center gap-2">
         <Link
           to="/workout"
-          aria-label="Back"
+          aria-label={t('common.back')}
           className="flex h-11 w-11 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={24} />
         </Link>
-        <h1 className="font-display text-3xl font-bold">Past workouts</h1>
+        <h1 className="min-w-0 truncate font-display text-3xl font-bold">{t('workout.history.title')}</h1>
       </div>
 
       {/* Month calendar */}
@@ -53,7 +54,7 @@ export default function History() {
         <div className="mb-2 flex items-center justify-between">
           <button
             onClick={() => setMonth(m => addMonths(m, -1))}
-            aria-label="Previous month"
+            aria-label={t('workout.history.prevMonth')}
             className="flex h-10 w-10 items-center justify-center rounded-xl text-sub active:bg-muted/40"
           >
             <ChevronLeft size={22} />
@@ -66,7 +67,7 @@ export default function History() {
           </button>
           <button
             onClick={() => setMonth(m => addMonths(m, 1))}
-            aria-label="Next month"
+            aria-label={t('workout.history.nextMonth')}
             className="flex h-10 w-10 items-center justify-center rounded-xl text-sub active:bg-muted/40"
           >
             <ChevronRight size={22} />
@@ -88,7 +89,7 @@ export default function History() {
                 key={day}
                 onClick={() => has && setSelected(isSelected ? null : day)}
                 disabled={!has}
-                aria-label={has ? `${fmtDate(day)}, ${byDay.get(day)!.length} workout(s)` : undefined}
+                aria-label={has ? `${fmtDate(day)}, ${tp('units.workouts', byDay.get(day)!.length)}` : undefined}
                 aria-pressed={isSelected}
                 className={`num relative flex h-11 flex-col items-center justify-center rounded-lg text-sm ${
                   isSelected ? 'bg-primary text-bg font-bold'
@@ -110,15 +111,15 @@ export default function History() {
       {selected && (
         <div className="mb-2 flex items-center justify-between">
           <p className="font-display text-lg font-semibold">{fmtDate(selected)}</p>
-          <button onClick={() => setSelected(null)} className="text-sm font-medium text-sub active:text-ink">
-            Show all
+          <button onClick={() => setSelected(null)} className="shrink-0 whitespace-nowrap text-sm font-medium text-sub active:text-ink">
+            {t('common.showAll')}
           </button>
         </div>
       )}
 
       {sessions !== undefined && listed.length === 0 && (
         <p className="py-10 text-center text-sub">
-          {selected ? 'No workout on this day.' : 'No finished sessions yet. Go lift something!'}
+          {selected ? t('workout.history.noneOnDay') : t('workout.history.empty')}
         </p>
       )}
 
@@ -137,7 +138,7 @@ export default function History() {
                 </p>
               </div>
               {s.points !== undefined && (
-                <span className="num rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
+                <span className="num shrink-0 whitespace-nowrap rounded-full bg-primary/15 px-2.5 py-1 text-sm font-bold text-primary">
                   +{s.points}
                 </span>
               )}
@@ -145,7 +146,7 @@ export default function History() {
             </button>
             <Link
               to={`/workout/summary/${s.id}?report=1`}
-              aria-label="View AI report"
+              aria-label={t('workout.history.aiReport')}
               className="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-primary active:bg-muted/40"
             >
               <Sparkles size={18} />
