@@ -11,18 +11,6 @@ export default {
     equipment: 'Equipment',
   },
   /** Muscle-group labels (ExercisePicker chips and badges). */
-  muscle: {
-    chest: 'Chest',
-    back: 'Back',
-    shoulders: 'Shoulders',
-    biceps: 'Biceps',
-    triceps: 'Triceps',
-    legs: 'Legs',
-    glutes: 'Glutes',
-    core: 'Core',
-    cardio: 'Cardio',
-    other: 'Other',
-  },
   home: {
     title: 'Workout',
     /** Stored as the session name when starting without a template. */

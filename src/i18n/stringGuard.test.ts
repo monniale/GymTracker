@@ -8,7 +8,7 @@ import { join } from 'node:path'
  * Brand names, units and symbols are allowed. Enforced once the migration is complete;
  * until then run it with I18N_GUARD=1 to list what is left.
  */
-const ENFORCE = false
+const ENFORCE = true
 const DIRS = ['src/screens', 'src/components', 'src/native/ui']
 
 /** Text that is the same in every language. */

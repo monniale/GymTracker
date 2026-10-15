@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { muscleGroupLabel } from '../../lib/equipment'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import Sheet from '../../components/Sheet'
 import { fmtDate } from '../../lib/dates'
@@ -123,7 +124,7 @@ export default function ImportHistorySheet({ text, onClose, onDone }: {
               {preview.toCreate.length > 0 && (
                 <NameList
                   title={t('settings.importHistory.newExercises', { n: preview.toCreate.length })}
-                  rows={preview.toCreate.map(c => [c.raw, t(`settings.importHistory.muscle.${c.muscleGroup}`)])}
+                  rows={preview.toCreate.map(c => [c.raw, muscleGroupLabel(c.muscleGroup)])}
                 />
               )}
               {preview.warnings.map(w => (

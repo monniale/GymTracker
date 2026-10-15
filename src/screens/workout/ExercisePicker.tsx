@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Search, Plus } from 'lucide-react'
 import { db } from '../../db/db'
 import Sheet from '../../components/Sheet'
-import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
+import { EQUIPMENTS, EQUIPMENT_LABEL, muscleGroupLabel } from '../../lib/equipment'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t } from '../../i18n'
 import type { Equipment, Exercise, MuscleGroup } from '../../types'
@@ -12,7 +12,7 @@ const MUSCLES: MuscleGroup[] = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'legs', 'glutes', 'core', 'cardio', 'other',
 ]
 
-const muscleLabel = (m: MuscleGroup): string => t(`workout.muscle.${m}`)
+const muscleLabel = (m: MuscleGroup): string => muscleGroupLabel(m)
 
 interface Props {
   open: boolean

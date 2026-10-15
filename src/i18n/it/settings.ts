@@ -136,18 +136,6 @@ const settings: Dict['settings'] = {
     donePoints: { one: ', +{n} punto rango in questa stagione', other: ', +{n} punti rango in questa stagione' },
     doneSkipped: { one: '; {n} già presente è stato saltato', other: '; {n} già presenti sono stati saltati' },
     doneEnd: '.',
-    muscle: {
-      chest: 'petto',
-      back: 'schiena',
-      shoulders: 'spalle',
-      biceps: 'bicipiti',
-      triceps: 'tricipiti',
-      legs: 'gambe',
-      glutes: 'glutei',
-      core: 'core',
-      cardio: 'cardio',
-      other: 'altro',
-    },
   },
 }
 

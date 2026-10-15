@@ -29,18 +29,6 @@ const progress: Dict['progress'] = {
     title: 'Serie settimanali per muscolo',
     note: 'Serie allenanti di questa settimana. Banda = l’intervallo {min}–{max} supportato dagli studi; tacca = la tua media di 8 settimane.',
   },
-  muscles: {
-    chest: 'Petto',
-    back: 'Schiena',
-    shoulders: 'Spalle',
-    biceps: 'Bicipiti',
-    triceps: 'Tricipiti',
-    legs: 'Gambe',
-    glutes: 'Glutei',
-    core: 'Addome',
-    cardio: 'Cardio',
-    other: 'Altro',
-  },
   bodyweightTile: {
     caption: 'Peso (conta per il rank)',
     historyAria: 'Storico del peso corporeo',

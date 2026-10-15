@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { muscleGroupLabel } from '../../lib/equipment'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays, CalendarRange } from 'lucide-react'
@@ -243,7 +244,7 @@ function WeeklyMuscleVolume({ exMap }: { exMap: Map<Id, Exercise> }) {
         {t('progress.muscleVolume.note', { min: HYPERTROPHY_SET_BAND[0], max: HYPERTROPHY_SET_BAND[1] })}
       </p>
       <BandBars
-        rows={rows.map(r => ({ label: t(`progress.muscles.${r.group}`), value: r.sets, marker: r.weeklyAvg }))}
+        rows={rows.map(r => ({ label: muscleGroupLabel(r.group), value: r.sets, marker: r.weeklyAvg }))}
         band={HYPERTROPHY_SET_BAND}
         color={ORANGE}
       />

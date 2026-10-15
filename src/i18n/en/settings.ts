@@ -135,17 +135,5 @@ export default {
     donePoints: { one: ', +{n} rank point this season', other: ', +{n} rank points this season' },
     doneSkipped: { one: '; {n} already here was skipped', other: '; {n} already here were skipped' },
     doneEnd: '.',
-    muscle: {
-      chest: 'chest',
-      back: 'back',
-      shoulders: 'shoulders',
-      biceps: 'biceps',
-      triceps: 'triceps',
-      legs: 'legs',
-      glutes: 'glutes',
-      core: 'core',
-      cardio: 'cardio',
-      other: 'other',
-    },
   },
 } as const

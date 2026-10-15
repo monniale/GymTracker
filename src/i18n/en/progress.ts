@@ -29,18 +29,6 @@ export default {
     note: "This week's hard sets. Shaded band = the evidence-backed {min}–{max} range; tick = your 8-week average.",
   },
   /** Muscle-group names (`MuscleGroup` ids). */
-  muscles: {
-    chest: 'Chest',
-    back: 'Back',
-    shoulders: 'Shoulders',
-    biceps: 'Biceps',
-    triceps: 'Triceps',
-    legs: 'Legs',
-    glutes: 'Glutes',
-    core: 'Core',
-    cardio: 'Cardio',
-    other: 'Other',
-  },
   bodyweightTile: {
     caption: 'Bodyweight (feeds your rank score)',
     historyAria: 'Bodyweight history',

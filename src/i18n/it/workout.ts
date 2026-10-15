@@ -10,18 +10,6 @@ const workout: Dict['workout'] = {
     superset: 'Superset',
     equipment: 'Attrezzatura',
   },
-  muscle: {
-    chest: 'Petto',
-    back: 'Schiena',
-    shoulders: 'Spalle',
-    biceps: 'Bicipiti',
-    triceps: 'Tricipiti',
-    legs: 'Gambe',
-    glutes: 'Glutei',
-    core: 'Core',
-    cardio: 'Cardio',
-    other: 'Altro',
-  },
   home: {
     title: 'Allenamento',
     freestyleName: 'Allenamento libero',
