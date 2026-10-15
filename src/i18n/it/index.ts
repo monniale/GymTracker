@@ -1,0 +1,15 @@
+import type { Dict } from '../en'
+import common from './common'
+import units from './units'
+import workout from './workout'
+import diet from './diet'
+import progress from './progress'
+import rank from './rank'
+import settings from './settings'
+import components from './components'
+import native from './native'
+import notify from './notify'
+import lib from './lib'
+import ai from './ai'
+
+export const it: Dict = { common, units, workout, diet, progress, rank, settings, components, native, notify, lib, ai }

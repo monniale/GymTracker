@@ -20,6 +20,7 @@ import SyncSection from "./SyncSection";
 import AiSection from "./AiSection";
 import ImportHistorySheet from "./ImportHistorySheet";
 import { isNative } from "../../native/platform";
+import { useUiStore, type Lang } from "../../lib/uiStore";
 import type { Settings } from "../../types";
 
 const PLATE_CATALOG = [25, 20, 15, 10, 5, 2.5, 1.25, 1, 0.5];
@@ -128,6 +129,8 @@ export default function SettingsScreen() {
           target drives the streak multiplier.
         </p>
       </Section>
+
+      <LanguageSection />
 
       <Section title="Training day targets">
         <div className="grid grid-cols-2 gap-y-4">
@@ -467,6 +470,41 @@ function VersionFooter() {
 
 /** Keeps a section scrolled into view clear of the status bar (Android draws edge to edge). */
 const SCROLL_MARGIN = "scroll-mt-[calc(var(--safe-area-inset-top,0px)+1rem)]";
+
+/** The UI language (device-local). Switching reloads the app so every screen, date and reminder follows. */
+function LanguageSection() {
+  const language = useUiStore((s) => s.language);
+  const setLanguage = useUiStore((s) => s.setLanguage);
+  const choose = (lang: Lang) => {
+    if (lang === language) return;
+    setLanguage(lang);
+    window.location.reload();
+  };
+  return (
+    <Section title="Language">
+      <div className="flex gap-2" role="group" aria-label="Language">
+        {(
+          [
+            ["en", "English"],
+            ["it", "Italiano"],
+          ] as const
+        ).map(([lang, label]) => (
+          <button
+            key={lang}
+            lang={lang}
+            onClick={() => choose(lang)}
+            aria-pressed={language === lang}
+            className={`min-h-[44px] flex-1 rounded-xl font-semibold ${
+              language === lang ? "bg-primary text-bg" : "bg-muted/40 text-sub active:bg-muted"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </Section>
+  );
+}
 
 function Section({
   title,

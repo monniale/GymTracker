@@ -1,4 +1,5 @@
 import type { MealType } from '../types'
+import type { Lang } from './uiStore'
 import type { HHMM, IsoWeekday, NotifyPrefs } from './notifyPrefs'
 import { addDays, daysBetween, localDateStr, mondayOf } from './dates'
 import { DECAY_GRACE_DAYS, DECAY_MAX, DECAY_PER_DAY } from './ranks'
@@ -182,6 +183,8 @@ export interface PlannerInput {
   now: number
   prefs: NotifyPrefs
   data: PlannerData
+  /** Language of titles and bodies (part of each spec's sig, so a change re-plans). Default 'en'. */
+  lang?: Lang
 }
 
 export interface NotificationSpec {

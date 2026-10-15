@@ -8,6 +8,7 @@ import { useAppStore } from '../store'
 import { onDataReplaced, onSyncDirty } from '../db/db'
 import { gatherPlannerData } from '../lib/notifyData'
 import { pushWidgetState } from './widget'
+import { getLang } from '../lib/uiStore'
 import {
   CAT, CHANNEL_FOR, LEAD_MS, decodeNid, diffSchedules, isManagedId, nid, planCleanup, planHorizon, planNotifications,
 } from '../lib/notifyPlanner'
@@ -172,7 +173,7 @@ export async function resyncNow(opts: { full?: boolean; reason?: string } = {}):
     } else {
       const now = Date.now()
       const { prefs } = useNotifyStore.getState()
-      const input = { now, prefs, data: await gatherPlannerData(now, prefs, useAppStore.getState().activeSessionId) }
+      const input = { now, prefs, lang: getLang(), data: await gatherPlannerData(now, prefs, useAppStore.getState().activeSessionId) }
       const desired = planNotifications(input)
 
       const pending: PendingLike[] = (await LocalNotifications.getAll({ state: 'SCHEDULED' })).notifications
