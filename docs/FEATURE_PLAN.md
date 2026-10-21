@@ -1,7 +1,8 @@
 # GymTracker — nine new features
 
 ## Status (2026-10-15)
-- Nothing in this plan is built yet. Next action: **Phase 1 · feature 1 (training heatmap)**, then continue in order.
+- Delivery changed (owner, 2026-10-15): **one PR per feature, stacked** — branch `feat/NN-<name>` off the previous feature's branch, PR base = that branch. Merge them in order.
+- Built: 1 (training heatmap, `feat/01-training-heatmap`). Next: **feature 2 (rep-range PRs)**, then continue in order.
 - Owner decisions taken (do not re-ask): order = as below; cardio = no rank points; no real Strong/Hevy export (use documented formats); Italian = everything (screens, notifications, rest timer, AI notes).
 - Line numbers below were verified on 2026-10-14 (HEAD `3e87ff3`). Since then RankScreen.tsx/SessionSummary.tsx changed (rank emblems + particles); re-check line refs in those files before editing.
 
