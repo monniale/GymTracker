@@ -27,11 +27,19 @@ const briefing = (p: Partial<WorkoutBriefing> = {}): WorkoutBriefing => ({
   sessionsThisWeek: 2,
   weeklyTarget: 4,
   exercises: [exercise()],
+  cardio: [],
   weeklyMuscle: [{ group: 'chest', sets: 12, weeklyAvg: 9.5 }],
   ...p,
 })
 
 describe('formatBriefing', () => {
+  it('lists cardio as context without points', () => {
+    const text = formatBriefing(briefing({ cardio: [{ name: 'Treadmill Run', minutes: 25, distanceM: 4200, pace: '5:57 /km' }] }))
+    expect(text).toContain('Cardio (tracked, earns no points):')
+    expect(text).toContain('- Treadmill Run: 25 min, 4.2 km, pace 5:57 /km')
+    expect(formatBriefing(briefing())).not.toContain('Cardio')
+  })
+
   it('shows the score against the recent average', () => {
     expect(formatBriefing(briefing())).toContain('Score: 67 pts (recent avg 55)')
   })

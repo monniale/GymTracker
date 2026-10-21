@@ -4,6 +4,7 @@ import { computeWeeklyMuscleVolume, type MuscleVolumeRow } from './muscleVolume'
 import { gatherWeekNutrition, type WeekNutrition } from './dietReport'
 import { weeklyRate } from './bodyweight'
 import { questsForWeek } from './quests'
+import { isCardioSet, cardioSessionTotals, fmtCardioSet } from './cardio'
 import type { BodyLogEntry, Id } from '../types'
 
 /**
@@ -121,8 +122,10 @@ export async function gatherWeekBriefing(monday: string, today: string = localDa
     const byEx = new Map<Id, typeof mine>()
     for (const x of mine) byEx.set(x.exerciseId, [...(byEx.get(x.exerciseId) ?? []), x])
     const exList = [...byEx.entries()].map(([exId, xs]) => {
-      const top = xs.reduce((a, b) => (b.e1rm > a.e1rm ? b : a))
-      return { name: exMap.get(exId)?.name ?? 'Exercise', sets: xs.length, best: `${top.weightKg} kg × ${top.reps}` }
+      const name = exMap.get(exId)?.name ?? 'Exercise'
+      if (xs.every(isCardioSet)) return { name, sets: xs.length, best: `${fmtCardioSet(cardioSessionTotals(xs))} cardio` }
+      const top = xs.filter(x => !isCardioSet(x)).reduce((a, b) => (b.e1rm > a.e1rm ? b : a))
+      return { name, sets: xs.length, best: `${top.weightKg} kg × ${top.reps}` }
     })
     return {
       id: s.id!,
@@ -130,7 +133,7 @@ export async function gatherWeekBriefing(monday: string, today: string = localDa
       date: localDateStr(new Date(s.startedAt)),
       durationMin: Math.round(((s.endedAt ?? s.startedAt) - s.startedAt) / 60_000),
       points: eventBySession.get(String(s.id))?.total ?? 0,
-      workingSets: mine.length,
+      workingSets: mine.filter(x => !isCardioSet(x)).length,
       volumeKg: Math.round(mine.reduce((a, x) => a + x.weightKg * x.reps, 0)),
       exercises: exList,
     }

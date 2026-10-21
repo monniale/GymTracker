@@ -13,6 +13,7 @@ import Confetti from '../../components/Confetti'
 import CoachCard from '../../components/CoachCard'
 import { fmtDuration, fmtDateTime, localDateStr } from '../../lib/dates'
 import { sessionCardModel, renderSessionCard, shareImage, cardFileName, loadCardFonts } from '../../lib/shareCard'
+import { isCardioSet, cardioSessionTotals, cardioMinutes, fmtCardioSet } from '../../lib/cardio'
 import { haptic } from '../../native/haptics'
 import type { Id, ScoreEvent, Session, SetRow } from '../../types'
 
@@ -37,6 +38,13 @@ export default function SessionSummary() {
   const event = useLiveQuery(() => db.scoreEvents.where('sessionId').equals(sid).first(), [sid])
   const sets = useLiveQuery(() => db.sets.where('sessionId').equals(sid).toArray(), [sid]) ?? []
   const rankState = useLiveQuery(() => db.rankState.get(1))
+  // Cardio exercises earn no points, so they aren't in the score breakdown: list them separately.
+  const cardioIds = [...new Set(sets.filter(isCardioSet).map(s => String(s.exerciseId)))]
+  const cardioNames = useLiveQuery(async () => {
+    const ids = [...new Set(sets.filter(isCardioSet).map(s => s.exerciseId))]
+    const rows = await db.exercises.bulkGet(ids)
+    return new Map(ids.map((id, i) => [String(id), rows[i]?.name ?? 'Cardio']))
+  }, [cardioIds.join('|')])
 
   // Android: a success buzz for a PR or rank-up, judged on first load (never in report mode).
   // Delayed so it lands as its own buzz after Finish's, which would otherwise supersede it.
@@ -60,6 +68,8 @@ export default function SessionSummary() {
   const before = rankForPoints(Math.max(0, rankState.points - event.total))
   const rankedUp = after.index > before.index
   const volume = Math.round(sets.filter(s => !s.isWarmup).reduce((a, s) => a + s.weightKg * s.reps, 0))
+  const strengthSets = sets.filter(s => !isCardioSet(s)).length
+  const cardio = cardioSessionTotals(sets)
   const duration = session.endedAt ? session.endedAt - session.startedAt : 0
 
   const hasPr = event.breakdown.some(b => b.e1rmPr || b.volumePr)
@@ -111,10 +121,11 @@ export default function SessionSummary() {
         </div>
       )}
 
-      <div className="num mx-auto mt-5 flex max-w-xs justify-center gap-6 text-sm text-sub">
-        <span>{sets.length} sets</span>
-        <span>{volume.toLocaleString()} kg volume</span>
-        <span>{fmtDuration(duration)}</span>
+      <div className="num mx-auto mt-5 flex max-w-xs flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-sub">
+        {strengthSets > 0 && <span className="whitespace-nowrap">{strengthSets} set{strengthSets === 1 ? '' : 's'}</span>}
+        {strengthSets > 0 && <span className="whitespace-nowrap">{volume.toLocaleString()} kg volume</span>}
+        {cardio.sets > 0 && <span className="whitespace-nowrap">{cardioMinutes(cardio.durationSec)} min cardio</span>}
+        <span className="whitespace-nowrap">{fmtDuration(duration)}</span>
       </div>
 
       {(unlocked.length > 0 || questsDone.length > 0) && (
@@ -172,6 +183,18 @@ export default function SessionSummary() {
               </span>
             )}
             <span className="num shrink-0 text-sm font-semibold text-sub">{b.setPoints.toFixed(1)}</span>
+          </div>
+        ))}
+
+        {cardioIds.map(id => (
+          <div key={id} className="flex items-center gap-2 rounded-xl bg-card px-4 py-2.5">
+            <span className="min-w-0 flex-1 truncate font-medium">{cardioNames?.get(id) ?? 'Cardio'}</span>
+            <span className="num shrink-0 whitespace-nowrap text-sm text-sub">
+              {fmtCardioSet(cardioSessionTotals(sets.filter(s => String(s.exerciseId) === id)))}
+            </span>
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs font-semibold text-sub">
+              no pts
+            </span>
           </div>
         ))}
       </div>
