@@ -50,6 +50,12 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
     <td align="center"><img src="docs/screenshots/bodyweight.webp" width="200" alt="Bodyweight history" /><br/><sub><b>Bodyweight history</b></sub></td>
     <td align="center"><img src="docs/screenshots/coach-history.webp" width="200" alt="Coach history" /><br/><sub><b>Coach history</b></sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/heatmap.webp" width="200" alt="Training heatmap of the last 26 weeks" /><br/><sub><b>Training heatmap</b></sub></td>
+    <td align="center"><img src="docs/screenshots/meal-plan.webp" width="200" alt="Tomorrow's meal plan" /><br/><sub><b>Meal plan</b></sub></td>
+    <td align="center"><img src="docs/screenshots/week-review.webp" width="200" alt="Weekly AI coach review" /><br/><sub><b>Week review</b></sub></td>
+    <td align="center"><img src="docs/screenshots/italian.webp" width="200" alt="The rank screen in Italian" /><br/><sub><b>In Italian</b></sub></td>
+  </tr>
 </table>
 <sub>Screenshots use made-up demo data.</sub>
 </div>

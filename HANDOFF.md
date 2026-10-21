@@ -41,7 +41,6 @@ PR titles and descriptions are ready in `~/.claude/projects/-mnt-hdd-GymTracker/
 - Open the PRs (above), then merge in order. Merging `main` deploys the website.
 - After the merge: `scripts/android/release.sh` for a signed APK (features 3, 8 and 9 change native code), install over the old app, never uninstall.
 - Try a **real Strong or Hevy export** with Settings › Data › Import.
-- README screenshots for the new screens (heatmap, meal plan, week review, Italian) are not refreshed yet.
 
 ## Verification done
 
