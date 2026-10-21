@@ -4,7 +4,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAiStore } from '../../lib/aiStore'
-import { localDateStr, addDays } from '../../lib/dates'
+import { localDateStr, addDays, MONTH_NAMES } from '../../lib/dates'
+import { gatherRepMaxes, REP_BUCKETS, type RepMax } from '../../lib/repMax'
 import { useLocalToday } from '../../lib/hooks'
 import { trainingHeatmap } from '../../lib/heatmap'
 import Heatmap from '../../components/Heatmap'
@@ -61,7 +62,10 @@ export default function ProgressScreen() {
           <ChevronDown size={18} className="text-sub" />
         </button>
         {activeExId ? (
-          <ExerciseTrend exerciseId={activeExId} />
+          <>
+            <ExerciseTrend exerciseId={activeExId} />
+            {activeEx?.muscleGroup !== 'cardio' && <RepMaxTable exerciseId={activeExId} />}
+          </>
         ) : (
           <p className="py-6 text-center text-sm text-sub">Log a workout to see trends.</p>
         )}
@@ -112,6 +116,53 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
       <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Session volume (kg)</p>
       <BarChart points={data.volume} color={ORANGE} yFmt={v => `${Math.round(v)} kg`} />
     </>
+  )
+}
+
+function dayMonth(ms: number): string {
+  const d = new Date(ms)
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`
+}
+
+function RepMaxCell({ rec, highlight }: { rec?: RepMax; highlight?: boolean }) {
+  if (!rec) return <span className="num min-w-0 flex-1 text-sm text-sub">—</span>
+  return (
+    <span className="num min-w-0 flex-1 leading-tight">
+      <span className={`block truncate text-sm font-semibold ${highlight ? 'text-primary' : ''}`}>
+        {rec.weightKg} kg ×{rec.reps}
+      </span>
+      <span className="block truncate text-[11px] text-sub">{dayMonth(rec.completedAt)}</span>
+    </span>
+  )
+}
+
+/** Heaviest working set for at least N reps, all-time and this season. */
+function RepMaxTable({ exerciseId }: { exerciseId: Id }) {
+  const maxes = useLiveQuery(() => gatherRepMaxes(exerciseId), [exerciseId])
+  if (!maxes || maxes.allTime.size === 0) return null
+  const rows = REP_BUCKETS.filter(n => maxes.allTime.has(n))
+  return (
+    <div className="mt-3">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Rep maxes</p>
+      <div className="flex items-center gap-2 border-b border-edge pb-1 text-[11px] font-semibold uppercase tracking-wide text-sub">
+        <span className="w-9 shrink-0">RM</span>
+        <span className="min-w-0 flex-1 truncate">All-time</span>
+        <span className="min-w-0 flex-1 truncate">This season</span>
+      </div>
+      {rows.map(n => {
+        const best = maxes.allTime.get(n)!
+        const season = maxes.season.get(n)
+        const same = season !== undefined && season.weightKg === best.weightKg && season.reps === best.reps && season.completedAt === best.completedAt
+        return (
+          <div key={n} className="flex items-center gap-2 border-b border-edge/60 py-1.5 last:border-b-0">
+            <span className="num w-9 shrink-0 font-display text-base font-bold">{n}RM</span>
+            <RepMaxCell rec={best} />
+            <RepMaxCell rec={season} highlight={same} />
+          </div>
+        )
+      })}
+      <p className="mt-1 text-[11px] text-sub">Best weight for at least N reps. Orange = the all-time best was set this season.</p>
+    </div>
   )
 }
 
