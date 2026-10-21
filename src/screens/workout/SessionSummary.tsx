@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { TrendingUp, Award, Medal, Target } from 'lucide-react'
+import { TrendingUp, Award, Medal, Target, Share2, Loader2 } from 'lucide-react'
 import { db } from '../../db/db'
 import { parseRouteId } from '../../lib/ids'
 import { rankForPoints, rankLabel } from '../../lib/ranks'
 import { checkAchievements, type AchievementDef } from '../../lib/achievements'
 import { evaluateQuests, QUEST_BONUS, type QuestDef } from '../../lib/quests'
-import RankBadge from '../../components/RankBadge'
+import RankBadge, { emblemUrl } from '../../components/RankBadge'
 import RankParticles from '../../components/RankParticles'
 import Confetti from '../../components/Confetti'
 import CoachCard from '../../components/CoachCard'
-import { fmtDuration, fmtDateTime } from '../../lib/dates'
+import { fmtDuration, fmtDateTime, localDateStr } from '../../lib/dates'
+import { sessionCardModel, renderSessionCard, shareImage, cardFileName, loadCardFonts } from '../../lib/shareCard'
 import { haptic } from '../../native/haptics'
-import type { Id } from '../../types'
+import type { Id, ScoreEvent, Session, SetRow } from '../../types'
 
 export default function SessionSummary() {
   const { id } = useParams()
@@ -175,12 +176,69 @@ export default function SessionSummary() {
         ))}
       </div>
 
+      <ShareCardButton
+        session={session}
+        event={event}
+        sets={sets}
+        rankPoints={rankState.points}
+        streakWeeks={rankState.streakWeeks}
+        fresh={!isReport}
+      />
+
       <Link
         to={isReport ? '/workout/history' : '/workout'}
-        className="mt-6 block w-full rounded-2xl bg-primary py-4 text-center font-display text-xl font-bold text-bg active:opacity-90"
+        className="mt-3 block w-full rounded-2xl bg-primary py-4 text-center font-display text-xl font-bold text-bg active:opacity-90"
       >
         {isReport ? 'Back to history' : 'Done'}
       </Link>
+    </div>
+  )
+}
+
+/** Renders the workout as a 1080×1350 PNG and opens the share sheet (or downloads it). */
+function ShareCardButton({ session, event, sets, rankPoints, streakWeeks, fresh }: {
+  session: Session
+  event: ScoreEvent
+  sets: SetRow[]
+  rankPoints: number
+  streakWeeks: number
+  fresh: boolean
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Warm the card fonts so the first tap doesn't wait for them.
+  useEffect(() => {
+    void loadCardFonts()
+  }, [])
+
+  async function share() {
+    if (busy) return
+    haptic('tap')
+    setBusy(true)
+    setError(null)
+    try {
+      const model = sessionCardModel(session, event, sets, rankPoints, { fresh, streakWeeks })
+      const blob = await renderSessionCard(model, emblemUrl(model.tier))
+      await shareImage(blob, cardFileName(model, localDateStr(new Date(session.startedAt))))
+    } catch (e) {
+      setError((e as Error)?.message || 'Could not create the image.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      <button
+        onClick={share}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-edge bg-card py-3.5 font-display text-lg font-bold active:bg-muted/40 disabled:opacity-60"
+      >
+        {busy ? <Loader2 size={18} className="animate-spin" aria-hidden /> : <Share2 size={18} aria-hidden />}
+        {busy ? 'Creating image…' : 'Share card'}
+      </button>
+      {error && <p className="mt-1.5 text-sm text-danger">{error}</p>}
     </div>
   )
 }

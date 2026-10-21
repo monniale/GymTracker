@@ -15,6 +15,7 @@ Build/verify: `npm run build` (= `tsc --noEmit && vite build`) + `node scripts/c
 | **Data model / any schema change** | `src/types.ts`, `src/db/db.ts`, `src/db/backup.ts` (+ `src/lib/merge.ts` if it syncs) |
 | **Workout scoring / rank / PRs** | `src/lib/scoring.ts`, `src/lib/finishSession.ts`, `src/lib/season.ts`, `src/lib/ranks.ts` |
 | **Active workout / logging sets** | `src/screens/workout/ActiveSession.tsx`, `src/lib/progression.ts`, `src/lib/plates.ts` |
+| **Share card (PNG)** | `src/lib/shareCard.ts`, `src/screens/workout/SessionSummary.tsx`, `src/native/files.ts`, `src/components/RankBadge.tsx` (`emblemUrl`) |
 | **Past workouts / calendar / edit** | `src/screens/workout/History.tsx`, `PastWorkout.tsx`, `src/lib/dates.ts`, `rescoreSession` in `finishSession.ts` |
 | **Exercises / equipment** | `src/screens/workout/ExercisePicker.tsx`, `src/lib/equipment.ts`, `src/db/seed.ts`, `Exercise`/`Equipment` in `types.ts` |
 | **Diet: logging / macros UI** | `src/screens/diet/DietDay.tsx`, `AddFoodSheet.tsx`, `EntryEditor.tsx`, `src/lib/nutrition.ts` |
@@ -63,7 +64,8 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/screens/workout/WorkoutHome.tsx` (167) — landing: template list, `startWorkout`, stopwatch; Android: first-run `RestoreCard` (empty install) and the one-time notification prompt on the first workout.
 - `src/screens/workout/TemplateEditor.tsx` (175) — edit a template's `TemplateItem`s (sets/reps/rest/superset).
 - `src/screens/workout/ActiveSession.tsx` (632) — **live session.** `ExerciseCard` (prevSets, `draftFor`/`draftForWork` prefill, suggestion chip, warm-up ramp, `PendingRow`), `logSet`/`deleteSet`, rest label (`restLabel`: next set target, `nextExerciseName`/`supersetNextName`; warm-up rests flagged), `NoteSheet` (notes + progression step + **equipment**), AI opening weights via `useWorkoutPlan`, equipment badge, plate/ramp gated on `equipment==='barbell'`, set/finish haptics.
-- `src/screens/workout/SessionSummary.tsx` (191) — post-workout summary; **report mode** (`?report=1`) suppresses confetti/rank/achievement side-effects (and the PR/rank-up haptic, and the coach note's auto-generation) for viewing old sessions. Requires a `scoreEvent` to render.
+- `src/screens/workout/SessionSummary.tsx` (253) — post-workout summary (+ "Share card" button, both modes); **report mode** (`?report=1`) suppresses confetti/rank/achievement side-effects (and the PR/rank-up haptic, and the coach note's auto-generation) for viewing old sessions. Requires a `scoreEvent` to render.
+- `src/lib/shareCard.ts` (344) — shareable workout card: pure `sessionCardModel` (top 4 exercises by points, PR flags, working sets/volume, rank-up + streak only when fresh) + `cardStats`/`cardFileName`; `renderSessionCard` → 1080×1350 PNG on a canvas (logo, emblem SVG via `emblemUrl`, Barlow fonts pre-loaded); `shareImage` (Android: `native/files.ts sharePngFile`; web: Web Share with files, else download).
 - `src/screens/workout/History.tsx` (158) — **month calendar** of past workouts (dots on workout days); tap a day → its sessions; tap a session → editor.
 - `src/screens/workout/PastWorkout.tsx` (357) — **edit a finished workout**: per-set weight/reps/warm-up, add/remove sets, session details (name/bodyweight/date); every change calls `rescoreSession`.
 - `src/screens/workout/ExercisePicker.tsx` (185) — pick/create exercise; equipment filter chips + badges; create sets muscle + equipment.
@@ -106,7 +108,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/lib/ranks.ts` (71) — rank tiers/thresholds; `rankFor`.
 - `src/lib/achievements.ts` (92) — achievement unlocks (`computeAchievementStats`, `checkAchievements` — add-only).
 - `src/lib/quests.ts` (189) — weekly quests + bonus awards (add-only).
-- `src/screens/rank/RankScreen.tsx` (314) — rank/season screen; `src/components/RankBadge.tsx` (26, one SVG emblem per tier from `src/assets/ranks/<rank>-<sub>.svg`), `RankParticles.tsx` (390, canvas aura per rank, density by sub-tier, Champion = flames + rays + shockwaves; off under reduced-motion). Rank screen: hero aura, "All ranks" rows with emblems, tap → preview sheet, `Confetti.tsx` (55).
+- `src/screens/rank/RankScreen.tsx` (314) — rank/season screen; `src/components/RankBadge.tsx` (30, one SVG emblem per tier from `src/assets/ranks/<rank>-<sub>.svg`; `emblemUrl(tier)`), `RankParticles.tsx` (390, canvas aura per rank, density by sub-tier, Champion = flames + rays + shockwaves; off under reduced-motion). Rank screen: hero aura, "All ranks" rows with emblems, tap → preview sheet, `Confetti.tsx` (55).
 - `src/screens/progress/ProgressScreen.tsx` (392) — bodyweight tile (→ history), Coach history tile, training heatmap tile (26 weeks → Past workouts), e1RM trends + rep-max table (hidden for cardio) / PR wall / muscle volume; `src/components/Charts.tsx` (230) — SVG chart primitives (no CDN; `LineChart` optional dashed `trend` series, x labels, tap selects the nearest point, markers hidden past 40 points).
 - `src/lib/repMax.ts` (62) — `computeRepMaxes(sets, seasonStartMs)`: N-rep maxes for N in `REP_BUCKETS` [1,3,5,8,10,12] (heaviest working set with reps ≥ N, so monotonic; ties → more reps → earliest), all-time + season; `gatherRepMaxes(exerciseId)` (season start from `rankState`).
 - `src/lib/heatmap.ts` (108) — `trainingHeatmap(sessions, today, { weeks, from })`: Monday-first week columns of finished-session counts by local start day, month ticks, days this year, longest/current run of trained weeks (the open week never breaks a run); `heatLevel`. `src/components/Heatmap.tsx` (123) — SVG grid (viewBox scales to 320 px), today ring, dashed future cells, tap → "Tue 7 Oct · 2 workouts", Less/More legend.
@@ -114,7 +116,7 @@ Cross-cutting rules live in **Invariants** at the bottom — read those before a
 - `src/screens/progress/CoachHistory.tsx` (208) — `/progress/coach`: every stored verdict by month, filter All/Workouts/Diet (`?kind=`), earlier verdicts marked, expand → insights, model, Open workout / Open day, delete.
 - `src/screens/settings/SettingsScreen.tsx` (447) — targets, bodyweight, bar/plates, sound, sub-sections; Android: lazy `RestTimerNativeSettings` (in Rest timer) + `NotificationsSection`, `location.state.focus` scroll targets (`settings-sync`/`settings-data`, from RestoreCard); `VersionFooter` (app version, build SHA + time, Dexie schema `db.verno`; Android versionName/versionCode).
 - Shared UI: `src/components/Sheet.tsx` (46, bottom sheet; registers with `backStack` while open), `NumberStepper.tsx` (87; `compact` true | `'narrow'` = small only under 380px), `ProgressRing.tsx` (41; `boxSize` for fluid rings).
-- Shared libs: `src/lib/dates.ts` (93, local-date + month-calendar helpers, `MONTH_NAMES`), `hooks.ts` (89, `useNow`/`useWakeLock` (no-op on Android)/`useLocalToday` (day rollover)), `audio.ts` (51, beep/unlock).
+- Shared libs: `src/lib/dates.ts` (99, local-date + month-calendar helpers, `MONTH_NAMES`, `fmtLongDate`), `hooks.ts` (89, `useNow`/`useWakeLock` (no-op on Android)/`useLocalToday` (day rollover)), `audio.ts` (51, beep/unlock).
 
 ## Native (Android / Capacitor)
 Only reachable through `isNative` (invariant 14). Runbook: `ANDROID.md`.
@@ -128,7 +130,7 @@ Only reachable through `isNative` (invariant 14). Runbook: `ANDROID.md`.
 - `src/native/notifications.ts` (408) — reminder engine: channels, permission cache, `resyncNow` (plan → diff/full → schedule → shade cleanup), debounced single-flight `requestResync`, triggers, permission flows, test reminder, `getScheduledSummary`; every reminder in app group `gt_reminders`.
 - `src/native/status.ts` (81) — `loadNativeStatus`/`useNativeStatus` (permission + DeviceSettings status, refreshed on `gt:resume`).
 - `src/native/deviceSettings.ts` (58) — `DeviceSettings` plugin wrapper: `getDeviceStatus`, `openDeviceSettings(target, channelId?)`.
-- `src/native/files.ts` (29) — `shareTextFile` (Filesystem cache + Share sheet) for backup export.
+- `src/native/files.ts` (48) — `shareTextFile` (backup export) and `sharePngFile` (share card, base64 → binary) over one cache-file + Share-sheet helper.
 - `src/native/barcode.ts` (76) — ML Kit Google code scanner with on-demand module install; `scanBarcodeNative`.
 - `src/native/appInfo.ts` (14) — `getAppInfo` (APK versionName/versionCode).
 - `src/native/ui/NotificationsSection.tsx` (813) — Settings › Notifications: health row (also flags reminder categories muted in Android), schedule line, reminder categories (auto-open when one is muted), test/reschedule, haptics.
@@ -141,7 +143,7 @@ Only reachable through `isNative` (invariant 14). Runbook: `ANDROID.md`.
 - Scripts: `scripts/check-pwa-dist.mjs` (62, Pages bundle has no native plugin), `scripts/android/env.sh` (19), `icons.sh` (71), `release.sh` (110, guarded signed build + `--verify`), `smoke.sh` (705, emulator checks 1–10; aborts on the real sync repo), `cdp-eval.mjs` (167, WebView DevTools eval).
 
 ## Tests
-`*.test.ts` next to their module (vitest, node env, no jsdom, `TZ=Europe/Rome`). Pure functions (+ fake-indexeddb). ~380 tests: `scoring`, `heatmap`, `repMax`, `progression`, `merge`, `gemini` (incl. fallback chain), `dietReport`, `coachBriefing`, `nutrition`, `muscleVolume`, `gamification`, `idbKeys`, `aiSuggest`, `foodProviders`, `dates`, `rescore`, `notifyPrefs`, `notifyPlanner` (incl. DST), `coachHistory` (fake-indexeddb, incl. old-build snapshots), `bodyweight`, `notifyData`, `syncLock`, `seed` (fake-indexeddb), `backStack`, `ean`, `nativeBoundary` (invariant 14), `routes`, `native/navigation`, `native/restTimerBridge`, `native/notifications`, `native/ui/notifyHealth`.
+`*.test.ts` next to their module (vitest, node env, no jsdom, `TZ=Europe/Rome`). Pure functions (+ fake-indexeddb). ~386 tests: `scoring`, `heatmap`, `repMax`, `shareCard`, `progression`, `merge`, `gemini` (incl. fallback chain), `dietReport`, `coachBriefing`, `nutrition`, `muscleVolume`, `gamification`, `idbKeys`, `aiSuggest`, `foodProviders`, `dates`, `rescore`, `notifyPrefs`, `notifyPlanner` (incl. DST), `coachHistory` (fake-indexeddb, incl. old-build snapshots), `bodyweight`, `notifyData`, `syncLock`, `seed` (fake-indexeddb), `backStack`, `ean`, `nativeBoundary` (invariant 14), `routes`, `native/navigation`, `native/restTimerBridge`, `native/notifications`, `native/ui/notifyHealth`.
 
 ---
 
