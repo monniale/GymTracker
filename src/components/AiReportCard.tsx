@@ -297,7 +297,7 @@ function NoteView<T>({
 }
 
 /** Link from a coach card to the stored verdicts (Progress › Coach history). */
-export function HistoryLink({ kind, earlier }: { kind: 'workout' | 'diet'; earlier: number }) {
+export function HistoryLink({ kind, earlier }: { kind: 'workout' | 'diet' | 'week'; earlier: number }) {
   return (
     <Link
       to={`/progress/coach?kind=${kind}`}

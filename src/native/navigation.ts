@@ -10,7 +10,7 @@ import { TAB_ROUTES } from '../routes'
  * send it a `gt_route` extra: everything is matched exactly against this list. Never
  * `/workout/summary/*` (ROUTEMAP invariant 11).
  */
-export const ALLOWED_ROUTES = ['/workout', '/workout/session', '/diet', '/progress', '/rank', '/settings'] as const
+export const ALLOWED_ROUTES = ['/workout', '/workout/session', '/diet', '/progress', '/progress/week', '/rank', '/settings'] as const
 
 export type AllowedRoute = (typeof ALLOWED_ROUTES)[number]
 

@@ -15,9 +15,9 @@ import type { CoachJudgement, CoachNote, Id } from '../types'
 
 export type JudgementKind = CoachJudgement['kind']
 
-/** Identity of what a verdict is about: the session for workouts, the day for diet. */
+/** Identity of what a verdict is about: the session for workouts, the day for diet, the Monday for a week. */
 export function judgementKey(j: Pick<CoachJudgement, 'kind' | 'sessionId' | 'date'>): string {
-  return j.kind === 'workout' ? `workout:${String(j.sessionId)}` : `diet:${j.date}`
+  return j.kind === 'workout' ? `workout:${String(j.sessionId)}` : `${j.kind}:${j.date}`
 }
 
 function newest(rows: CoachJudgement[]): CoachJudgement | undefined {
@@ -33,7 +33,7 @@ async function rowsFor(kind: JudgementKind, key: Id): Promise<CoachJudgement[]> 
   return rows.filter(r => r.kind === kind)
 }
 
-/** Every stored verdict for one workout session (key = sessionId) or diet day (key = date). */
+/** Every stored verdict for one workout session (key = sessionId), diet day (key = date) or week (key = Monday). */
 export function judgementsFor(kind: JudgementKind, key: Id): Promise<CoachJudgement[]> {
   return rowsFor(kind, key)
 }
@@ -42,6 +42,7 @@ export function judgementsFor(kind: JudgementKind, key: Id): Promise<CoachJudgem
 export async function currentNote(kind: JudgementKind, key: Id): Promise<CoachNote | null> {
   const stored = newest(await rowsFor(kind, key))
   if (stored) return stored.note
+  if (kind === 'week') return null // no legacy cache: weekly reviews were always stored here
   const legacy = kind === 'workout'
     ? await db.coachNotes.get(key)
     : await db.dietNotes.get(String(key))
@@ -51,7 +52,7 @@ export async function currentNote(kind: JudgementKind, key: Id): Promise<CoachNo
 /** Store a freshly generated verdict. A normal (tracked) write: it syncs like any user data. */
 export async function saveJudgement(
   j: { kind: 'workout'; sessionId: Id; note: CoachNote; model: string }
-    | { kind: 'diet'; date: string; note: CoachNote; model: string },
+    | { kind: 'diet' | 'week'; date: string; note: CoachNote; model: string },
 ): Promise<void> {
   const generatedAt = Date.now()
   if (j.kind === 'workout') {
@@ -66,7 +67,7 @@ export async function saveJudgement(
       generatedAt,
     })
   } else {
-    await db.coachHistory.add({ kind: 'diet', date: j.date, note: j.note, model: j.model, generatedAt })
+    await db.coachHistory.add({ kind: j.kind, date: j.date, note: j.note, model: j.model, generatedAt })
   }
 }
 

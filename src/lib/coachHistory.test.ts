@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db, onSyncDirty, withSyncTrackingSuspended } from '../db/db'
 import { applyTables, collectTables } from '../db/backup'
 import { mergeSnapshots, type SnapshotTables, type SyncPayload } from './merge'
-import { backfillCoachHistory, currentNote, deleteJudgement, judgementsFor, saveJudgement } from './coachHistory'
+import { backfillCoachHistory, currentNote, deleteJudgement, judgementKey, judgementsFor, saveJudgement } from './coachHistory'
 import type { CoachNote } from '../types'
 
 const note = (headline: string): CoachNote => ({ headline, tone: 'positive', insights: [{ category: 'verdict', tone: 'positive', message: 'ok' }] })
@@ -135,5 +135,22 @@ describe('sync with a build that predates the history', () => {
     expect(merged.tables.coachHistory).toHaveLength(1)
     const back = mergeSnapshots(payload('pwa', remoteTables), local, Date.now())
     expect(back.tables.coachHistory).toHaveLength(1)
+  })
+})
+
+describe('weekly reviews', () => {
+  it('stores a week verdict by its Monday, separate from that day’s diet report', async () => {
+    await saveJudgement({ kind: 'diet', date: '2026-10-12', note: note('Diet Monday'), model: 'm' })
+    await saveJudgement({ kind: 'week', date: '2026-10-12', note: note('Solid week'), model: 'm' })
+    expect((await currentNote('week', '2026-10-12'))?.headline).toBe('Solid week')
+    expect((await currentNote('diet', '2026-10-12'))?.headline).toBe('Diet Monday')
+    expect(await judgementsFor('week', '2026-10-12')).toHaveLength(1)
+    expect(judgementKey({ kind: 'week', date: '2026-10-12' })).toBe('week:2026-10-12')
+    expect(judgementKey({ kind: 'diet', date: '2026-10-12' })).toBe('diet:2026-10-12')
+  })
+
+  it('never falls back to the diet cache for a week', async () => {
+    await withSyncTrackingSuspended(() => db.dietNotes.put({ date: '2026-10-05', note: note('Cached diet'), model: 'm', generatedAt: 1 } as never))
+    expect(await currentNote('week', '2026-10-05')).toBeNull()
   })
 })
