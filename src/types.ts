@@ -132,6 +132,19 @@ export interface FoodLog {
   updatedAt?: number
 }
 
+/** A food planned for a meal (e.g. tomorrow's menu). Not eaten yet: it never counts
+ * toward the day's totals, quests or reports until "Eat" turns it into a FoodLog. */
+export interface PlannedFood {
+  id?: Id
+  date: string // YYYY-MM-DD local
+  meal: MealType
+  foodId: Id
+  grams: number
+  plannedAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
+}
+
 export interface SavedMeal {
   id?: Id
   name: string
