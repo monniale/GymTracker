@@ -39,7 +39,28 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['apple-touch-icon.png'],
         workbox: {
-          globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+          globPatterns: ['**/*.{js,css,html,png,svg,woff2,json}'],
+          // Exercise animations (opt-in, Settings) load from the dataset repo at a pinned commit:
+          // keep the ones already seen for offline use. CORS responses only (the <img> asks
+          // with crossOrigin), so no opaque entries inflate the storage quota. Thumbnails are
+          // ~9 KB, GIFs ~125 KB: capped at about 5 MB and 10 MB.
+          runtimeCaching: [{
+            urlPattern: /^https:\/\/raw\.githubusercontent\.com\/hasaneyldrm\/exercises-dataset\/[0-9a-f]+\/images\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'exercise-thumbs',
+              expiration: { maxEntries: 600, maxAgeSeconds: 90 * 86_400 },
+              cacheableResponse: { statuses: [200] },
+            },
+          }, {
+            urlPattern: /^https:\/\/raw\.githubusercontent\.com\/hasaneyldrm\/exercises-dataset\/[0-9a-f]+\/videos\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'exercise-gifs',
+              expiration: { maxEntries: 80, maxAgeSeconds: 90 * 86_400 },
+              cacheableResponse: { statuses: [200] },
+            },
+          }],
         },
         manifest: {
           name: 'GymTracker',

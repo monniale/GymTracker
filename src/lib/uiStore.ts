@@ -21,6 +21,9 @@ export function defaultLang(): Lang {
 export interface UiStore {
   language: Lang
   setLanguage: (lang: Lang) => void
+  /** Show the exercise library's animations/thumbnails (loaded from the dataset repo). Off by default. */
+  showExerciseMedia: boolean
+  setShowExerciseMedia: (on: boolean) => void
 }
 
 export const useUiStore = create<UiStore>()(
@@ -28,13 +31,20 @@ export const useUiStore = create<UiStore>()(
     set => ({
       language: defaultLang(),
       setLanguage: language => set({ language }),
+      showExerciseMedia: false,
+      setShowExerciseMedia: showExerciseMedia => set({ showExerciseMedia }),
     }),
     {
       name: 'gymtracker-ui',
-      partialize: s => ({ language: s.language }),
+      partialize: s => ({ language: s.language, showExerciseMedia: s.showExerciseMedia }),
       merge: (persisted, current) => {
-        const lang = (persisted as Partial<UiStore> | undefined)?.language
-        return { ...current, language: lang === 'en' || lang === 'it' ? lang : current.language }
+        const p = persisted as Partial<UiStore> | undefined
+        const lang = p?.language
+        return {
+          ...current,
+          language: lang === 'en' || lang === 'it' ? lang : current.language,
+          showExerciseMedia: p?.showExerciseMedia === true,
+        }
       },
     },
   ),

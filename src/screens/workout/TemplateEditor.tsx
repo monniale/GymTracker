@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronUp, ChevronDown, Trash2, Plus, Link2 } from 'lucide
 import { db, deleteWithTombstone } from '../../db/db'
 import { parseRouteId } from '../../lib/ids'
 import NumberStepper from '../../components/NumberStepper'
-import { isCardioExercise } from '../../lib/cardio'
+import { defaultTemplateItem, isCardioExercise } from '../../lib/cardio'
 import ExercisePicker from './ExercisePicker'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t } from '../../i18n'
@@ -41,15 +41,7 @@ export default function TemplateEditor() {
   const removeItem = (index: number) =>
     update({ items: template.items.filter((_, i) => i !== index) })
 
-  const addExercise = (e: Exercise) =>
-    update({
-      items: [
-        ...template.items,
-        isCardioExercise(e)
-          ? { exerciseId: e.id!, targetSets: 1, targetReps: 20, restSec: e.defaultRestSec }
-          : { exerciseId: e.id!, targetSets: 3, targetReps: 8, restSec: e.defaultRestSec },
-      ],
-    })
+  const addExercise = (e: Exercise) => update({ items: [...template.items, defaultTemplateItem(e)] })
 
   async function deleteTemplate() {
     if (!window.confirm(t('workout.template.confirmDelete', { name: template!.name }))) return

@@ -23,6 +23,9 @@ export interface Exercise {
   progressionStepKg?: number
   /** How sets are logged. Absent = by muscle group ('cardio' → cardio, else strength). */
   kind?: 'strength' | 'cardio'
+  /** Exercise-library entry this row was added from (`public/exercise-library.json` id, e.g. "0025").
+   * Catalog rows are linked by name instead (`SEED_LIBRARY_IDS`). */
+  libraryId?: string
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }

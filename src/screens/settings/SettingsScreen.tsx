@@ -8,6 +8,8 @@ import {
   Upload,
   FileSpreadsheet,
   AlertTriangle,
+  Film,
+  ImageOff,
 } from "lucide-react";
 import { db } from "../../db/db";
 import { exportBackup, importBackup } from "../../db/backup";
@@ -129,6 +131,8 @@ export default function SettingsScreen() {
       </Section>
 
       <LanguageSection />
+
+      <ExerciseMediaSection />
 
       <Section title={t("settings.targets.training")}>
         <div className="grid grid-cols-2 gap-y-4">
@@ -502,6 +506,27 @@ function LanguageSection() {
           </button>
         ))}
       </div>
+    </Section>
+  );
+}
+
+/** Exercise library animations (device-local, off by default): loaded from the dataset repo on GitHub. */
+function ExerciseMediaSection() {
+  const on = useUiStore((s) => s.showExerciseMedia);
+  const setOn = useUiStore((s) => s.setShowExerciseMedia);
+  return (
+    <Section title={t("library.settings.title")}>
+      <button
+        onClick={() => setOn(!on)}
+        aria-pressed={on}
+        className={`flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-xl px-4 font-semibold ${
+          on ? "bg-primary/15 text-primary" : "bg-muted/40 text-sub"
+        }`}
+      >
+        {on ? <Film size={20} /> : <ImageOff size={20} />}
+        {on ? t("library.settings.mediaOn") : t("library.settings.mediaOff")}
+      </button>
+      <p className="mt-2 text-xs text-sub">{t("library.settings.hint")}</p>
     </Section>
   );
 }

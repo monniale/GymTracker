@@ -25,6 +25,7 @@ export const KNOWN_ROUTES: string[] = [
   '/workout/session',
   '/workout/summary/:id',
   '/workout/history',
+  '/workout/exercises',
   '/workout/past/:id',
   '/diet',
   '/progress',
