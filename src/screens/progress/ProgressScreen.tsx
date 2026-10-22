@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays } from 'lucide-react'
+import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays, CalendarRange } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAiStore } from '../../lib/aiStore'
-import { localDateStr, addDays } from '../../lib/dates'
+import { localDateStr, addDays, MONTH_NAMES, fmtDuration } from '../../lib/dates'
+import { gatherRepMaxes, REP_BUCKETS, type RepMax } from '../../lib/repMax'
+import { isCardioExercise, isCardioSet, paceSecPerKm } from '../../lib/cardio'
 import { useLocalToday } from '../../lib/hooks'
 import { trainingHeatmap } from '../../lib/heatmap'
 import Heatmap from '../../components/Heatmap'
@@ -49,6 +51,7 @@ export default function ProgressScreen() {
 
       <BodyweightTile />
       <CoachHistoryTile />
+      <WeekReviewTile />
       <TrainingHeatmapTile />
 
       <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
@@ -61,7 +64,12 @@ export default function ProgressScreen() {
           <ChevronDown size={18} className="text-sub" />
         </button>
         {activeExId ? (
-          <ExerciseTrend exerciseId={activeExId} />
+          <>
+            {isCardioExercise(activeEx)
+              ? <CardioTrend exerciseId={activeExId} />
+              : <ExerciseTrend exerciseId={activeExId} />}
+            {!isCardioExercise(activeEx) && <RepMaxTable exerciseId={activeExId} />}
+          </>
         ) : (
           <p className="py-6 text-center text-sm text-sub">Log a workout to see trends.</p>
         )}
@@ -83,7 +91,7 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
   const data = useLiveQuery(async () => {
     const sets = await db.sets
       .where('exerciseId').equals(exerciseId)
-      .filter(s => !s.isWarmup)
+      .filter(s => !s.isWarmup && !isCardioSet(s))
       .toArray()
     if (sets.length === 0) return { e1rm: [], volume: [] }
     const bySession = new Map<Id, { best: number; volume: number; t: number }>()
@@ -112,6 +120,101 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
       <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Session volume (kg)</p>
       <BarChart points={data.volume} color={ORANGE} yFmt={v => `${Math.round(v)} kg`} />
     </>
+  )
+}
+
+/** Cardio exercise: time and distance per session, and the pace when a distance was logged. */
+function CardioTrend({ exerciseId }: { exerciseId: Id }) {
+  const data = useLiveQuery(async () => {
+    const sets = await db.sets.where('exerciseId').equals(exerciseId).filter(isCardioSet).toArray()
+    const bySession = new Map<Id, { sec: number; m: number; t: number }>()
+    for (const s of sets) {
+      const cur = bySession.get(s.sessionId) ?? { sec: 0, m: 0, t: s.completedAt }
+      cur.sec += s.durationSec ?? 0
+      cur.m += s.distanceM ?? 0
+      cur.t = Math.min(cur.t, s.completedAt)
+      bySession.set(s.sessionId, cur)
+    }
+    const rows = [...bySession.values()].sort((a, b) => a.t - b.t).slice(-20)
+    return {
+      minutes: rows.map(r => ({ x: r.t, y: r.sec / 60, label: shortDate(r.t) })) as ChartPoint[],
+      km: rows.filter(r => r.m > 0).map(r => ({ x: r.t, y: r.m / 1000, label: shortDate(r.t) })) as ChartPoint[],
+      pace: rows
+        .map(r => ({ r, pace: paceSecPerKm(r.sec, r.m) }))
+        .filter((p): p is { r: typeof p.r; pace: number } => p.pace !== null)
+        .map(({ r, pace }) => ({ x: r.t, y: pace, label: shortDate(r.t) })) as ChartPoint[],
+    }
+  }, [exerciseId])
+
+  if (!data) return null
+  if (data.minutes.length === 0) {
+    return <p className="py-6 text-center text-sm text-sub">No cardio logged for this exercise yet.</p>
+  }
+  return (
+    <>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Duration (min)</p>
+      <LineChart points={data.minutes} color={GREEN} yFmt={v => `${Math.round(v)} min`} />
+      {data.km.length > 0 && (
+        <>
+          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Distance (km)</p>
+          <BarChart points={data.km} color={GREEN} yFmt={v => `${v.toFixed(1)} km`} />
+        </>
+      )}
+      {data.pace.length > 1 && (
+        <>
+          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Pace (min/km, lower is faster)</p>
+          <LineChart points={data.pace} color={ORANGE} yFmt={v => fmtDuration(Math.round(v) * 1000)} />
+        </>
+      )}
+      <p className="mt-2 text-[11px] text-sub">Cardio is tracked for your streak and weekly target; it earns no rank points.</p>
+    </>
+  )
+}
+
+function dayMonth(ms: number): string {
+  const d = new Date(ms)
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`
+}
+
+function RepMaxCell({ rec, highlight }: { rec?: RepMax; highlight?: boolean }) {
+  if (!rec) return <span className="num min-w-0 flex-1 text-sm text-sub">—</span>
+  return (
+    <span className="num min-w-0 flex-1 leading-tight">
+      <span className={`block truncate text-sm font-semibold ${highlight ? 'text-primary' : ''}`}>
+        {rec.weightKg} kg ×{rec.reps}
+      </span>
+      <span className="block truncate text-[11px] text-sub">{dayMonth(rec.completedAt)}</span>
+    </span>
+  )
+}
+
+/** Heaviest working set for at least N reps, all-time and this season. */
+function RepMaxTable({ exerciseId }: { exerciseId: Id }) {
+  const maxes = useLiveQuery(() => gatherRepMaxes(exerciseId), [exerciseId])
+  if (!maxes || maxes.allTime.size === 0) return null
+  const rows = REP_BUCKETS.filter(n => maxes.allTime.has(n))
+  return (
+    <div className="mt-3">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Rep maxes</p>
+      <div className="flex items-center gap-2 border-b border-edge pb-1 text-[11px] font-semibold uppercase tracking-wide text-sub">
+        <span className="w-9 shrink-0">RM</span>
+        <span className="min-w-0 flex-1 truncate">All-time</span>
+        <span className="min-w-0 flex-1 truncate">This season</span>
+      </div>
+      {rows.map(n => {
+        const best = maxes.allTime.get(n)!
+        const season = maxes.season.get(n)
+        const same = season !== undefined && season.weightKg === best.weightKg && season.reps === best.reps && season.completedAt === best.completedAt
+        return (
+          <div key={n} className="flex items-center gap-2 border-b border-edge/60 py-1.5 last:border-b-0">
+            <span className="num w-9 shrink-0 font-display text-base font-bold">{n}RM</span>
+            <RepMaxCell rec={best} />
+            <RepMaxCell rec={season} highlight={same} />
+          </div>
+        )
+      })}
+      <p className="mt-1 text-[11px] text-sub">Best weight for at least N reps. Orange = the all-time best was set this season.</p>
+    </div>
   )
 }
 
@@ -232,6 +335,29 @@ function CoachHistoryTile() {
             ? 'Every coach’s note and diet report is kept here'
             : `${stats.count} verdict${stats.count === 1 ? '' : 's'} · ${stats.last?.note.headline ?? ''}`}
         </p>
+      </div>
+      <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
+    </Link>
+  )
+}
+
+/** Entry to the weekly review; hidden until there is a stored review or a key to make one. */
+function WeekReviewTile() {
+  const apiKey = useAiStore(s => s.apiKey)
+  const latest = useLiveQuery(async () => {
+    const weeks = await db.coachHistory.where('date').above('').filter(j => j.kind === 'week').toArray()
+    return weeks.reduce<(typeof weeks)[number] | null>((a, j) => (!a || j.date > a.date || (j.date === a.date && j.generatedAt > a.generatedAt) ? j : a), null)
+  })
+  if (latest === undefined || (!latest && !apiKey)) return null
+  return (
+    <Link
+      to="/progress/week"
+      className="mt-4 flex items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:bg-muted/30"
+    >
+      <CalendarRange size={18} className="shrink-0 text-primary" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-lg font-semibold">Week review</p>
+        <p className="truncate text-xs text-sub">{latest ? latest.note.headline : 'Review last week with the coach'}</p>
       </div>
       <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
     </Link>

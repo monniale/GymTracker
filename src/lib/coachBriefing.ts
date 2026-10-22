@@ -5,6 +5,7 @@ import { standardFor, levelFor } from './standards'
 import { suggestNext, type ProgressionSuggestion } from './progression'
 import { DEFAULT_BAR_KG } from './plates'
 import { localDateStr, mondayOf, parseLocalDate } from './dates'
+import { isCardioExercise, isCardioSet, cardioSessionTotals, cardioMinutes, fmtDistance, paceSecPerKm, fmtPace } from './cardio'
 import type { Id, TemplateItem } from '../types'
 
 /**
@@ -35,6 +36,8 @@ export interface WorkoutBriefing {
   sessionsThisWeek: number
   weeklyTarget: number
   exercises: BriefingExercise[]
+  /** Cardio done in the session (no points; context only). */
+  cardio: { name: string; minutes: number; distanceM: number; pace: string | null }[]
   weeklyMuscle: MuscleVolumeRow[]
 }
 
@@ -117,6 +120,13 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
 
   const weeklyMuscle = await gatherWeeklyMuscleVolume(exMap, today)
 
+  const cardioIds = [...new Set(sets.filter(isCardioSet).map(s => s.exerciseId))]
+  const cardio = cardioIds.map(id => {
+    const t = cardioSessionTotals(sets.filter(s => s.exerciseId === id))
+    const pace = paceSecPerKm(t.durationSec, t.distanceM)
+    return { name: exMap.get(id)?.name ?? 'Cardio', minutes: cardioMinutes(t.durationSec), distanceM: t.distanceM, pace: pace ? fmtPace(pace) : null }
+  })
+
   return {
     sessionName: session.name,
     durationMin: session.endedAt ? Math.round((session.endedAt - session.startedAt) / 60000) : null,
@@ -127,6 +137,7 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
     sessionsThisWeek,
     weeklyTarget: settings?.weeklySessionTarget ?? 3,
     exercises,
+    cardio,
     weeklyMuscle,
   }
 }
@@ -161,6 +172,14 @@ export function formatBriefing(b: WorkoutBriefing): string {
     lines.push(
       `- ${e.name} (${e.muscleGroup}): ${setsStr}. Best e1RM ${e.bestE1rm}kg, ${priorStr}.${suffix}${suggestion}`,
     )
+  }
+  if (b.cardio.length > 0) {
+    lines.push('')
+    lines.push('Cardio (tracked, earns no points):')
+    for (const c of b.cardio) {
+      const dist = c.distanceM > 0 ? `, ${fmtDistance(c.distanceM)}` : ''
+      lines.push(`- ${c.name}: ${c.minutes} min${dist}${c.pace ? `, pace ${c.pace}` : ''}`)
+    }
   }
   lines.push('')
   lines.push(
@@ -228,10 +247,12 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
       itemIds.add(exId)
     }
   }
-  if (items.length === 0) return null
+  // Cardio has no weights to plan.
+  const strengthItems = items.filter(it => !isCardioExercise(exMap.get(it.exerciseId)))
+  if (strengthItems.length === 0) return null
 
   const exercises: PlanExercise[] = await Promise.all(
-    items.map(async item => {
+    strengthItems.map(async item => {
       const ex = exMap.get(item.exerciseId)
       // Last completed session's work sets for this exercise (exclude this session + warm-ups).
       const all = await db.sets

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { epley, intensityMult, scoreSession, SCORING, type ScoreInput } from './scoring'
+import { epley, intensityMult, scoreSession, cardioBonusPoints, SCORING, type ScoreInput } from './scoring'
 
 function input(partial: Partial<ScoreInput>): ScoreInput {
   return {
@@ -144,5 +144,19 @@ describe('scoreSession', () => {
       priorBestVolume: new Map([[1, 100], [2, 100], [3, 100], [4, 100], [5, 100]]),
     }))
     expect(r.prBonus).toBe(SCORING.prBonusCap)
+  })
+})
+
+describe('cardio sets', () => {
+  it('earn no points and never change a strength score', () => {
+    const strength = [set(1, 100, 5), set(1, 100, 5)]
+    const cardio = { exerciseId: 9, weightKg: 0, reps: 0, isWarmup: false, durationSec: 1800 }
+    const base = scoreSession(input({ sets: strength }))
+    const mixed = scoreSession(input({ sets: [...strength, cardio] }))
+    expect(mixed).toEqual(base)
+    expect(cardioBonusPoints([cardio])).toBe(0)
+    const only = scoreSession(input({ sets: [cardio] }))
+    expect(only.total).toBe(0)
+    expect(only.breakdown).toEqual([])
   })
 })

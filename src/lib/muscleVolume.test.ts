@@ -96,3 +96,12 @@ describe('computeWeeklyMuscleVolume', () => {
     expect(HYPERTROPHY_SET_BAND).toEqual([10, 20])
   })
 })
+
+describe('cardio in muscle volume', () => {
+  it('skips cardio rows and exercises switched to cardio', () => {
+    const map = new Map<Id, Exercise>([[1, ex(1, 'chest')], [4, { ...ex(4, 'legs'), kind: 'cardio' }]])
+    const cardioRow = { ...s(1, weekStartMs + 5), weightKg: 0, reps: 0, e1rm: 0, durationSec: 600 }
+    const rows = computeWeeklyMuscleVolume([s(1, weekStartMs + 1), cardioRow, s(4, weekStartMs + 2)], map, TODAY)
+    expect(rows).toEqual([{ group: 'chest', sets: 1, weeklyAvg: 0 }])
+  })
+})

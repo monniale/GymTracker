@@ -56,6 +56,19 @@ export interface ScoreSet {
   weightKg: number
   reps: number
   isWarmup: boolean
+  /** Cardio sets only (weightKg/reps are 0, so the strength scoring below skips them). */
+  durationSec?: number
+}
+
+/**
+ * Points for cardio sets. Owner decision: cardio earns NO rank points — it is
+ * tracked and counts for the streak and the weekly target only. Kept as a hook
+ * so finishSession, rescoreSession and the history import stay consistent if
+ * that ever changes (e.g. 1 pt per minute, capped at 30 per session).
+ */
+export function cardioBonusPoints(sets: ScoreSet[]): number {
+  void sets
+  return 0
 }
 
 export interface ScoreInput {
@@ -151,7 +164,7 @@ export function scoreSession(input: ScoreInput): ScoreResult {
   )
   const dayFactor = input.isFirstSessionOfDay ? 1 : SCORING.extraSessionFactor
 
-  const total = Math.round(basePoints * streakMult * dayFactor + prBonus)
+  const total = Math.round(basePoints * streakMult * dayFactor + prBonus + cardioBonusPoints(input.sets))
 
   return { basePoints, prBonus, streakMult: round2(streakMult), dayFactor, total, breakdown }
 }

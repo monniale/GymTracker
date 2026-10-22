@@ -21,6 +21,8 @@ export interface Exercise {
   notes?: string
   /** kg added when the double-progression rule fires (default 2.5). */
   progressionStepKg?: number
+  /** How sets are logged. Absent = by muscle group ('cardio' → cardio, else strength). */
+  kind?: 'strength' | 'cardio'
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -28,6 +30,7 @@ export interface Exercise {
 export interface TemplateItem {
   exerciseId: Id
   targetSets: number
+  /** Target reps; for a cardio exercise, target minutes per set. */
   targetReps: number
   restSec?: number
   /** Linked to the NEXT item as a superset: rest only starts after the last member. */
@@ -51,6 +54,8 @@ export interface Session {
   bodyweightKg: number
   points?: number
   extraExerciseIds: Id[]
+  /** Set on workouts brought in from another app's CSV export (Settings › Data). */
+  importedFrom?: 'strong' | 'hevy'
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -65,6 +70,9 @@ export interface SetRow {
   isWarmup: boolean
   completedAt: number
   e1rm: number
+  /** Cardio sets (src/lib/cardio.ts): time and optional distance; weightKg/reps/e1rm are 0. */
+  durationSec?: number
+  distanceM?: number
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -128,6 +136,19 @@ export interface FoodLog {
   foodId: Id
   grams: number
   loggedAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
+}
+
+/** A food planned for a meal (e.g. tomorrow's menu). Not eaten yet: it never counts
+ * toward the day's totals, quests or reports until "Eat" turns it into a FoodLog. */
+export interface PlannedFood {
+  id?: Id
+  date: string // YYYY-MM-DD local
+  meal: MealType
+  foodId: Id
+  grams: number
+  plannedAt: number
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -308,10 +329,11 @@ export interface DietNoteRow {
  */
 export interface CoachJudgement {
   id?: Id
-  kind: 'workout' | 'diet'
+  /** 'week' = the weekly review (builds before it show such a row as a diet day). */
+  kind: 'workout' | 'diet' | 'week'
   /** The judged session (workout verdicts). */
   sessionId?: Id
-  /** Local day the verdict is about (the session's day / the diet day), YYYY-MM-DD. */
+  /** Local day the verdict is about (the session's day / the diet day / the week's Monday), YYYY-MM-DD. */
   date: string
   /** Session name when the verdict was written (workout verdicts). */
   title?: string

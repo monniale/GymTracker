@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronDown, Dumbbell, UtensilsCrossed, Trash2, ExternalLink, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronDown, Dumbbell, UtensilsCrossed, CalendarRange, Trash2, ExternalLink, Sparkles } from 'lucide-react'
 import { db } from '../../db/db'
-import { fmtDate, fmtDateTime, monthLabel, startOfMonth } from '../../lib/dates'
+import { addDays, fmtDate, fmtDateTime, monthLabel, startOfMonth } from '../../lib/dates'
+import { weekRangeLabel } from '../../lib/weekBriefing'
 import { deleteJudgement, judgementKey } from '../../lib/coachHistory'
 import type { CoachInsightTone, CoachJudgement } from '../../types'
 
-type Filter = 'all' | 'workout' | 'diet'
+type Filter = 'all' | 'workout' | 'diet' | 'week'
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'workout', label: 'Workouts' },
   { id: 'diet', label: 'Diet' },
+  { id: 'week', label: 'Weeks' },
 ]
 
 function toneText(t: CoachInsightTone): string {
@@ -36,7 +38,7 @@ function toneDot(t: CoachInsightTone): string {
 export default function CoachHistory() {
   const [params, setParams] = useSearchParams()
   const kindParam = params.get('kind')
-  const filter: Filter = kindParam === 'workout' || kindParam === 'diet' ? kindParam : 'all'
+  const filter: Filter = kindParam === 'workout' || kindParam === 'diet' || kindParam === 'week' ? kindParam : 'all'
 
   const rows = useLiveQuery(() => db.coachHistory.orderBy('generatedAt').reverse().toArray())
   const sessionIds = useLiveQuery(async () => new Set((await db.sessions.toCollection().primaryKeys()).map(String)))
@@ -55,10 +57,11 @@ export default function CoachHistory() {
   }, [rows])
 
   const counts = useMemo(() => {
-    const c = { all: 0, workout: 0, diet: 0 }
+    const c: Record<Filter, number> = { all: 0, workout: 0, diet: 0, week: 0 }
     for (const r of rows ?? []) {
       c.all++
-      c[r.kind]++
+      // A kind from a newer build counts under All only.
+      if (r.kind in c) c[r.kind] = (c[r.kind] ?? 0) + 1
     }
     return c
   }, [rows])
@@ -113,7 +116,9 @@ export default function CoachHistory() {
           <p className="mt-2 text-sm text-sub">
             {filter === 'diet'
               ? 'No diet reports stored yet. Generate one from the Diet tab.'
-              : 'No verdicts stored yet. With a Gemini key connected, every coach’s note is kept here.'}
+              : filter === 'week'
+                ? 'No weekly reviews yet. Open Progress › Week review to get one.'
+                : 'No verdicts stored yet. With a Gemini key connected, every coach’s note is kept here.'}
           </p>
         </div>
       ) : (
@@ -141,8 +146,8 @@ export default function CoachHistory() {
 
 function JudgementCard({ row, current, sessionExists }: { row: CoachJudgement; current: boolean; sessionExists: boolean }) {
   const [open, setOpen] = useState(false)
-  const KindIcon = row.kind === 'workout' ? Dumbbell : UtensilsCrossed
-  const subject = row.kind === 'workout' ? row.title || 'Workout' : 'Diet day'
+  const KindIcon = row.kind === 'workout' ? Dumbbell : row.kind === 'week' ? CalendarRange : UtensilsCrossed
+  const subject = row.kind === 'workout' ? row.title || 'Workout' : row.kind === 'week' ? 'Week review' : 'Diet day'
 
   async function remove() {
     if (!window.confirm('Delete this verdict? It is removed on every synced device.')) return
@@ -155,7 +160,7 @@ function JudgementCard({ row, current, sessionExists }: { row: CoachJudgement; c
         <KindIcon size={18} className="mt-0.5 shrink-0 text-sub" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-sub">
-            <span className="whitespace-nowrap">{fmtDate(row.date)}</span>
+            <span className="whitespace-nowrap">{row.kind === 'week' ? weekRangeLabel(row.date) : fmtDate(row.date)}</span>
             <span className="min-w-0 truncate">{subject}</span>
             {!current && (
               <span className="shrink-0 whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-semibold">
@@ -189,6 +194,14 @@ function JudgementCard({ row, current, sessionExists }: { row: CoachJudgement; c
                 className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary"
               >
                 <ExternalLink size={14} aria-hidden /> Open workout
+              </Link>
+            ) : row.kind === 'week' ? (
+              <Link
+                to="/progress/week"
+                state={{ monday: row.date, sunday: addDays(row.date, 6) }}
+                className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary"
+              >
+                <ExternalLink size={14} aria-hidden /> Open week
               </Link>
             ) : row.kind === 'diet' ? (
               <Link to="/diet" state={{ date: row.date }} className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary">

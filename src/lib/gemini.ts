@@ -88,6 +88,14 @@ Be concise, specific, and encouraging but honest — one off day is not a failur
 Prefer the diet categories (calories, protein, macros, hydration, consistency, verdict).
 Return a short headline verdict (max ~8 words) plus 3–5 brief insights (each max ~24 words).`
 
+export const WEEK_SYSTEM_PROMPT =
+  `You are a strength & nutrition coach reviewing ONE whole week (Monday to Sunday) for a lifter who logs workouts, food and bodyweight.
+Judge the week using ONLY the numbers provided — never invent sessions, weights, PRs, foods or weigh-ins.
+Ground your reasoning in established principles: training consistency vs the weekly target, weekly hard sets per muscle (~10–20 for hypertrophy), progressive overload, protein ~1.6–2.2 g/kg, calories vs target, and the bodyweight trend relative to the goal implied by the numbers.
+Be concise, specific, and encouraging but honest — a light week is not a failure; never scold or shame.
+Use the 'verdict' category for the overall judgement; any category fits the rest.
+Return a short headline verdict (max ~8 words) plus 4–6 brief insights (each max ~24 words); the last 2–3 must be concrete actions for next week.`
+
 export interface GenerateOpts {
   apiKey: string
   model: string
@@ -224,6 +232,11 @@ export function generateCoachNote(prompt: string, opts: GenerateOpts): Promise<C
 /** Ask Gemini to judge a day of eating, returning a validated CoachNote. */
 export function generateDietNote(prompt: string, opts: GenerateOpts): Promise<CoachNote> {
   return generateStructured(prompt, DIET_SYSTEM_PROMPT, { schema: COACH_NOTE_SCHEMA, parse: parseCoachNote }, opts)
+}
+
+/** Ask Gemini to review a whole week and set next week's focus, returning a validated CoachNote. */
+export function generateWeekNote(prompt: string, opts: GenerateOpts): Promise<CoachNote> {
+  return generateStructured(prompt, WEEK_SYSTEM_PROMPT, { schema: COACH_NOTE_SCHEMA, parse: parseCoachNote }, opts)
 }
 
 /**

@@ -11,6 +11,7 @@ import { platesPerSide, formatPlates, warmupRamp, DEFAULT_BAR_KG, DEFAULT_PLATES
 import { useWorkoutPlan } from '../../lib/workoutSuggest'
 import { finishSession } from '../../lib/finishSession'
 import { fmtDuration } from '../../lib/dates'
+import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet, type CardioDraft } from '../../lib/cardio'
 import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
 import { haptic } from '../../native/haptics'
 import NumberStepper from '../../components/NumberStepper'
@@ -65,7 +66,10 @@ export default function ActiveSession() {
   for (const exId of session.extraExerciseIds) {
     if (!itemIds.has(exId)) {
       const ex = exMap.get(exId)
-      items.push({ exerciseId: exId, targetSets: 3, targetReps: 8, restSec: ex?.defaultRestSec })
+      // Cardio added mid-session: one 20-minute set (targetReps = minutes; mirrors coachBriefing).
+      items.push(isCardioExercise(ex)
+        ? { exerciseId: exId, targetSets: 1, targetReps: 20, restSec: ex?.defaultRestSec }
+        : { exerciseId: exId, targetSets: 3, targetReps: 8, restSec: ex?.defaultRestSec })
       itemIds.add(exId)
     }
   }
@@ -200,10 +204,13 @@ interface CardProps {
 }
 
 function ExerciseCard({
-  item, exercise, sessionId, sessionSets, bodyweightKg, defaultRestSec, barKg, plates, aiSets, suppressRest,
+  item, exercise, sessionId, sessionSets, bodyweightKg, defaultRestSec, barKg, plates, aiSets: aiPlan, suppressRest,
   nextExerciseName, supersetNextName,
 }: CardProps) {
   const startRest = useAppStore(s => s.startRest)
+  // Cardio: time + distance rows, no weight suggestion, ramp, plates or AI weights.
+  const cardio = isCardioExercise(exercise)
+  const aiSets = cardio ? undefined : aiPlan
   const [extraRows, setExtraRows] = useState(0)
   const [noteOpen, setNoteOpen] = useState(false)
 
@@ -227,15 +234,15 @@ function ExerciseCard({
   const rowCount = warmupCount + Math.max(item.targetSets, workLogged) + extraRows
   const nextIndex = logged.length
   const restSec = item.restSec ?? exercise?.defaultRestSec ?? defaultRestSec
-  const isBarbell = exercise?.equipment === 'barbell'
+  const isBarbell = !cardio && exercise?.equipment === 'barbell'
 
   const suggestion = useMemo(
-    () => suggestNext(
+    () => cardio ? null : suggestNext(
       prevSets.map(s => ({ weightKg: s.weightKg, reps: s.reps })),
       item.targetReps,
       exercise?.progressionStepKg ?? 2.5,
     ),
-    [prevSets, item.targetReps, exercise?.progressionStepKg],
+    [cardio, prevSets, item.targetReps, exercise?.progressionStepKg],
   )
 
   // The AI-planned set for this row's work-set position (F2), if any.
@@ -267,6 +274,16 @@ function ExerciseCard({
     }
   }
 
+  /** Cardio prefill for the row at `workIndex`: last session's same row, else this session's last, else the target minutes. */
+  function cardioDraftForWork(workIndex: number, lastCurrent?: Pick<SetRow, 'durationSec' | 'distanceM'>): CardioDraft {
+    const byPosition = workIndex >= 0 ? prevSets[workIndex] : undefined
+    return cardioDraft(byPosition ?? lastCurrent ?? prevSets[prevSets.length - 1], item.targetReps)
+  }
+
+  function cardioDraftFor(index: number): CardioDraft {
+    return cardioDraftForWork(index - warmupCount, logged.filter(s => !s.isWarmup).slice(-1)[0])
+  }
+
   const platesFor = (w: number): string | null => {
     if (!isBarbell) return null
     const r = platesPerSide(w, barKg, plates)
@@ -277,14 +294,22 @@ function ExerciseCard({
    * What comes after the set just logged — the Android lock-screen rest countdown body: this
    * exercise's next set target, else (superset partner or) the next exercise with sets left.
    */
-  function restLabel(weightKg: number, reps: number, isWarmup: boolean): string {
+  function restLabel(
+    just: { weightKg: number; reps: number; durationSec?: number; distanceM?: number },
+    isWarmup: boolean,
+  ): string {
     if (!isWarmup && supersetNextName) return `Next: ${supersetNextName}`
     const done = workLogged + (isWarmup ? 0 : 1)
     const planned = item.targetSets + extraRows
     if (done < planned) {
-      const lastWork = isWarmup ? logged.filter(s => !s.isWarmup).slice(-1)[0] : { weightKg, reps }
-      const next = draftForWork(done, lastWork)
-      const target = next.weightKg > 0 ? `${next.weightKg} kg × ${next.reps}` : `${next.reps} reps`
+      const lastWork = isWarmup ? logged.filter(s => !s.isWarmup).slice(-1)[0] : just
+      let target: string
+      if (cardio) {
+        target = fmtCardioSet(cardioDraftForWork(done, lastWork))
+      } else {
+        const next = draftForWork(done, lastWork)
+        target = next.weightKg > 0 ? `${next.weightKg} kg × ${next.reps}` : `${next.reps} reps`
+      }
       return `${exercise?.name ?? 'Next set'} · set ${done + 1}/${planned} · ${target}`
     }
     return nextExerciseName ? `Next: ${nextExerciseName}` : 'Last exercise — finish when ready'
@@ -301,8 +326,21 @@ function ExerciseCard({
       completedAt: Date.now(),
       e1rm: epley(weightKg, reps),
     })
-    if (isWarmup) startRest(WARMUP_REST_SEC, restLabel(weightKg, reps, true), { warmup: true })
-    else if (!suppressRest) startRest(restSec, restLabel(weightKg, reps, false))
+    if (isWarmup) startRest(WARMUP_REST_SEC, restLabel({ weightKg, reps }, true), { warmup: true })
+    else if (!suppressRest) startRest(restSec, restLabel({ weightKg, reps }, false))
+    haptic('set')
+  }
+
+  async function logCardio(d: CardioDraft) {
+    const fields = cardioFields(d)
+    await db.sets.add({
+      sessionId,
+      exerciseId: item.exerciseId,
+      setNumber: logged.length + 1,
+      completedAt: Date.now(),
+      ...fields,
+    })
+    if (!suppressRest) startRest(restSec, restLabel(fields, false))
     haptic('set')
   }
 
@@ -363,7 +401,7 @@ function ExerciseCard({
           </span>
         )}
         <span className="num whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
-          {item.targetSets}×{item.targetReps} · {restSec}s
+          {item.targetSets}×{item.targetReps}{cardio ? ' min' : ''} · {restSec}s
         </span>
         {showRamp && (
           <button
@@ -397,7 +435,7 @@ function ExerciseCard({
               >
                 <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                 <span className="num flex-1 font-display text-lg font-semibold">
-                  {s.weightKg} kg × {s.reps}
+                  {isCardioSet(s) ? fmtCardioSet(s) : `${s.weightKg} kg × ${s.reps}`}
                   {s.isWarmup && <span className="ml-2 text-xs font-medium text-sub">warm-up</span>}
                 </span>
                 <Check size={18} className="text-accent" aria-hidden />
@@ -409,6 +447,16 @@ function ExerciseCard({
                   <X size={16} />
                 </button>
               </div>
+            )
+          }
+          if (i === nextIndex && cardio) {
+            return (
+              <CardioPendingRow
+                key={`pending-${item.exerciseId}-${i}`}
+                setNumber={i + 1}
+                init={cardioDraftFor(i)}
+                onLog={logCardio}
+              />
             )
           }
           if (i === nextIndex) {
@@ -434,7 +482,9 @@ function ExerciseCard({
             <div key={`ghost-${i}`} className="flex items-center gap-2 rounded-xl px-3 py-2 opacity-40">
               <span className="num w-6 text-sm font-semibold text-sub">{i + 1}</span>
               <span className="num flex-1 text-base text-sub">
-                {ghost.weightKg > 0 ? `${ghost.weightKg} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
+                {cardio
+                  ? fmtCardioSet(cardioDraftFor(i))
+                  : ghost.weightKg > 0 ? `${ghost.weightKg} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
               </span>
               {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label="AI suggestion" />}
             </div>
@@ -464,12 +514,16 @@ function NoteSheet({ open, onClose, exercise }: {
   const [text, setText] = useState(exercise.notes ?? '')
   const [step, setStep] = useState(exercise.progressionStepKg ?? 2.5)
   const [equip, setEquip] = useState<Equipment>(exercise.equipment ?? 'other')
+  const [logAs, setLogAs] = useState<'strength' | 'cardio'>(isCardioExercise(exercise) ? 'cardio' : 'strength')
 
   async function save() {
+    const byGroup = exercise.muscleGroup === 'cardio' ? 'cardio' : 'strength'
     await db.exercises.update(exercise.id!, {
       notes: text.trim() || undefined,
       progressionStepKg: step,
       equipment: equip,
+      // Only store an override; matching the muscle-group default clears it.
+      kind: logAs === byGroup ? undefined : logAs,
     })
     onClose()
   }
@@ -500,7 +554,22 @@ function NoteSheet({ open, onClose, exercise }: {
           </button>
         ))}
       </div>
-      <div className="mt-3 flex items-center justify-between">
+      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Log as</p>
+      <div className="flex gap-2" role="group" aria-label="Log as">
+        {(['strength', 'cardio'] as const).map(k => (
+          <button
+            key={k}
+            onClick={() => setLogAs(k)}
+            aria-pressed={logAs === k}
+            className={`min-h-[40px] flex-1 whitespace-nowrap rounded-full px-3 text-sm font-medium ${
+              logAs === k ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
+            }`}
+          >
+            {k === 'strength' ? 'Strength' : 'Cardio'}
+          </button>
+        ))}
+      </div>
+      <div className={`mt-3 items-center justify-between ${logAs === 'cardio' ? 'hidden' : 'flex'}`}>
         <NumberStepper
           label="Progression step"
           value={step}
@@ -626,6 +695,72 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
         <p className="mt-1 text-xs font-medium text-danger">
           Unusually heavy ({'>'}{SCORING.maxWeightBwMult}× bodyweight) — tap ✓ again to confirm.
         </p>
+      )}
+    </div>
+  )
+}
+
+
+/** The next cardio row: minutes, seconds and an optional distance. Logging needs some time. */
+function CardioPendingRow({ setNumber, init, onLog }: {
+  setNumber: number
+  init: CardioDraft
+  onLog: (d: CardioDraft) => void
+}) {
+  const [min, setMin] = useState(Math.floor(init.durationSec / 60))
+  const [sec, setSec] = useState(init.durationSec % 60)
+  const [km, setKm] = useState(init.distanceM / 1000)
+  const [expanded, setExpanded] = useState(false)
+
+  // Like PendingRow: late prefill never overwrites what the user already changed.
+  const touched = useRef(false)
+  const edit = <T,>(set: (v: T) => void) => (v: T) => { touched.current = true; set(v) }
+  useEffect(() => {
+    if (touched.current) return
+    setMin(Math.floor(init.durationSec / 60))
+    setSec(init.durationSec % 60)
+    setKm(init.distanceM / 1000)
+  }, [init.durationSec, init.distanceM])
+
+  const durationSec = min * 60 + sec
+  const distanceM = Math.round(km * 1000)
+
+  function submit() {
+    if (durationSec <= 0) {
+      setExpanded(true)
+      return
+    }
+    onLog({ durationSec, distanceM })
+  }
+
+  return (
+    <div className="rounded-xl border border-primary/40 bg-surface px-3 py-2">
+      <div className="flex items-center gap-2">
+        <span className="num w-6 text-sm font-semibold text-primary">{setNumber}</span>
+        <button
+          onClick={() => setExpanded(x => !x)}
+          className="num min-w-0 flex-1 truncate py-1 text-left font-display text-xl font-bold active:opacity-70"
+          aria-label="Adjust time and distance"
+        >
+          {fmtCardioSet({ durationSec, distanceM })}
+        </button>
+        <button
+          onClick={submit}
+          aria-label="Log cardio"
+          className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-primary text-bg active:opacity-90"
+        >
+          <Check size={26} strokeWidth={3} />
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-2 border-t border-edge/50 pt-2">
+          <div className="flex flex-wrap justify-around gap-2">
+            <NumberStepper label="min" value={min} onChange={edit(setMin)} step={1} min={0} max={600} compact />
+            <NumberStepper label="sec" value={sec} onChange={edit(setSec)} step={15} min={0} max={59} compact />
+            <NumberStepper label="km" value={km} onChange={edit(setKm)} step={0.1} min={0} max={300} compact />
+          </div>
+          {durationSec <= 0 && <p className="mt-1 text-xs font-medium text-danger">Set a time to log this.</p>}
+        </div>
       )}
     </div>
   )

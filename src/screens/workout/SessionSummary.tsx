@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { TrendingUp, Award, Medal, Target } from 'lucide-react'
+import { TrendingUp, Award, Medal, Target, Share2, Loader2 } from 'lucide-react'
 import { db } from '../../db/db'
 import { parseRouteId } from '../../lib/ids'
 import { rankForPoints, rankLabel } from '../../lib/ranks'
 import { checkAchievements, type AchievementDef } from '../../lib/achievements'
 import { evaluateQuests, QUEST_BONUS, type QuestDef } from '../../lib/quests'
-import RankBadge from '../../components/RankBadge'
+import RankBadge, { emblemUrl } from '../../components/RankBadge'
 import RankParticles from '../../components/RankParticles'
 import Confetti from '../../components/Confetti'
 import CoachCard from '../../components/CoachCard'
-import { fmtDuration, fmtDateTime } from '../../lib/dates'
+import { fmtDuration, fmtDateTime, localDateStr } from '../../lib/dates'
+import { sessionCardModel, renderSessionCard, shareImage, cardFileName, loadCardFonts } from '../../lib/shareCard'
+import { isCardioSet, cardioSessionTotals, cardioMinutes, fmtCardioSet } from '../../lib/cardio'
 import { haptic } from '../../native/haptics'
-import type { Id } from '../../types'
+import type { Id, ScoreEvent, Session, SetRow } from '../../types'
 
 export default function SessionSummary() {
   const { id } = useParams()
@@ -36,6 +38,13 @@ export default function SessionSummary() {
   const event = useLiveQuery(() => db.scoreEvents.where('sessionId').equals(sid).first(), [sid])
   const sets = useLiveQuery(() => db.sets.where('sessionId').equals(sid).toArray(), [sid]) ?? []
   const rankState = useLiveQuery(() => db.rankState.get(1))
+  // Cardio exercises earn no points, so they aren't in the score breakdown: list them separately.
+  const cardioIds = [...new Set(sets.filter(isCardioSet).map(s => String(s.exerciseId)))]
+  const cardioNames = useLiveQuery(async () => {
+    const ids = [...new Set(sets.filter(isCardioSet).map(s => s.exerciseId))]
+    const rows = await db.exercises.bulkGet(ids)
+    return new Map(ids.map((id, i) => [String(id), rows[i]?.name ?? 'Cardio']))
+  }, [cardioIds.join('|')])
 
   // Android: a success buzz for a PR or rank-up, judged on first load (never in report mode).
   // Delayed so it lands as its own buzz after Finish's, which would otherwise supersede it.
@@ -59,6 +68,8 @@ export default function SessionSummary() {
   const before = rankForPoints(Math.max(0, rankState.points - event.total))
   const rankedUp = after.index > before.index
   const volume = Math.round(sets.filter(s => !s.isWarmup).reduce((a, s) => a + s.weightKg * s.reps, 0))
+  const strengthSets = sets.filter(s => !isCardioSet(s)).length
+  const cardio = cardioSessionTotals(sets)
   const duration = session.endedAt ? session.endedAt - session.startedAt : 0
 
   const hasPr = event.breakdown.some(b => b.e1rmPr || b.volumePr)
@@ -110,10 +121,11 @@ export default function SessionSummary() {
         </div>
       )}
 
-      <div className="num mx-auto mt-5 flex max-w-xs justify-center gap-6 text-sm text-sub">
-        <span>{sets.length} sets</span>
-        <span>{volume.toLocaleString()} kg volume</span>
-        <span>{fmtDuration(duration)}</span>
+      <div className="num mx-auto mt-5 flex max-w-xs flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-sub">
+        {strengthSets > 0 && <span className="whitespace-nowrap">{strengthSets} set{strengthSets === 1 ? '' : 's'}</span>}
+        {strengthSets > 0 && <span className="whitespace-nowrap">{volume.toLocaleString()} kg volume</span>}
+        {cardio.sets > 0 && <span className="whitespace-nowrap">{cardioMinutes(cardio.durationSec)} min cardio</span>}
+        <span className="whitespace-nowrap">{fmtDuration(duration)}</span>
       </div>
 
       {(unlocked.length > 0 || questsDone.length > 0) && (
@@ -173,14 +185,83 @@ export default function SessionSummary() {
             <span className="num shrink-0 text-sm font-semibold text-sub">{b.setPoints.toFixed(1)}</span>
           </div>
         ))}
+
+        {cardioIds.map(id => (
+          <div key={id} className="flex items-center gap-2 rounded-xl bg-card px-4 py-2.5">
+            <span className="min-w-0 flex-1 truncate font-medium">{cardioNames?.get(id) ?? 'Cardio'}</span>
+            <span className="num shrink-0 whitespace-nowrap text-sm text-sub">
+              {fmtCardioSet(cardioSessionTotals(sets.filter(s => String(s.exerciseId) === id)))}
+            </span>
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs font-semibold text-sub">
+              no pts
+            </span>
+          </div>
+        ))}
       </div>
+
+      <ShareCardButton
+        session={session}
+        event={event}
+        sets={sets}
+        rankPoints={rankState.points}
+        streakWeeks={rankState.streakWeeks}
+        fresh={!isReport}
+      />
 
       <Link
         to={isReport ? '/workout/history' : '/workout'}
-        className="mt-6 block w-full rounded-2xl bg-primary py-4 text-center font-display text-xl font-bold text-bg active:opacity-90"
+        className="mt-3 block w-full rounded-2xl bg-primary py-4 text-center font-display text-xl font-bold text-bg active:opacity-90"
       >
         {isReport ? 'Back to history' : 'Done'}
       </Link>
+    </div>
+  )
+}
+
+/** Renders the workout as a 1080×1350 PNG and opens the share sheet (or downloads it). */
+function ShareCardButton({ session, event, sets, rankPoints, streakWeeks, fresh }: {
+  session: Session
+  event: ScoreEvent
+  sets: SetRow[]
+  rankPoints: number
+  streakWeeks: number
+  fresh: boolean
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Warm the card fonts so the first tap doesn't wait for them.
+  useEffect(() => {
+    void loadCardFonts()
+  }, [])
+
+  async function share() {
+    if (busy) return
+    haptic('tap')
+    setBusy(true)
+    setError(null)
+    try {
+      const model = sessionCardModel(session, event, sets, rankPoints, { fresh, streakWeeks })
+      const blob = await renderSessionCard(model, emblemUrl(model.tier))
+      await shareImage(blob, cardFileName(model, localDateStr(new Date(session.startedAt))))
+    } catch (e) {
+      setError((e as Error)?.message || 'Could not create the image.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      <button
+        onClick={share}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-edge bg-card py-3.5 font-display text-lg font-bold active:bg-muted/40 disabled:opacity-60"
+      >
+        {busy ? <Loader2 size={18} className="animate-spin" aria-hidden /> : <Share2 size={18} aria-hidden />}
+        {busy ? 'Creating image…' : 'Share card'}
+      </button>
+      {error && <p className="mt-1.5 text-sm text-danger">{error}</p>}
     </div>
   )
 }

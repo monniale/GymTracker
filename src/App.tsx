@@ -18,6 +18,7 @@ import DietDay from './screens/diet/DietDay'
 import ProgressScreen from './screens/progress/ProgressScreen'
 import WeightHistory from './screens/progress/WeightHistory'
 import CoachHistory from './screens/progress/CoachHistory'
+import WeekReview from './screens/progress/WeekReview'
 import RankScreen from './screens/rank/RankScreen'
 import SettingsScreen from './screens/settings/SettingsScreen'
 import { isNative } from './native/platform'
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="/progress" element={<ProgressScreen />} />
           <Route path="/progress/bodyweight" element={<WeightHistory />} />
           <Route path="/progress/coach" element={<CoachHistory />} />
+          <Route path="/progress/week" element={<WeekReview />} />
           <Route path="/rank" element={<RankScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/workout" replace />} />

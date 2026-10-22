@@ -6,32 +6,42 @@ import Sheet from '../../components/Sheet'
 import BarcodeScanSheet from '../../components/BarcodeScanSheet'
 import NumberStepper from '../../components/NumberStepper'
 import { logFood, recipePer100 } from '../../lib/nutrition'
+import { planFood } from '../../lib/mealPlan'
 import { searchFoods, upsertRemoteFood, remoteFoodKey, PROVIDERS } from '../../lib/foodProviders'
-import type { Food, MealType, RemoteFood, SavedMeal } from '../../types'
+import type { Food, Id, MealType, RemoteFood, SavedMeal } from '../../types'
 
 type Tab = 'recent' | 'search' | 'custom'
+
+/** Puts a food on the day: logs it (eaten) or plans it, depending on the sheet's target. */
+type AddFn = (foodId: Id, grams: number) => Promise<void>
 
 interface Props {
   open: boolean
   onClose: () => void
   date: string
   meal: MealType
+  /** 'plan' adds to the meal plan instead of the log. */
+  target?: 'log' | 'plan'
 }
 
-export default function AddFoodSheet({ open, onClose, date, meal }: Props) {
+export default function AddFoodSheet({ open, onClose, date, meal, target = 'log' }: Props) {
   const [tab, setTab] = useState<Tab>('recent')
   const [scanOpen, setScanOpen] = useState(false)
+  const planning = target === 'plan'
+  const add: AddFn = planning
+    ? async (foodId, grams) => void (await planFood(foodId, grams, date, meal))
+    : (foodId, grams) => logFood(foodId, grams, date, meal)
 
   async function onScannedProduct(p: RemoteFood) {
     const foodId = await upsertRemoteFood(p)
     const food = await db.foods.get(foodId)
-    await logFood(foodId, food ? defaultGrams(food) : 100, date, meal)
+    await add(foodId, food ? defaultGrams(food) : 100)
     setScanOpen(false)
     onClose()
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Add food">
+    <Sheet open={open} onClose={onClose} title={planning ? 'Plan food' : 'Add food'}>
       <div className="mb-3 flex items-center gap-2">
         <div className="flex flex-1 rounded-xl bg-card p-1">
           {(['recent', 'search', 'custom'] as Tab[]).map(t => (
@@ -54,9 +64,9 @@ export default function AddFoodSheet({ open, onClose, date, meal }: Props) {
           <ScanBarcode size={22} />
         </button>
       </div>
-      {tab === 'recent' && <RecentTab date={date} meal={meal} onDone={onClose} />}
-      {tab === 'search' && <SearchTab date={date} meal={meal} onDone={onClose} />}
-      {tab === 'custom' && <CustomTab date={date} meal={meal} onDone={onClose} />}
+      {tab === 'recent' && <RecentTab add={add} onDone={onClose} />}
+      {tab === 'search' && <SearchTab add={add} onDone={onClose} />}
+      {tab === 'custom' && <CustomTab add={add} planning={planning} onDone={onClose} />}
 
       {scanOpen && (
         <BarcodeScanSheet open onClose={() => setScanOpen(false)} onProduct={onScannedProduct} />
@@ -71,7 +81,7 @@ function defaultGrams(f: Food): number {
 
 /* ---------- Recent ---------- */
 
-function RecentTab({ date, meal, onDone }: { date: string; meal: MealType; onDone: () => void }) {
+function RecentTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
   const savedMeals = useLiveQuery(() => db.savedMeals.orderBy('lastUsedAt').reverse().toArray()) ?? []
   const recents = useLiveQuery(
     () => db.foods.orderBy('lastUsedAt').reverse().limit(30).toArray(),
@@ -81,7 +91,7 @@ function RecentTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
 
   async function addSavedMeal(m: SavedMeal) {
     for (const item of m.items) {
-      if (foodsById.has(item.foodId)) await logFood(item.foodId, item.grams, date, meal)
+      if (foodsById.has(item.foodId)) await add(item.foodId, item.grams)
     }
     await db.savedMeals.update(m.id!, { lastUsedAt: Date.now() })
     onDone()
@@ -92,7 +102,7 @@ function RecentTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
   }
 
   async function addFood(f: Food, grams: number) {
-    await logFood(f.id!, grams, date, meal)
+    await add(f.id!, grams)
     onDone()
   }
 
@@ -189,7 +199,7 @@ function FoodRow({ food, onAdd }: { food: Food; onAdd: (grams: number) => void }
 const providerLabel = (source: RemoteFood['source']): string =>
   PROVIDERS.find(p => p.id === source)?.label ?? source
 
-function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDone: () => void }) {
+function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
   const [q, setQ] = useState('')
   const [remote, setRemote] = useState<RemoteFood[]>([])
   const [loading, setLoading] = useState(false)
@@ -237,7 +247,7 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
   }, [q])
 
   async function addLocal(f: Food) {
-    await logFood(f.id!, defaultGrams(f), date, meal)
+    await add(f.id!, defaultGrams(f))
     onDone()
   }
 
@@ -245,7 +255,7 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
     // Upsert by generalized key: an existing row (possibly user-edited) always wins.
     const foodId = await upsertRemoteFood(p)
     const food = await db.foods.get(foodId)
-    await logFood(foodId, food ? defaultGrams(food) : 100, date, meal)
+    await add(foodId, food ? defaultGrams(food) : 100)
     onDone()
   }
 
@@ -327,7 +337,7 @@ function SearchTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
 
 /* ---------- Custom ---------- */
 
-function CustomTab({ date, meal, onDone }: { date: string; meal: MealType; onDone: () => void }) {
+function CustomTab({ add, planning, onDone }: { add: AddFn; planning: boolean; onDone: () => void }) {
   const [recipeMode, setRecipeMode] = useState(false)
   const [name, setName] = useState('')
   const [kcal, setKcal] = useState('')
@@ -337,7 +347,7 @@ function CustomTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
   const [serving, setServing] = useState('')
 
   if (recipeMode) {
-    return <RecipeBuilder date={date} meal={meal} onDone={onDone} onBack={() => setRecipeMode(false)} />
+    return <RecipeBuilder add={add} planning={planning} onDone={onDone} onBack={() => setRecipeMode(false)} />
   }
 
   const valid = name.trim().length > 0 && parseFloat(kcal) >= 0
@@ -358,7 +368,7 @@ function CustomTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
       lastUsedAt: Date.now(),
       useCount: 0,
     })
-    await logFood(foodId, servingG ?? 100, date, meal)
+    await add(foodId, servingG ?? 100)
     onDone()
   }
 
@@ -377,7 +387,7 @@ function CustomTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
         disabled={!valid}
         className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
-        Save & log
+        {planning ? 'Save & plan' : 'Save & log'}
       </button>
       <button
         onClick={() => setRecipeMode(true)}
@@ -393,9 +403,9 @@ function CustomTab({ date, meal, onDone }: { date: string; meal: MealType; onDon
  * Recipe → food converter: pick raw ingredients + total cooked weight, and the
  * result becomes an ordinary per-100g food (zero extra taps at log time).
  */
-function RecipeBuilder({ date, meal, onDone, onBack }: {
-  date: string
-  meal: MealType
+function RecipeBuilder({ add, planning, onDone, onBack }: {
+  add: AddFn
+  planning: boolean
   onDone: () => void
   onBack: () => void
 }) {
@@ -428,7 +438,7 @@ function RecipeBuilder({ date, meal, onDone, onBack }: {
       lastUsedAt: Date.now(),
       useCount: 0,
     })
-    await logFood(foodId, 100, date, meal)
+    await add(foodId, 100)
     onDone()
   }
 
@@ -503,7 +513,7 @@ function RecipeBuilder({ date, meal, onDone, onBack }: {
         disabled={!valid}
         className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
-        Save recipe & log 100 g
+        {planning ? 'Save recipe & plan 100 g' : 'Save recipe & log 100 g'}
       </button>
     </div>
   )

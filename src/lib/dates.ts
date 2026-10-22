@@ -78,6 +78,12 @@ export function fmtDate(s: string): string {
   return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`
 }
 
+/** "Thu 15 Oct 2026": an absolute date (never "Today"), for shared images. */
+export function fmtLongDate(s: string): string {
+  const d = parseLocalDate(s)
+  return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+}
+
 export function fmtDateTime(ms: number): string {
   const d = new Date(ms)
   return `${fmtDate(localDateStr(d))}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
