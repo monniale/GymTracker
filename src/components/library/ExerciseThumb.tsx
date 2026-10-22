@@ -3,6 +3,8 @@ import { Cable, CircleDot, Cog, Dumbbell, HeartPulse, PersonStanding } from 'luc
 import type { LucideIcon } from 'lucide-react'
 import { useUiStore } from '../../lib/uiStore'
 import { mediaUrls, type ExerciseLibrary, type LibraryExercise } from '../../lib/exerciseLibrary'
+import { hasInvolvement, involvement } from '../../lib/muscleMap'
+import { InvolvementFigure } from './BodyFigure'
 import type { Equipment, MuscleGroup } from '../../types'
 
 const EQUIPMENT_ICON: Record<Equipment, LucideIcon> = {
@@ -23,7 +25,8 @@ interface Props {
 
 /**
  * A row's 48 px thumbnail: the dataset's image when "Exercise animations" is on (Settings) and the
- * row has a library entry, else an equipment icon. A failed image falls back to the icon.
+ * row has a library entry, else a small front/back figure with the muscles it works, else an
+ * equipment icon (cardio, "other"). A failed image falls back to the figure.
  */
 export default function ExerciseThumb({ library, lib, equipment, group }: Props) {
   const showMedia = useUiStore(s => s.showExerciseMedia)
@@ -39,6 +42,14 @@ export default function ExerciseThumb({ library, lib, equipment, group }: Props)
         onError={() => setBroken(true)}
         className="h-12 w-12 shrink-0 rounded-lg bg-white object-cover"
       />
+    )
+  }
+  const inv = involvement(lib, group)
+  if (hasInvolvement(inv)) {
+    return (
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/30 p-0.5" aria-hidden>
+        <InvolvementFigure inv={inv} mini className="h-full w-full" />
+      </span>
     )
   }
   const Icon = group === 'cardio' ? HeartPulse : EQUIPMENT_ICON[equipment ?? 'other']

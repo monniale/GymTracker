@@ -11,6 +11,9 @@ import { isCardioExercise, isCardioSet, paceSecPerKm } from '../../lib/cardio'
 import { useLocalToday } from '../../lib/hooks'
 import { trainingHeatmap } from '../../lib/heatmap'
 import Heatmap from '../../components/Heatmap'
+import MuscleHeatmap from '../../components/MuscleHeatmap'
+import { computeMuscleHeat, gatherMuscleHeatSets, MUSCLE_HEAT_WEEKS } from '../../lib/muscleHeat'
+import { useExerciseLibrary } from '../../lib/exerciseLibrary'
 import { LineChart, BarChart, BandBars, Sparkline, type ChartPoint } from '../../components/Charts'
 import { standardFor, levelFor, levelLabel } from '../../lib/standards'
 import { gatherWeeklyMuscleVolume, HYPERTROPHY_SET_BAND } from '../../lib/muscleVolume'
@@ -68,6 +71,7 @@ export default function ProgressScreen() {
       <CoachHistoryTile />
       <WeekReviewTile />
       <TrainingHeatmapTile />
+      <MuscleHeatTile exMap={exMap} />
 
       <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
         <button
@@ -382,6 +386,24 @@ function WeekReviewTile() {
 const HEATMAP_WEEKS = 26
 
 /** Consistency grid of the last 26 weeks (finished workouts per day). */
+function MuscleHeatTile({ exMap }: { exMap: Map<Id, Exercise> }) {
+  const today = useLocalToday()
+  const { library } = useExerciseLibrary()
+  const sets = useLiveQuery(() => gatherMuscleHeatSets(today), [today])
+  const weeks = useMemo(
+    () => (sets ? computeMuscleHeat(sets, exMap, library, today) : null),
+    [sets, exMap, library, today],
+  )
+  if (!weeks || weeks.every(w => w.sets === 0)) return null
+  return (
+    <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
+      <h2 className="font-display text-xl font-semibold">{t('progress.muscleHeat.title')}</h2>
+      <p className="mb-2 text-xs text-sub">{t('progress.muscleHeat.caption', { weeks: MUSCLE_HEAT_WEEKS })}</p>
+      <MuscleHeatmap weeks={weeks} />
+    </section>
+  )
+}
+
 function TrainingHeatmapTile() {
   const today = useLocalToday()
   const sessions = useLiveQuery(() => db.sessions.orderBy('startedAt').toArray())

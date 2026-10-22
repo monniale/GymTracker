@@ -49,6 +49,17 @@ const progress: Dict['progress'] = {
     daysThisYear: { one: '{n} giorno quest’anno', other: '{n} giorni quest’anno' },
     longestRun: { one: 'record {n} settimana di fila', other: 'record {n} settimane di fila' },
   },
+  muscleHeat: {
+    title: 'Muscoli allenati',
+    caption: 'Serie allenanti per muscolo · ultime {weeks} settimane',
+    thisWeek: 'Questa settimana',
+    sets: { one: '{n} serie', other: '{n} serie' },
+    weekTotal: { one: '{n} serie allenante questa settimana', other: '{n} serie allenanti questa settimana' },
+    none: 'Nessuna serie allenante questa settimana.',
+    less: 'Meno',
+    more: 'Più',
+    note: 'Muscolo principale = 1 serie, secondari = ½. Più intenso = {n}+ serie.',
+  },
   prWall: {
     title: 'Bacheca PR',
   },

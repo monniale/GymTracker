@@ -49,6 +49,17 @@ export default {
     daysThisYear: { one: '{n} day this year', other: '{n} days this year' },
     longestRun: { one: 'longest run {n} week', other: 'longest run {n} weeks' },
   },
+  muscleHeat: {
+    title: 'Muscles trained',
+    caption: 'Hard sets per muscle · last {weeks} weeks',
+    thisWeek: 'This week',
+    sets: { one: '{n} set', other: '{n} sets' },
+    weekTotal: { one: '{n} hard set this week', other: '{n} hard sets this week' },
+    none: 'No hard sets this week.',
+    less: 'Less',
+    more: 'More',
+    note: 'Target muscle = 1 set, secondary muscles = ½. Brightest = {n}+ sets.',
+  },
   prWall: {
     title: 'PR wall',
   },

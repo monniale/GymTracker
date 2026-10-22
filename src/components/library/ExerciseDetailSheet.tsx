@@ -8,6 +8,8 @@ import {
   libEquipment, libMuscleGroup, mediaUrls, secondaryLabel, stepsFor, targetLabel,
   type ExerciseLibrary, type LibraryExercise,
 } from '../../lib/exerciseLibrary'
+import { hasInvolvement, involvement } from '../../lib/muscleMap'
+import { InvolvementFigure } from './BodyFigure'
 import { useT } from '../../i18n'
 import type { Exercise } from '../../types'
 
@@ -31,11 +33,30 @@ export default function ExerciseDetailSheet({ open, onClose, library, lib, exerc
   const group = exercise?.muscleGroup ?? (lib ? libMuscleGroup(lib) : 'other')
   const equipment = exercise?.equipment ?? (lib ? libEquipment(lib) : undefined)
   const steps = lib ? stepsFor(lib, lang) : []
+  const inv = involvement(lib, group)
   const secondary = lib ? [...new Set(lib.secondary.map(secondaryLabel))].filter(s => s !== targetLabel(lib.target)) : []
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
       {showMedia && library && lib && <Animation key={lib.id} src={mediaUrls(library, lib).gif} credit={library.attribution} />}
+
+      {hasInvolvement(inv) && (
+        <figure className="mb-4 rounded-2xl bg-card p-3">
+          <InvolvementFigure inv={inv} className="mx-auto block h-auto w-full max-w-[280px]" />
+          <figcaption className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-sub">
+            {inv.primary.length > 0 && (
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
+                <span className="h-2.5 w-2.5 rounded-full bg-primary" aria-hidden /> {t('library.detail.target')}
+              </span>
+            )}
+            {inv.secondary.length > 0 && (
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
+                <span className="h-2.5 w-2.5 rounded-full bg-primary/40" aria-hidden /> {t('library.detail.secondary')}
+              </span>
+            )}
+          </figcaption>
+        </figure>
+      )}
 
       <div className="mb-4 flex flex-wrap gap-1.5">
         {lib && (

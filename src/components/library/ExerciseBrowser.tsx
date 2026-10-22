@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, Info, Plus, Search, PersonStanding, X } from 'lucide-react'
 import { db } from '../../db/db'
@@ -11,6 +12,7 @@ import {
   targetCounts, targetGroup, targetLabel, useExerciseLibrary,
   type ExerciseLibrary, type LibraryExercise, type LibraryFilter,
 } from '../../lib/exerciseLibrary'
+import ChipScroller from '../ChipScroller'
 import ExerciseThumb from './ExerciseThumb'
 import ExerciseDetailSheet from './ExerciseDetailSheet'
 import BodyMap, { type BodyTarget } from './BodyMap'
@@ -161,7 +163,7 @@ export default function ExerciseBrowser({ mode, onPick, renderCreate, onQueryCha
         </div>
       )}
 
-      <div className="mb-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      <ChipScroller className="mb-2">
         {target && (
           <button
             onClick={() => setTarget(null)}
@@ -175,15 +177,15 @@ export default function ExerciseBrowser({ mode, onPick, renderCreate, onQueryCha
         {MUSCLE_GROUPS.map(m => (
           <Chip key={m} active={group === m} onClick={() => setGroup(group === m ? 'all' : m)}>{muscleGroupLabel(m)}</Chip>
         ))}
-      </div>
-      <div className="mb-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      </ChipScroller>
+      <ChipScroller className="mb-3">
         <Chip active={equipment === 'all'} onClick={() => setEquipment('all')}>{t('workout.picker.all')}</Chip>
         {EQUIPMENTS.map(eq => (
           <Chip key={eq} active={equipment === eq} onClick={() => setEquipment(equipment === eq ? 'all' : eq)}>
             {EQUIPMENT_LABEL[eq]}
           </Chip>
         ))}
-      </div>
+      </ChipScroller>
 
       {error && (
         <p role="alert" className="mb-3 rounded-xl bg-danger/15 px-3 py-2 text-sm font-medium text-danger">{error}</p>
@@ -348,11 +350,30 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 /** Browse mode: append the exercise to one of the templates (adding it from the library first). */
 function TemplateAdder({ detail }: { detail: Detail }) {
   const { t } = useT()
+  const navigate = useNavigate()
   const templates = useLiveQuery(() => db.templates.orderBy('position').toArray())
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   const [failed, setFailed] = useState(false)
+
+  /** No template yet: make one holding this exercise and open it in the editor (to rename it). */
+  async function createFirst() {
+    setFailed(false)
+    try {
+      const e = detail.exercise ?? (detail.lib ? await addLibraryExercise(detail.lib) : undefined)
+      if (!e) return
+      const id = await db.templates.add({
+        name: t('workout.home.newTemplateName'),
+        position: 0,
+        items: [defaultTemplateItem(e)],
+        updatedAt: Date.now(),
+      })
+      navigate(`/workout/template/${id}`)
+    } catch {
+      setFailed(true)
+    }
+  }
 
   async function add(tpl: WorkoutTemplate) {
     setFailed(false)
@@ -401,9 +422,17 @@ function TemplateAdder({ detail }: { detail: Detail }) {
                 </button>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-sub">{t('library.detail.noTemplates')}</p>
-          )}
+          ) : templates ? (
+            <>
+              <p className="mb-2 text-sm text-sub">{t('library.detail.noTemplates')}</p>
+              <button
+                onClick={() => void createFirst()}
+                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-primary/15 px-3 font-semibold text-primary active:bg-primary/25"
+              >
+                <Plus size={18} className="shrink-0" /> {t('library.detail.createFirstTemplate')}
+              </button>
+            </>
+          ) : null}
         </div>
       )}
     </div>
