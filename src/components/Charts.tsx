@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 
 /**
  * Hand-rolled SVG charts (datasets < 200 points). Marks follow the dataviz
@@ -66,7 +67,7 @@ export function LineChart({ points, color, height = 160, yFmt = (v: number) => S
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${height}`} className="w-full" role="img" aria-label="Trend chart" onClick={pick} style={{ cursor: 'pointer' }}>
+    <svg viewBox={`0 0 ${W} ${height}`} className="w-full" role="img" aria-label={t('components.charts.trend')} onClick={pick} style={{ cursor: 'pointer' }}>
       {[0.25, 0.5, 0.75].map(f => {
         const y = P.t + f * (height - P.t - P.b)
         return <line key={f} x1={P.l} x2={W - P.r} y1={y} y2={y} stroke={GRID} strokeWidth="1" />
@@ -146,7 +147,7 @@ export function BarChart({ points, color, height = 120, yFmt = (v: number) => St
   const selected = sel !== null ? points[sel] : null
 
   return (
-    <svg viewBox={`0 0 ${W} ${height}`} className="w-full" role="img" aria-label="Bar chart">
+    <svg viewBox={`0 0 ${W} ${height}`} className="w-full" role="img" aria-label={t('components.charts.bar')}>
       {points.map((p, i) => {
         const x = P.l + (i + 0.5) * ((W - P.l - P.r) / points.length) - bw / 2
         const y = py(p.y)
@@ -198,7 +199,7 @@ export function BandBars({ rows, band, color, max: maxProp }: {
               <div
                 className="absolute inset-y-0 w-0.5 bg-ink/70"
                 style={{ left: `${(r.marker / max) * 100}%` }}
-                title="8-week average"
+                title={t('components.charts.average')}
               />
             )}
           </div>

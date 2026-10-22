@@ -6,6 +6,7 @@ import { addDays, fmtDate, mondayOf } from '../../lib/dates'
 import { useLocalToday } from '../../lib/hooks'
 import { gatherWeekBriefing, lastFinishedMonday, weekRangeLabel, weekStats } from '../../lib/weekBriefing'
 import WeekCoachCard from '../../components/WeekCoachCard'
+import { t, tp, fmtNum } from '../../i18n'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -27,37 +28,37 @@ export default function WeekReview() {
   // Right after ‹/› the query still holds the previous week: never show (or auto-review) that one.
   const briefing = loaded?.monday === monday ? loaded : undefined
   const stats = briefing ? weekStats(briefing) : null
-  const tag = monday === thisMonday ? 'This week · in progress' : monday === lastDone ? 'Last week' : null
+  const tag = monday === thisMonday ? t('progress.week.thisWeek') : monday === lastDone ? t('progress.week.lastWeek') : null
 
   return (
     <div className="pt-4">
       <div className="mb-4 flex items-center gap-2">
         <Link
           to="/progress"
-          aria-label="Back"
+          aria-label={t('common.back')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={24} />
         </Link>
-        <h1 className="min-w-0 truncate font-display text-3xl font-bold">Week review</h1>
+        <h1 className="min-w-0 truncate font-display text-3xl font-bold">{t('progress.week.title')}</h1>
       </div>
 
       <div className="mb-4 flex items-center justify-between rounded-2xl border border-edge bg-card p-2">
         <button
           onClick={() => setMonday(m => addDays(m, -7))}
-          aria-label="Previous week"
+          aria-label={t('progress.week.prevAria')}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={22} />
         </button>
         <div className="min-w-0 text-center">
           <p className="num truncate font-display text-xl font-bold">{weekRangeLabel(monday)}</p>
-          <p className="truncate text-xs text-sub">{tag ?? 'Monday to Sunday'}</p>
+          <p className="truncate text-xs text-sub">{tag ?? t('progress.week.monToSun')}</p>
         </div>
         <button
           onClick={() => setMonday(m => addDays(m, 7))}
           disabled={monday >= thisMonday}
-          aria-label="Next week"
+          aria-label={t('progress.week.nextAria')}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sub active:bg-muted/40 disabled:opacity-30"
         >
           <ChevronRight size={22} />
@@ -67,15 +68,15 @@ export default function WeekReview() {
       {briefing && stats && (
         <>
           <div className="grid grid-cols-3 gap-2">
-            <Stat label="Sessions" value={`${stats.sessions}`} sub={`/ ${briefing.weeklyTarget}`} good={stats.sessions >= briefing.weeklyTarget} />
-            <Stat label="Points" value={`+${stats.points}`} />
-            <Stat label="PRs" value={`${stats.prs}`} good={stats.prs > 0} />
-            <Stat label="Protein" value={stats.proteinPerKg !== null ? `${stats.proteinPerKg}` : '—'} sub={stats.proteinPerKg !== null ? 'g/kg' : undefined} />
-            <Stat label="Food days" value={`${stats.loggedDays}`} sub="/ 7" />
+            <Stat label={t('progress.week.sessions')} value={`${stats.sessions}`} sub={`/ ${briefing.weeklyTarget}`} good={stats.sessions >= briefing.weeklyTarget} />
+            <Stat label={t('progress.week.points')} value={`+${stats.points}`} />
+            <Stat label={t('progress.week.prs')} value={`${stats.prs}`} good={stats.prs > 0} />
+            <Stat label={t('progress.week.protein')} value={stats.proteinPerKg !== null ? fmtNum(stats.proteinPerKg) : '—'} sub={stats.proteinPerKg !== null ? 'g/kg' : undefined} />
+            <Stat label={t('progress.week.foodDays')} value={`${stats.loggedDays}`} sub="/ 7" />
             <Stat
-              label="Bodyweight"
-              value={stats.bwRate !== null ? `${stats.bwRate > 0 ? '+' : ''}${stats.bwRate}` : '—'}
-              sub={stats.bwRate !== null ? 'kg/wk' : undefined}
+              label={t('progress.week.bodyweight')}
+              value={stats.bwRate !== null ? `${stats.bwRate > 0 ? '+' : ''}${fmtNum(stats.bwRate)}` : '—'}
+              sub={stats.bwRate !== null ? t('progress.week.perWeek') : undefined}
             />
           </div>
 
@@ -83,7 +84,7 @@ export default function WeekReview() {
 
           {briefing.sessions.length > 0 && (
             <section className="mt-4 rounded-2xl border border-edge bg-card p-2">
-              <h2 className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-sub">Workouts</h2>
+              <h2 className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.week.workouts')}</h2>
               {briefing.sessions.map(s => (
                 <Link
                   key={String(s.id)}
@@ -93,7 +94,7 @@ export default function WeekReview() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{s.name}</p>
                     <p className="num truncate text-xs text-sub">
-                      {fmtDate(s.date)} · {s.workingSets} sets · {s.volumeKg.toLocaleString('en-US')} kg
+                      {fmtDate(s.date)} · {tp('units.sets', s.workingSets)} · {fmtNum(s.volumeKg)} kg
                     </p>
                   </div>
                   <span className="num shrink-0 text-sm font-semibold text-primary">+{s.points}</span>
@@ -105,13 +106,13 @@ export default function WeekReview() {
 
           {briefing.quests.length > 0 && (
             <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-sub">Weekly quests</h2>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.week.quests')}</h2>
               <ul className="space-y-1.5">
                 {briefing.quests.map(q => (
                   <li key={q.label} className="flex items-center gap-2 text-sm">
                     {q.done
-                      ? <Check size={16} className="shrink-0 text-accent" aria-label="Done" />
-                      : <Target size={16} className="shrink-0 text-sub" aria-label="Not done" />}
+                      ? <Check size={16} className="shrink-0 text-accent" aria-label={t('common.done')} />
+                      : <Target size={16} className="shrink-0 text-sub" aria-label={t('progress.week.notDone')} />}
                     <span className={`min-w-0 flex-1 ${q.done ? '' : 'text-sub'}`}>{q.label}</span>
                   </li>
                 ))}

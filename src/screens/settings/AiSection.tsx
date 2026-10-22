@@ -2,13 +2,18 @@ import { useState } from 'react'
 import { Sparkles, Loader2, ExternalLink, ShieldAlert } from 'lucide-react'
 import { useAiStore } from '../../lib/aiStore'
 import { listModels, pickDefaultModel, fallbackModels, GeminiError } from '../../lib/gemini'
+import { t } from '../../i18n'
+
+/** Not translated: Google's product name and the key prefix. */
+const AI_STUDIO = 'Google AI Studio'
+const KEY_PLACEHOLDER = 'AIza…'
 
 export default function AiSection() {
   const connected = !!useAiStore(s => s.apiKey)
   return (
     <section className="mb-4 rounded-2xl border border-edge bg-card p-4">
       <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sub">
-        <Sparkles size={14} className={connected ? 'text-accent' : ''} /> AI Coach
+        <Sparkles size={14} className={connected ? 'text-accent' : ''} /> {t('settings.ai.title')}
       </h2>
       {connected ? <ConnectedView /> : <ConnectView />}
     </section>
@@ -22,7 +27,7 @@ function ModelSelect() {
   const options = models.length ? models : model ? [{ id: model, label: model }] : []
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Model</span>
+      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('settings.ai.model')}</span>
       <select
         value={model}
         onChange={e => setModel(e.target.value)}
@@ -47,14 +52,14 @@ function FallbackNote() {
   const label = (id: string) => models.find(m => m.id === id)?.label ?? id
   return (
     <p className="text-xs leading-relaxed text-sub">
-      If this model fails or runs out of quota, the request is retried on{' '}
+      {t('settings.ai.fallbackBefore')}{' '}
       {chain.map((id, i) => (
         <span key={id}>
-          {i > 0 && (i === chain.length - 1 ? ' and then ' : ', then ')}
+          {i > 0 && (i === chain.length - 1 ? t('settings.ai.fallbackAndThen') : t('settings.ai.fallbackThen'))}
           <span className="font-semibold text-ink">{label(id)}</span>
         </span>
       ))}{' '}
-      (Flash models, free on the Gemini free tier; Pro is never used as a fallback).
+      {t('settings.ai.fallbackAfter')}
     </p>
   )
 }
@@ -63,11 +68,7 @@ function PrivacyNote() {
   return (
     <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-muted/20 p-2.5 text-xs leading-relaxed text-sub">
       <ShieldAlert size={14} className="mt-0.5 shrink-0" />
-      <span>
-        Your workout stats (exercises, weights, reps, bodyweight) are sent to Google to write the note.
-        On the free tier Google may use this data to improve their models. The key stays on this device
-        only and is never synced.
-      </span>
+      <span>{t('settings.ai.privacy')}</span>
     </p>
   )
 }
@@ -75,22 +76,22 @@ function PrivacyNote() {
 function ConnectedView() {
   const clear = useAiStore(s => s.clear)
   function disconnect() {
-    if (!window.confirm('Remove the Gemini key from this device? Stored coach verdicts stay.')) return
+    if (!window.confirm(t('settings.ai.removeConfirm'))) return
     clear()
   }
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-sm font-semibold text-accent">Connected</p>
+        <p className="text-sm font-semibold text-accent">{t('settings.ai.connected')}</p>
         <p className="mt-0.5 text-xs text-sub">
-          A coaching note is generated when you finish a workout and kept in Progress › Coach history.
+          {t('settings.ai.connectedHint')}
         </p>
       </div>
       <ModelSelect />
       <FallbackNote />
       <PrivacyNote />
       <button onClick={disconnect} className="py-2 text-xs font-medium text-danger">
-        Remove key
+        {t('settings.ai.removeKey')}
       </button>
     </div>
   )
@@ -108,14 +109,14 @@ function ConnectView() {
     try {
       const models = await listModels(key.trim())
       if (models.length === 0) {
-        setError('This key has no usable text models. Make sure it was created for the Gemini API.')
+        setError(t('settings.ai.noModels'))
         return
       }
       connect(key.trim(), models, pickDefaultModel(models))
     } catch (e) {
       setError(
         e instanceof GeminiError && (e.kind === 'auth' || e.kind === 'bad-key')
-          ? 'That key was rejected. Check you copied it correctly.'
+          ? t('settings.ai.rejected')
           : (e as Error).message,
       )
     } finally {
@@ -127,28 +128,28 @@ function ConnectView() {
     <div className="space-y-3">
       <ol className="list-inside list-decimal space-y-1 text-xs leading-relaxed text-sub">
         <li>
-          Open{' '}
+          {t('settings.ai.step1Before')}{' '}
           <a
             href="https://aistudio.google.com/apikey"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-0.5 text-primary"
           >
-            Google AI Studio <ExternalLink size={11} />
+            {AI_STUDIO} <ExternalLink size={11} />
           </a>{' '}
-          and sign in with a Google account (free, no card).
+          {t('settings.ai.step1After')}
         </li>
-        <li>Click “Create API key”, then copy it.</li>
-        <li>Paste it below — we’ll detect which models your key can use.</li>
+        <li>{t('settings.ai.step2')}</li>
+        <li>{t('settings.ai.step3')}</li>
       </ol>
 
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">Gemini API key</span>
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('settings.ai.keyLabel')}</span>
         <input
           type="password"
           value={key}
           onChange={e => setKeyInput(e.target.value)}
-          placeholder="AIza…"
+          placeholder={KEY_PLACEHOLDER}
           className="num min-h-[48px] w-full rounded-xl bg-surface px-3 text-base"
           autoCapitalize="none"
           autoCorrect="off"
@@ -160,7 +161,7 @@ function ConnectView() {
         disabled={busy || key.trim().length < 20}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
-        {busy && <Loader2 size={18} className="animate-spin" />} Connect
+        {busy && <Loader2 size={18} className="animate-spin" />} {t('settings.ai.connect')}
       </button>
 
       {error && <p className="text-xs text-danger">{error}</p>}

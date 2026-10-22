@@ -5,6 +5,7 @@ import { isHHMM } from '../../lib/notifyPrefs'
 import type { HHMM } from '../../lib/notifyPrefs'
 import { haptic } from '../haptics'
 import { openDeviceSettings } from '../deviceSettings'
+import { t } from '../../i18n'
 
 /**
  * Small controls shared by the native-only Settings UI. Layout follows ROUTEMAP invariant 13
@@ -249,7 +250,7 @@ export function IssueRow({
 }
 
 /** "Muted in Android · Open" chip → that channel's system settings page. */
-export function MutedChip({ channelId, label = 'Muted in Android' }: { channelId: string; label?: string }) {
+export function MutedChip({ channelId, label }: { channelId: string; label?: string }) {
   const [busy, run] = useAction()
   return (
     <button
@@ -258,7 +259,7 @@ export function MutedChip({ channelId, label = 'Muted in Android' }: { channelId
       onClick={() => run(() => openDeviceSettings('channel', channelId))}
       className="flex min-h-[32px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-danger/15 px-2.5 text-xs font-semibold text-danger active:bg-danger/25 disabled:opacity-50"
     >
-      <BellOff size={12} /> {label} · Open
+      <BellOff size={12} /> {label ?? t('native.controls.mutedInAndroid')} · {t('native.actions.open')}
     </button>
   )
 }

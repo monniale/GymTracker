@@ -1,6 +1,7 @@
 import { db, withSyncTrackingSuspended, setSyncDirty, emitDataReplaced } from './db'
 import { localDateStr } from '../lib/dates'
 import { isNative } from '../native/platform'
+import { t } from '../i18n'
 
 export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
@@ -106,10 +107,10 @@ export async function importBackup(fileText: string): Promise<void> {
   try {
     parsed = JSON.parse(fileText)
   } catch {
-    throw new Error('Not a valid JSON file.')
+    throw new Error(t('data.backup.invalidJson'))
   }
   if (parsed.app !== 'gymtracker' || !parsed.tables) {
-    throw new Error('Not a GymTracker backup file.')
+    throw new Error(t('data.backup.notBackup'))
   }
   await applyTables(parsed.tables)
   // A manual restore is a local change relative to any sync remote.

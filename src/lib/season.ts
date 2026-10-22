@@ -2,7 +2,7 @@ import { db } from '../db/db'
 import { localDateStr, daysBetween, mondayOf, addDays, parseLocalDate } from './dates'
 import {
   SEASON_DAYS, DECAY_GRACE_DAYS, DECAY_PER_DAY, DECAY_MAX, SEASON_CARRYOVER,
-  rankForPoints, rankLabel,
+  rankForPoints, rankLabelEn,
 } from './ranks'
 import type { Season } from '../types'
 
@@ -34,7 +34,7 @@ export async function archiveCurrentSeason(endDate: string): Promise<void> {
     startDate: state.seasonStart,
     endDate,
     finalPoints: Math.round(state.points),
-    finalRank: rankLabel(rankForPoints(state.points).tier),
+    finalRank: rankLabelEn(rankForPoints(state.points).tier),
     recap,
   })
   const today = localDateStr()

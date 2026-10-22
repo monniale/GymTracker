@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArchiveRestore, ChevronRight, Cloud, Upload } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useNotifyStore } from '../../lib/notifyStore'
+import { t } from '../../i18n'
 
 /**
  * First-run card on the Workout tab (Android, amendment A8). WorkoutHome renders it while the
@@ -17,34 +18,30 @@ export default function RestoreCard() {
   return (
     <section className="mb-4 rounded-2xl border border-primary/40 bg-card p-4">
       <h2 className="flex items-center gap-2 font-display text-xl font-bold">
-        <ArchiveRestore size={20} className="shrink-0 text-primary" /> Restore your data
+        <ArchiveRestore size={20} className="shrink-0 text-primary" /> {t('native.restore.title')}
       </h2>
-      <p className="mt-1 text-sm text-sub">
-        Used GymTracker before? Bring your history over before you log anything here.
-      </p>
+      <p className="mt-1 text-sm text-sub">{t('native.restore.intro')}</p>
       <div className="mt-3 space-y-2">
         <Choice
           icon={Cloud}
-          title="Connect GitHub Sync"
-          where="Settings"
+          title={t('native.restore.sync')}
+          where={t('native.restore.syncWhere')}
           onClick={() => navigate('/settings', { state: { focus: 'sync' } })}
         />
         <Choice
           icon={Upload}
-          title="Import a backup"
-          where="Settings › Data"
+          title={t('native.restore.import')}
+          where={t('native.restore.importWhere')}
           onClick={() => navigate('/settings', { state: { focus: 'data' } })}
         />
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-sub">
-        If Sync asks how to combine, choose “Use cloud data (replace this device)”.
-      </p>
+      <p className="mt-2 text-xs leading-relaxed text-sub">{t('native.restore.hint')}</p>
       <button
         type="button"
         onClick={() => setRestoreDismissed(true)}
         className="mt-1 min-h-[44px] w-full rounded-xl text-sm font-semibold text-sub active:bg-muted/30"
       >
-        Start fresh
+        {t('native.restore.startFresh')}
       </button>
     </section>
   )

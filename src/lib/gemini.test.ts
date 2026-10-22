@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { parseCoachNote, generateCoachNote, generateDietNote, listModels, pickDefaultModel, fallbackModels, MAX_FALLBACKS, GeminiError } from './gemini'
+import {
+  parseCoachNote, generateCoachNote, generateDietNote, listModels, pickDefaultModel, fallbackModels, MAX_FALLBACKS,
+  GeminiError, COACH_SYSTEM_PROMPT, ITALIAN_OUTPUT_LINE,
+} from './gemini'
+import { useUiStore } from './uiStore'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -192,6 +196,34 @@ describe('generateDietNote', () => {
     expect(body.systemInstruction.parts[0].text).toMatch(/nutrition/i)
     expect(body.contents[0].parts[0].text).toBe('diet prompt text')
     expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
+  })
+})
+
+describe('UI language', () => {
+  afterEach(() => useUiStore.setState({ language: 'en' }))
+
+  async function systemText(): Promise<string> {
+    const fn = stubFetch(okResponse(VALID_NOTE))
+    await generateCoachNote('p', { apiKey: 'k', model: 'm' })
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    return JSON.parse(init.body as string).systemInstruction.parts[0].text as string
+  }
+
+  it('asks for Italian prose when the UI is Italian, and nothing extra in English', async () => {
+    useUiStore.setState({ language: 'it' })
+    const italian = await systemText()
+    expect(italian.startsWith(COACH_SYSTEM_PROMPT)).toBe(true)
+    expect(italian.endsWith(`\n${ITALIAN_OUTPUT_LINE}`)).toBe(true)
+    useUiStore.setState({ language: 'en' })
+    expect(await systemText()).toBe(COACH_SYSTEM_PROMPT)
+  })
+
+  it('adds the line to every structured call (diet note too)', async () => {
+    useUiStore.setState({ language: 'it' })
+    const fn = stubFetch(okResponse(VALID_NOTE))
+    await generateDietNote('p', { apiKey: 'k', model: 'm' })
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string).systemInstruction.parts[0].text).toContain(ITALIAN_OUTPUT_LINE)
   })
 })
 

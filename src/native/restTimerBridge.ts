@@ -6,6 +6,7 @@ import { useAppStore } from '../store'
 import type { RestTimer as StoreRest } from '../store'
 import { useNotifyStore } from '../lib/notifyStore'
 import type { RestAlertPrefs } from '../lib/notifyPrefs'
+import { t } from '../i18n'
 
 /**
  * Mirrors the app store's `rest` slice into the native `RestTimer` plugin (Android only) and back.
@@ -41,8 +42,6 @@ const LOST_ALARM_MS = 2000
 const SKIPPED_MS = 1000
 /** A JS rest that ended this long ago is a stale "Rest over" left from before a relaunch. */
 const STALE_MS = 10_000
-
-const DEFAULT_BODY = 'Next set when this hits zero'
 
 /**
  * What to do with the store (`cur`) given the native timer state (`native`) at `now`.
@@ -103,8 +102,10 @@ export function nativeStartOptions(rest: RestLike, prefs: RestAlertPrefs): RestT
   return {
     endAt: rest.endsAt,
     totalSec: rest.totalSec,
-    title: 'Rest',
-    body: rest.label || DEFAULT_BODY,
+    // App language (the "Rest over" alert, the actions and the channel names come from Android
+    // resources instead: they must work with the app process dead).
+    title: t('native.restTimer.title'),
+    body: rest.label || t('native.restTimer.defaultBody'),
     countdown: prefs.countdown,
     alert,
     alertMode: prefs.alertMode,

@@ -9,6 +9,7 @@ import { openExactAlarmSettings, requestNotificationPermission } from '../notifi
 import { ActionButton, IssueRow, Segment, SwitchRow } from './controls'
 import { CHANNEL, restIssues } from './notifyHealth'
 import type { RestIssue } from './notifyHealth'
+import { t } from '../../i18n'
 
 /**
  * Native rest-timer options, rendered inside Settings › Rest timer on Android (lazy-loaded
@@ -16,20 +17,25 @@ import type { RestIssue } from './notifyHealth'
  * on screen; these drive the lock-screen countdown and the screen-off "Rest over" alert.
  */
 
+// Built with t() at module load: changing the language reloads the app.
 const MODES: { value: RestAlertPrefs['alertMode']; title: string; sub: string }[] = [
-  { value: 'notification', title: 'Discreet', sub: 'Follows ringer' },
-  { value: 'alarm', title: 'Loud', sub: 'Alarm volume' },
+  { value: 'notification', title: t('native.restTimer.modes.discreet'), sub: t('native.restTimer.modes.discreetSub') },
+  { value: 'alarm', title: t('native.restTimer.modes.loud'), sub: t('native.restTimer.modes.loudSub') },
 ]
 
-/** The names Android shows for the rest-alert channels (created natively by the RestTimer plugin). */
+/**
+ * The names Android shows for the rest channels (created natively by the RestTimer plugin from
+ * android res/values(-it)/strings.xml, so they follow the phone's language; these follow the app's).
+ */
 const CHANNEL_NAME: Record<string, string> = {
-  [CHANNEL.restAlertQuiet]: 'Rest over — discreet (follows ringer)',
-  [CHANNEL.restAlertLoud]: 'Rest over — loud (alarm volume)',
+  [CHANNEL.restCountdown]: t('native.restTimer.channel.countdown'),
+  [CHANNEL.restAlertQuiet]: t('native.restTimer.channel.quiet'),
+  [CHANNEL.restAlertLoud]: t('native.restTimer.channel.loud'),
 }
 
 const MODE_HINT: Record<RestAlertPrefs['alertMode'], string> = {
-  notification: 'Discreet — notification sound, follows the ringer (silent or vibrate mode mutes it), plays in your earbuds.',
-  alarm: 'Loud — alarm volume, rings even on silent, plays on the phone speaker.',
+  notification: t('native.restTimer.modes.discreetHint'),
+  alarm: t('native.restTimer.modes.loudHint'),
 }
 
 export default function RestTimerNativeSettings() {
@@ -41,8 +47,8 @@ export default function RestTimerNativeSettings() {
 
   useEffect(() => {
     if (!testing) return
-    const t = setTimeout(() => setTesting(false), 20_000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setTesting(false), 20_000)
+    return () => clearTimeout(timer)
   }, [testing])
 
   return (
@@ -56,14 +62,14 @@ export default function RestTimerNativeSettings() {
       )}
 
       <SwitchRow
-        label="Live countdown notification"
-        hint="On the lock screen and in the status bar"
+        label={t('native.restTimer.countdown')}
+        hint={t('native.restTimer.countdownHint')}
         on={rest.countdown}
         onChange={v => setRest({ countdown: v })}
       />
       <SwitchRow
-        label="Alert when rest ends"
-        hint="Also with the screen off. While the app is open, Sound and a vibration mark the end instead."
+        label={t('native.restTimer.alert')}
+        hint={t('native.restTimer.alertHint')}
         on={rest.alert}
         onChange={v => setRest({ alert: v })}
       />
@@ -71,7 +77,7 @@ export default function RestTimerNativeSettings() {
       {rest.alert && (
         <div className="space-y-2 pb-1 pl-[3.125rem]">
           <Segment
-            label="Rest alert sound"
+            label={t('native.restTimer.alertSound')}
             bg="bg-surface"
             value={rest.alertMode}
             options={MODES}
@@ -83,8 +89,8 @@ export default function RestTimerNativeSettings() {
 
       {rest.alert && (
         <SwitchRow
-          label="Alert after warm-up sets too"
-          hint="Off: warm-up rests count down without the alert"
+          label={t('native.restTimer.warmupAlert')}
+          hint={t('native.restTimer.warmupAlertHint')}
           on={rest.warmupAlert}
           onChange={v => setRest({ warmupAlert: v })}
         />
@@ -94,18 +100,16 @@ export default function RestTimerNativeSettings() {
         <button
           type="button"
           onClick={() => {
-            useAppStore.getState().startRest(15, 'Test rest')
+            useAppStore.getState().startRest(15, t('native.restTimer.testLabel'))
             setTesting(true)
           }}
           className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-primary/15 px-3 text-sm font-semibold text-primary active:bg-primary/30"
         >
           <Lock size={16} className="shrink-0" />
-          <span className="min-w-0">Test rest (15 s) — lock your phone now</span>
+          <span className="min-w-0">{t('native.restTimer.testButton')}</span>
         </button>
         {testing && (
-          <p className="mt-2 text-xs text-sub">
-            Test rest running. Lock the phone: the countdown shows on the lock screen and the alert fires in 15 s.
-          </p>
+          <p className="mt-2 text-xs text-sub">{t('native.restTimer.testRunning')}</p>
         )}
       </div>
     </div>
@@ -117,8 +121,8 @@ function Issue({ issue, refresh }: { issue: RestIssue; refresh: () => Promise<vo
     case 'permission':
       return (
         <IssueRow
-          title="Screen-off rest alerts need notifications"
-          hint={issue.state === 'off' ? 'Notifications are switched off for GymTracker.' : undefined}
+          title={t('native.restTimer.issue.permission')}
+          hint={issue.state === 'off' ? t('native.restTimer.issue.permissionOff') : undefined}
         >
           {issue.state === 'prompt' ? (
             <ActionButton
@@ -131,29 +135,37 @@ function Issue({ issue, refresh }: { issue: RestIssue; refresh: () => Promise<vo
                 }
               }}
             >
-              Allow
+              {t('native.actions.allow')}
             </ActionButton>
           ) : (
-            <ActionButton onClick={() => openDeviceSettings('app_notifications')}>Open settings</ActionButton>
+            <ActionButton onClick={() => openDeviceSettings('app_notifications')}>{t('native.actions.openSettings')}</ActionButton>
           )}
         </IssueRow>
       )
     case 'exact':
       return (
-        <IssueRow title="Exact timing is off" hint="The rest alert may arrive late.">
-          <ActionButton onClick={() => openExactAlarmSettings()}>Fix</ActionButton>
+        <IssueRow title={t('native.notifications.issue.exactOff')} hint={t('native.restTimer.issue.exactHint')}>
+          <ActionButton onClick={() => openExactAlarmSettings()}>{t('native.actions.fix')}</ActionButton>
         </IssueRow>
       )
     case 'countdown-muted':
       return (
-        <IssueRow title="Live countdown is muted in Android" hint="Turn “Rest timer (live countdown)” back on.">
-          <ActionButton onClick={() => openDeviceSettings('channel', issue.channelId)}>Open</ActionButton>
+        <IssueRow
+          title={t('native.restTimer.issue.countdownMuted')}
+          hint={t('native.restTimer.issue.turnBackOn', { channel: CHANNEL_NAME[CHANNEL.restCountdown] })}
+        >
+          <ActionButton onClick={() => openDeviceSettings('channel', issue.channelId)}>{t('native.actions.open')}</ActionButton>
         </IssueRow>
       )
     case 'alert-muted':
       return (
-        <IssueRow title="The rest-over alert is muted in Android" hint={`Turn “${CHANNEL_NAME[issue.channelId] ?? 'Rest over'}” back on.`}>
-          <ActionButton onClick={() => openDeviceSettings('channel', issue.channelId)}>Open</ActionButton>
+        <IssueRow
+          title={t('native.restTimer.issue.alertMuted')}
+          hint={t('native.restTimer.issue.turnBackOn', {
+            channel: CHANNEL_NAME[issue.channelId] ?? t('native.restTimer.alertTitle'),
+          })}
+        >
+          <ActionButton onClick={() => openDeviceSettings('channel', issue.channelId)}>{t('native.actions.open')}</ActionButton>
         </IssueRow>
       )
   }
