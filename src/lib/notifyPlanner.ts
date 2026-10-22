@@ -1,13 +1,17 @@
 import type { MealType } from '../types'
+import type { Lang } from './uiStore'
 import type { HHMM, IsoWeekday, NotifyPrefs } from './notifyPrefs'
 import { addDays, daysBetween, localDateStr, mondayOf } from './dates'
 import { DECAY_GRACE_DAYS, DECAY_MAX, DECAY_PER_DAY } from './ranks'
+import { bindT, type Translator } from '../i18n'
 
 /**
  * Reminder planner (Android). PURE: no Dexie, no Capacitor, no `Date.now()`, no localStorage —
  * everything comes in through `PlannerInput`, so it is unit-tested to the minute (TZ pinned to
  * Europe/Rome by `npm test`). `src/native/notifications.ts` turns the specs into one-shot
  * LocalNotifications alarms over a rolling window and re-plans on launch / resume / data change.
+ * Titles and bodies come from `bindT(input.lang ?? 'en')` (the `notify.planner` dictionary), never
+ * from the stored UI language; they are part of each spec's sig, so a language change re-plans.
  *
  * Notification ids (ROUTEMAP invariant 16): `cat*10_000_000 + dayIdx*100 + slot`.
  * cat 10..18 belong to the planner (`isManagedId`), 99 is the Settings test reminder, and the
@@ -182,6 +186,8 @@ export interface PlannerInput {
   now: number
   prefs: NotifyPrefs
   data: PlannerData
+  /** Language of titles and bodies (part of each spec's sig, so a change re-plans). Default 'en'. */
+  lang?: Lang
 }
 
 export interface NotificationSpec {
@@ -199,8 +205,6 @@ export interface NotificationSpec {
 }
 
 /* ------------------------------ planning ------------------------------ */
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 function spec(
   cat: Category, date: string, slot: number, atMs: number,
@@ -235,7 +239,7 @@ type TrainingReason =
 const PRIORITY: Record<TrainingReason['kind'], number> = { decay: 0, streak: 1, workout: 2 }
 
 /** At most one training nudge per day: DECAY > STREAK > WORKOUT, the others folded into its body. */
-function trainingNudge(date: string, reasons: TrainingReason[]): NotificationSpec | null {
+function trainingNudge(tr: Translator, date: string, reasons: TrainingReason[]): NotificationSpec | null {
   const sorted = [...reasons].sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind])
   const win = sorted[0]
   const streak = reasons.find((r): r is Extract<TrainingReason, { kind: 'streak' }> => r.kind === 'streak')
@@ -243,17 +247,23 @@ function trainingNudge(date: string, reasons: TrainingReason[]): NotificationSpe
   // Earliest of the folded times: the user asked to be nudged then.
   const atMs = Math.min(...reasons.map(r => r.atMs))
   const key = `${win.kind}:${date}${sorted.slice(1).map(r => `+${r.kind}`).join('')}`
+  const { t, tp } = tr
   if (win.kind === 'decay') {
     const body = streak
-      ? `Train today to keep your points and your ${streak.weeks}-week streak — ${plural(streak.needed, 'more session')} by Sunday.`
-      : `Train today to keep your points — idle days after a week cost ${Math.round(DECAY_PER_DAY * 100)}% a day (max ${Math.round(DECAY_MAX * 100)}%).`
-    return spec('decay', date, 0, atMs, 'Rank decay starts tomorrow', body, '/workout', key)
+      ? t('notify.planner.decayBodyStreak', {
+        streak: tp('notify.planner.weekStreak', streak.weeks),
+        sessions: tp('notify.planner.moreSessions', streak.needed),
+      })
+      : t('notify.planner.decayBody', { pct: Math.round(DECAY_PER_DAY * 100), max: Math.round(DECAY_MAX * 100) })
+    return spec('decay', date, 0, atMs, t('notify.planner.decayTitle'), body, '/workout', key)
   }
   if (win.kind === 'streak') {
-    const body = `${plural(win.needed, 'more session')} by Sunday keeps it alive.${hasWorkout ? ' Today is a training day.' : ''}`
-    return spec('streak', date, 0, atMs, `Keep your ${win.weeks}-week streak`, body, '/workout', key)
+    const sessions = tp('notify.planner.moreSessions', win.needed)
+    const body = t(hasWorkout ? 'notify.planner.streakBodyTrainingDay' : 'notify.planner.streakBody', { sessions })
+    const title = t('notify.planner.streakTitle', { streak: tp('notify.planner.weekStreak', win.weeks) })
+    return spec('streak', date, 0, atMs, title, body, '/workout', key)
   }
-  return spec('workout', date, 0, atMs, 'Time to train', win.body, '/workout', key)
+  return spec('workout', date, 0, atMs, t('notify.planner.workoutTitle'), win.body, '/workout', key)
 }
 
 /**
@@ -265,6 +275,8 @@ function trainingNudge(date: string, reasons: TrainingReason[]): NotificationSpe
 function planCandidates(input: PlannerInput): NotificationSpec[] {
   const { now, prefs, data } = input
   const { today } = data
+  const tr = bindT(input.lang ?? 'en')
+  const { t, tp } = tr
   const out: NotificationSpec[] = []
   const push = (s: NotificationSpec | null) => { if (s) out.push(s) }
   const windowDates = Array.from({ length: WINDOW_DAYS }, (_, k) => addDays(today, k))
@@ -293,8 +305,8 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
         kind: 'workout',
         atMs: atLocal(d, prefs.workout.time),
         body: currentWeek
-          ? `${data.weekSessionsDone} of ${data.weeklyTarget} sessions this week — tap to start.`
-          : 'Tap to start your workout.',
+          ? t('notify.planner.workoutBodyWeek', { done: data.weekSessionsDone, target: data.weeklyTarget })
+          : t('notify.planner.workoutBody'),
       })
     }
   }
@@ -336,7 +348,7 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
     }
   }
 
-  for (const [date, reasons] of training) push(trainingNudge(date, reasons))
+  for (const [date, reasons] of training) push(trainingNudge(tr, date, reasons))
 
   /* ---- meals ---- */
   const mealsByDay = new Map<string, number[]>()
@@ -345,7 +357,8 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
       if (!prefs.meals[meal].enabled) continue
       if (d === today && data.mealsLoggedToday.includes(meal)) continue
       const at = atLocal(d, prefs.meals[meal].time)
-      const s = spec('meal', d, MEAL_SLOT[meal], at, `Log your ${meal}`, `Tap to log your ${meal}.`, '/diet', `meal:${d}:${meal}`)
+      const s = spec('meal', d, MEAL_SLOT[meal], at, t(`notify.planner.mealTitle.${meal}`), t(`notify.planner.mealBody.${meal}`),
+        '/diet', `meal:${d}:${meal}`)
       if (!s) continue
       out.push(s)
       const list = mealsByDay.get(d)
@@ -375,7 +388,7 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
         const at = atLocalMinutes(d, startMin + j * step)
         if (d === today && data.lastWaterAt !== null && at - data.lastWaterAt < stepMs) continue
         if (meals.some(m => Math.abs(m - at) <= WATER_MEAL_GAP_MS)) continue
-        push(spec('water', d, j, at, 'Drink some water', 'Time for some water.', '/diet', `water:${d}:${j}`))
+        push(spec('water', d, j, at, t('notify.planner.waterTitle'), t('notify.planner.waterBody'), '/diet', `water:${d}:${j}`))
       }
     }
   }
@@ -384,7 +397,6 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
   if (prefs.recap.enabled && data.recap) {
     const d = nextRecapDate(now, prefs.recap)
     if (data.recap.weekMonday === recapWeekMonday(d, prefs.recap.when)) {
-      const prefix = prefs.recap.when === 'monday-morning' ? 'Last week' : 'This week'
       // The streak as it stands after the covered week: on Monday it survives only if that week met
       // the target (runDailyChecks resets it later that day); on Sunday the week is still open.
       const wk = data.recap.weekMonday
@@ -392,12 +404,21 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
         ? rank.lastStreakWeek === wk
         : rank.lastStreakWeek >= addDays(wk, -7))
       const streakWeeks = alive && rank ? rank.streakWeeks : 0
-      const body = `${prefix}: ${plural(data.recap.sessions, 'session')}, +${Math.round(data.recap.points)} pts`
-        + `${streakWeeks > 0 ? `, ${streakWeeks}-week streak` : ''}.`
+      const monday = prefs.recap.when === 'monday-morning'
+      const body = t(
+        streakWeeks > 0
+          ? (monday ? 'notify.planner.recapLastWeekStreak' : 'notify.planner.recapThisWeekStreak')
+          : (monday ? 'notify.planner.recapLastWeek' : 'notify.planner.recapThisWeek'),
+        {
+          sessions: tp('notify.planner.sessions', data.recap.sessions),
+          points: tr.fmtNum(Math.round(data.recap.points)),
+          streak: tp('notify.planner.weekStreak', streakWeeks),
+        },
+      )
       // Monday's recap covers a finished week: open its review. Sunday's covers the open week, which the
       // review screen doesn't open on (it starts at the last finished week), so that one keeps Rank.
-      const route = prefs.recap.when === 'monday-morning' ? '/progress/week' : '/rank'
-      push(spec('recap', d, 0, atLocal(d, prefs.recap.time), 'Your weekly recap', body, route, `recap:${d}`))
+      const route = monday ? '/progress/week' : '/rank'
+      push(spec('recap', d, 0, atLocal(d, prefs.recap.time), t('notify.planner.recapTitle'), body, route, `recap:${d}`))
     }
   }
 
@@ -406,8 +427,8 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
     const logged = new Set(data.bodyLogDates)
     for (const d of windowDates) {
       if (isoWeekday(d) !== prefs.weighIn.weekday || logged.has(d)) continue
-      push(spec('weighin', d, 0, atLocal(d, prefs.weighIn.time), 'Weigh-in day',
-        'Log your bodyweight — it keeps your strength score accurate.', '/progress', `weighin:${d}`))
+      push(spec('weighin', d, 0, atLocal(d, prefs.weighIn.time), t('notify.planner.weighInTitle'),
+        t('notify.planner.weighInBody'), '/progress', `weighin:${d}`))
     }
   }
 
@@ -415,15 +436,15 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
   if (prefs.workout.openSessionNudge && data.activeSession && data.activeSessionStartedAt !== null) {
     const at = data.activeSessionStartedAt + OPEN_SESSION_AFTER_MS
     const d = localDateStr(new Date(at))
-    push(spec('openSession', d, 0, at, 'Workout still open', 'Finish or discard it? Tap to open the session.',
+    push(spec('openSession', d, 0, at, t('notify.planner.openSessionTitle'), t('notify.planner.openSessionBody'),
       '/workout/session', `openSession:${data.activeSessionStartedAt}`))
   }
 
   /* ---- keep-alive on the last planned day: nothing re-plans while the app is never opened ---- */
   if (anyReminderEnabled(prefs)) {
     const d = windowDates[WINDOW_DAYS - 1]
-    push(spec('keepalive', d, 0, atLocal(d, KEEPALIVE_TIME), 'GymTracker reminders',
-      'Open GymTracker to keep your reminders coming.', '/workout', `keepalive:${d}`))
+    push(spec('keepalive', d, 0, atLocal(d, KEEPALIVE_TIME), t('notify.planner.keepAliveTitle'),
+      t('notify.planner.keepAliveBody'), '/workout', `keepalive:${d}`))
   }
 
   // Ids are unique by construction; keep the first defensively.

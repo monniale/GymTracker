@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { muscleGroupLabel } from '../../lib/equipment'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays, CalendarRange } from 'lucide-react'
@@ -11,11 +12,13 @@ import { useLocalToday } from '../../lib/hooks'
 import { trainingHeatmap } from '../../lib/heatmap'
 import Heatmap from '../../components/Heatmap'
 import { LineChart, BarChart, BandBars, Sparkline, type ChartPoint } from '../../components/Charts'
-import { standardFor, levelFor } from '../../lib/standards'
+import { standardFor, levelFor, levelLabel } from '../../lib/standards'
 import { gatherWeeklyMuscleVolume, HYPERTROPHY_SET_BAND } from '../../lib/muscleVolume'
 import ExercisePicker from '../workout/ExercisePicker'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
+import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { t, tp, fmtNum, type PluralMessageKey } from '../../i18n'
 import type { Exercise, Id } from '../../types'
 
 const ORANGE = '#F97316'
@@ -24,6 +27,18 @@ const GREEN = '#22C55E'
 function shortDate(ms: number): string {
   const d = new Date(ms)
   return `${d.getDate()}/${d.getMonth() + 1}`
+}
+
+/** A counted message with its number emphasized ("**12** days this year"). */
+function CountText({ msgKey, n }: { msgKey: PluralMessageKey; n: number }) {
+  const [before, after = ''] = tp(msgKey, n, { n: '{n}' }).split('{n}')
+  return (
+    <>
+      {before}
+      <span className="font-semibold text-ink">{fmtNum(n)}</span>
+      {after}
+    </>
+  )
 }
 
 export default function ProgressScreen() {
@@ -47,7 +62,7 @@ export default function ProgressScreen() {
 
   return (
     <div className="pt-4">
-      <h1 className="mb-4 font-display text-3xl font-bold">Progress</h1>
+      <h1 className="mb-4 font-display text-3xl font-bold">{t('progress.screen.title')}</h1>
 
       <BodyweightTile />
       <CoachHistoryTile />
@@ -58,9 +73,9 @@ export default function ProgressScreen() {
         <button
           onClick={() => setPickerOpen(true)}
           className="mb-2 flex w-full items-center justify-between"
-          aria-label="Choose exercise"
+          aria-label={t('progress.screen.chooseExercise')}
         >
-          <h2 className="font-display text-xl font-semibold">{activeEx?.name ?? 'Pick an exercise'}</h2>
+          <h2 className="font-display text-xl font-semibold">{activeEx ? exerciseDisplayName(activeEx.name) : t('progress.screen.pickExercise')}</h2>
           <ChevronDown size={18} className="text-sub" />
         </button>
         {activeExId ? (
@@ -71,7 +86,7 @@ export default function ProgressScreen() {
             {!isCardioExercise(activeEx) && <RepMaxTable exerciseId={activeExId} />}
           </>
         ) : (
-          <p className="py-6 text-center text-sm text-sub">Log a workout to see trends.</p>
+          <p className="py-6 text-center text-sm text-sub">{t('progress.screen.noTrends')}</p>
         )}
       </section>
 
@@ -111,13 +126,13 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
 
   if (!data) return null
   if (data.e1rm.length === 0) {
-    return <p className="py-6 text-center text-sm text-sub">No sets logged for this exercise yet.</p>
+    return <p className="py-6 text-center text-sm text-sub">{t('progress.trend.noSets')}</p>
   }
   return (
     <>
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Estimated 1RM (kg)</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.trend.e1rm')}</p>
       <LineChart points={data.e1rm} color={ORANGE} />
-      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Session volume (kg)</p>
+      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.trend.volume')}</p>
       <BarChart points={data.volume} color={ORANGE} yFmt={v => `${Math.round(v)} kg`} />
     </>
   )
@@ -148,25 +163,25 @@ function CardioTrend({ exerciseId }: { exerciseId: Id }) {
 
   if (!data) return null
   if (data.minutes.length === 0) {
-    return <p className="py-6 text-center text-sm text-sub">No cardio logged for this exercise yet.</p>
+    return <p className="py-6 text-center text-sm text-sub">{t('progress.cardio.noData')}</p>
   }
   return (
     <>
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Duration (min)</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.cardio.duration')}</p>
       <LineChart points={data.minutes} color={GREEN} yFmt={v => `${Math.round(v)} min`} />
       {data.km.length > 0 && (
         <>
-          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Distance (km)</p>
-          <BarChart points={data.km} color={GREEN} yFmt={v => `${v.toFixed(1)} km`} />
+          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.cardio.distance')}</p>
+          <BarChart points={data.km} color={GREEN} yFmt={v => `${fmtNum(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`} />
         </>
       )}
       {data.pace.length > 1 && (
         <>
-          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Pace (min/km, lower is faster)</p>
+          <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.cardio.pace')}</p>
           <LineChart points={data.pace} color={ORANGE} yFmt={v => fmtDuration(Math.round(v) * 1000)} />
         </>
       )}
-      <p className="mt-2 text-[11px] text-sub">Cardio is tracked for your streak and weekly target; it earns no rank points.</p>
+      <p className="mt-2 text-[11px] text-sub">{t('progress.cardio.note')}</p>
     </>
   )
 }
@@ -181,7 +196,7 @@ function RepMaxCell({ rec, highlight }: { rec?: RepMax; highlight?: boolean }) {
   return (
     <span className="num min-w-0 flex-1 leading-tight">
       <span className={`block truncate text-sm font-semibold ${highlight ? 'text-primary' : ''}`}>
-        {rec.weightKg} kg ×{rec.reps}
+        {fmtNum(rec.weightKg)} kg ×{rec.reps}
       </span>
       <span className="block truncate text-[11px] text-sub">{dayMonth(rec.completedAt)}</span>
     </span>
@@ -195,11 +210,11 @@ function RepMaxTable({ exerciseId }: { exerciseId: Id }) {
   const rows = REP_BUCKETS.filter(n => maxes.allTime.has(n))
   return (
     <div className="mt-3">
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Rep maxes</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('progress.repMax.title')}</p>
       <div className="flex items-center gap-2 border-b border-edge pb-1 text-[11px] font-semibold uppercase tracking-wide text-sub">
         <span className="w-9 shrink-0">RM</span>
-        <span className="min-w-0 flex-1 truncate">All-time</span>
-        <span className="min-w-0 flex-1 truncate">This season</span>
+        <span className="min-w-0 flex-1 truncate">{t('progress.repMax.allTime')}</span>
+        <span className="min-w-0 flex-1 truncate">{t('progress.repMax.thisSeason')}</span>
       </div>
       {rows.map(n => {
         const best = maxes.allTime.get(n)!
@@ -213,7 +228,7 @@ function RepMaxTable({ exerciseId }: { exerciseId: Id }) {
           </div>
         )
       })}
-      <p className="mt-1 text-[11px] text-sub">Best weight for at least N reps. Orange = the all-time best was set this season.</p>
+      <p className="mt-1 text-[11px] text-sub">{t('progress.repMax.note')}</p>
     </div>
   )
 }
@@ -224,12 +239,12 @@ function WeeklyMuscleVolume({ exMap }: { exMap: Map<Id, Exercise> }) {
   if (!rows || rows.length === 0) return null
   return (
     <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
-      <h2 className="font-display text-xl font-semibold">Weekly sets per muscle</h2>
+      <h2 className="font-display text-xl font-semibold">{t('progress.muscleVolume.title')}</h2>
       <p className="mb-3 text-xs text-sub">
-        This week's hard sets. Shaded band = the evidence-backed 10–20 range; tick = your 8-week average.
+        {t('progress.muscleVolume.note', { min: HYPERTROPHY_SET_BAND[0], max: HYPERTROPHY_SET_BAND[1] })}
       </p>
       <BandBars
-        rows={rows.map(r => ({ label: r.group, value: r.sets, marker: r.weeklyAvg }))}
+        rows={rows.map(r => ({ label: muscleGroupLabel(r.group), value: r.sets, marker: r.weeklyAvg }))}
         band={HYPERTROPHY_SET_BAND}
         color={ORANGE}
       />
@@ -262,18 +277,18 @@ function BodyweightTile() {
       {/* Caption on its own row, so the value, sparkline and + share the full width. */}
       <Link to="/progress/bodyweight" className="mb-1 flex items-center gap-1.5 text-xs text-sub">
         <Scale size={14} className="shrink-0" aria-hidden />
-        <span className="min-w-0 flex-1 truncate">Bodyweight (feeds your rank score)</span>
+        <span className="min-w-0 flex-1 truncate">{t('progress.bodyweightTile.caption')}</span>
         <span className="flex shrink-0 items-center whitespace-nowrap font-semibold text-primary">
-          History <ChevronRight size={14} aria-hidden />
+          {t('common.history')} <ChevronRight size={14} aria-hidden />
         </span>
       </Link>
       <div className="flex items-center gap-3">
-        <Link to="/progress/bodyweight" aria-label="Bodyweight history" className="flex min-w-0 flex-1 items-center gap-3">
+        <Link to="/progress/bodyweight" aria-label={t('progress.bodyweightTile.historyAria')} className="flex min-w-0 flex-1 items-center gap-3">
           <p className="num flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 font-display text-2xl font-bold">
-            <span className="whitespace-nowrap">{current !== undefined ? `${current} kg` : '—'}</span>
+            <span className="whitespace-nowrap">{current !== undefined ? `${fmtNum(current)} kg` : '—'}</span>
             {delta !== null && (
               <span className={`whitespace-nowrap text-sm font-semibold ${delta <= 0 ? 'text-accent' : 'text-sub'}`}>
-                {delta > 0 ? '+' : ''}{delta} / 30d
+                {t('progress.bodyweightTile.delta30', { delta: `${delta > 0 ? '+' : ''}${fmtNum(delta)}` })}
               </span>
             )}
           </p>
@@ -284,17 +299,17 @@ function BodyweightTile() {
             setDraft(current ?? 75)
             setLogOpen(true)
           }}
-          aria-label="Log bodyweight"
+          aria-label={t('progress.bodyweightTile.log')}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary active:bg-primary/30"
         >
           <Plus size={18} />
         </button>
       </div>
 
-      <Sheet open={logOpen} onClose={() => setLogOpen(false)} title="Log bodyweight">
+      <Sheet open={logOpen} onClose={() => setLogOpen(false)} title={t('progress.bodyweightTile.log')}>
         <div className="flex justify-center">
           <NumberStepper
-            label="Today"
+            label={t('common.today')}
             value={draft ?? current ?? 75}
             onChange={setDraft}
             step={0.1}
@@ -307,7 +322,7 @@ function BodyweightTile() {
           onClick={save}
           className="mt-4 w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
         >
-          Save
+          {t('common.save')}
         </button>
       </Sheet>
     </div>
@@ -329,11 +344,11 @@ function CoachHistoryTile() {
     >
       <Sparkles size={18} className="shrink-0 text-primary" aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="font-display text-lg font-semibold">Coach history</p>
+        <p className="font-display text-lg font-semibold">{t('progress.coachTile.title')}</p>
         <p className="truncate text-xs text-sub">
           {stats.count === 0
-            ? 'Every coach’s note and diet report is kept here'
-            : `${stats.count} verdict${stats.count === 1 ? '' : 's'} · ${stats.last?.note.headline ?? ''}`}
+            ? t('progress.coachTile.empty')
+            : tp('progress.coachTile.summary', stats.count, { headline: stats.last?.note.headline ?? '' })}
         </p>
       </div>
       <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
@@ -356,8 +371,8 @@ function WeekReviewTile() {
     >
       <CalendarRange size={18} className="shrink-0 text-primary" aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="font-display text-lg font-semibold">Week review</p>
-        <p className="truncate text-xs text-sub">{latest ? latest.note.headline : 'Review last week with the coach'}</p>
+        <p className="font-display text-lg font-semibold">{t('progress.weekTile.title')}</p>
+        <p className="truncate text-xs text-sub">{latest ? latest.note.headline : t('progress.weekTile.empty')}</p>
       </div>
       <ChevronRight size={18} className="shrink-0 text-sub" aria-hidden />
     </Link>
@@ -379,19 +394,19 @@ function TrainingHeatmapTile() {
     <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
       <Link to="/workout/history" className="mb-2 flex items-center gap-1.5 text-xs text-sub">
         <CalendarDays size={14} className="shrink-0" aria-hidden />
-        <span className="min-w-0 flex-1 truncate">Consistency · last {HEATMAP_WEEKS} weeks</span>
+        <span className="min-w-0 flex-1 truncate">{t('progress.heatmap.caption', { weeks: HEATMAP_WEEKS })}</span>
         <span className="flex shrink-0 items-center whitespace-nowrap font-semibold text-primary">
-          History <ChevronRight size={14} aria-hidden />
+          {t('common.history')} <ChevronRight size={14} aria-hidden />
         </span>
       </Link>
       <Heatmap data={heat} today={today} />
       <p className="num mt-2 flex flex-wrap gap-x-1.5 text-xs text-sub">
         <span className="whitespace-nowrap">
-          <span className="font-semibold text-ink">{heat.daysThisYear}</span> day{heat.daysThisYear === 1 ? '' : 's'} this year
+          <CountText msgKey="progress.heatmap.daysThisYear" n={heat.daysThisYear} />
         </span>
         <span aria-hidden>·</span>
         <span className="whitespace-nowrap">
-          longest run <span className="font-semibold text-ink">{heat.longestRunWeeks}</span> week{heat.longestRunWeeks === 1 ? '' : 's'}
+          <CountText msgKey="progress.heatmap.longestRun" n={heat.longestRunWeeks} />
         </span>
       </p>
     </section>
@@ -418,7 +433,7 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
   return (
     <section className="mt-4 pb-4">
       <h2 className="mb-2 flex items-center gap-2 font-display text-xl font-semibold">
-        <Trophy size={18} className="text-primary" /> PR wall
+        <Trophy size={18} className="text-primary" /> {t('progress.prWall.title')}
       </h2>
       <div className="grid grid-cols-2 gap-2">
         {prs.map(([exId, pr]) => {
@@ -427,13 +442,13 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
           const level = std && settings ? levelFor(pr.e1rm, settings.bodyweightKg, std) : null
           return (
             <div key={exId} className="rounded-xl border border-edge bg-card p-3">
-              <p className="truncate text-sm font-medium">{ex?.name ?? '…'}</p>
+              <p className="truncate text-sm font-medium">{ex ? exerciseDisplayName(ex.name) : '…'}</p>
               <p className="num font-display text-2xl font-bold text-primary">
-                {Math.round(pr.e1rm * 10) / 10}
+                {fmtNum(pr.e1rm, { maximumFractionDigits: 1 })}
                 <span className="text-sm font-medium text-sub"> e1RM</span>
               </p>
               <p className="num text-xs text-sub">
-                {pr.weight} kg × {pr.reps} · {shortDate(pr.date)}
+                {fmtNum(pr.weight)} kg × {pr.reps} · {shortDate(pr.date)}
               </p>
               {level && (
                 <div className="mt-1.5">
@@ -446,7 +461,7 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
                           : 'bg-muted/40 text-sub'
                     }`}
                   >
-                    {level.level}
+                    {levelLabel(level.level)}
                   </span>
                   {level.next && (
                     <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted/30">

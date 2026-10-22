@@ -1,0 +1,43 @@
+/** `notify` namespace (rules in src/i18n/index.ts). Keys: screen.element, camelCase. */
+export default {
+  /** Reminder titles and bodies built by src/lib/notifyPlanner.ts (part of each alarm's sig). */
+  planner: {
+    sessions: { one: '{n} session', other: '{n} sessions' },
+    moreSessions: { one: '{n} more session', other: '{n} more sessions' },
+    weekStreak: { one: '{n}-week streak', other: '{n}-week streak' },
+    decayTitle: 'Rank decay starts tomorrow',
+    decayBody: 'Train today to keep your points — idle days after a week cost {pct}% a day (max {max}%).',
+    decayBodyStreak: 'Train today to keep your points and your {streak} — {sessions} by Sunday.',
+    streakTitle: 'Keep your {streak}',
+    streakBody: '{sessions} by Sunday keeps it alive.',
+    streakBodyTrainingDay: '{sessions} by Sunday keeps it alive. Today is a training day.',
+    workoutTitle: 'Time to train',
+    workoutBodyWeek: '{done} of {target} sessions this week — tap to start.',
+    workoutBody: 'Tap to start your workout.',
+    mealTitle: {
+      breakfast: 'Log your breakfast',
+      lunch: 'Log your lunch',
+      snack: 'Log your snack',
+      dinner: 'Log your dinner',
+    },
+    mealBody: {
+      breakfast: 'Tap to log your breakfast.',
+      lunch: 'Tap to log your lunch.',
+      snack: 'Tap to log your snack.',
+      dinner: 'Tap to log your dinner.',
+    },
+    waterTitle: 'Drink some water',
+    waterBody: 'Time for some water.',
+    recapTitle: 'Your weekly recap',
+    recapLastWeek: 'Last week: {sessions}, +{points} pts.',
+    recapLastWeekStreak: 'Last week: {sessions}, +{points} pts, {streak}.',
+    recapThisWeek: 'This week: {sessions}, +{points} pts.',
+    recapThisWeekStreak: 'This week: {sessions}, +{points} pts, {streak}.',
+    weighInTitle: 'Weigh-in day',
+    weighInBody: 'Log your bodyweight — it keeps your strength score accurate.',
+    openSessionTitle: 'Workout still open',
+    openSessionBody: 'Finish or discard it? Tap to open the session.',
+    keepAliveTitle: 'GymTracker reminders',
+    keepAliveBody: 'Open GymTracker to keep your reminders coming.',
+  },
+} as const

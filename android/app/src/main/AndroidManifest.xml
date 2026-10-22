@@ -32,6 +32,19 @@
             android:name=".resttimer.RestTimerReceiver"
             android:exported="false" />
 
+        <!-- Home-screen widget: shows what the app last pushed (WidgetPlugin); tap opens Workout. -->
+        <receiver
+            android:name=".widget.GymWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_gym_info" />
+        </receiver>
+
         <!-- ML Kit Google code scanner module (pre-download on Play installs; sideloads install it at runtime). -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

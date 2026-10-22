@@ -12,7 +12,7 @@
     "android:release": "npm run cap:sync && . scripts/android/env.sh && cd android && ./gradlew assembleRelease",
     "android:open": "cap open android",
     "preview": "vite preview",
-    "test": "TZ=Europe/Rome vitest run",
+    "test": "TZ=Europe/Rome LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 vitest run",
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {

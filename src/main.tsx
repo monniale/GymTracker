@@ -2,7 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { isNative } from './native/platform'
+import { setDocumentLang } from './i18n'
 import './index.css'
+
+setDocumentLang()
 
 // Android: route listeners first, so a notification tap that cold-started the app is not lost.
 if (isNative) {

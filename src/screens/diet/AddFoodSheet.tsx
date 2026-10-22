@@ -8,9 +8,19 @@ import NumberStepper from '../../components/NumberStepper'
 import { logFood, recipePer100 } from '../../lib/nutrition'
 import { planFood } from '../../lib/mealPlan'
 import { searchFoods, upsertRemoteFood, remoteFoodKey, PROVIDERS } from '../../lib/foodProviders'
+import { t, tp, fmtNum, type Key } from '../../i18n'
 import type { Food, Id, MealType, RemoteFood, SavedMeal } from '../../types'
 
 type Tab = 'recent' | 'search' | 'custom'
+
+const TABS: { id: Tab; label: Key }[] = [
+  { id: 'recent', label: 'diet.addFood.tabRecent' },
+  { id: 'search', label: 'diet.addFood.tabSearch' },
+  { id: 'custom', label: 'diet.addFood.tabCustom' },
+]
+
+/** A per-100 g value from the DB or an API, in the language's decimal format (no grouping, as before). */
+const num = (n: number) => fmtNum(n, { useGrouping: false })
 
 /** Puts a food on the day: logs it (eaten) or plans it, depending on the sheet's target. */
 type AddFn = (foodId: Id, grams: number) => Promise<void>
@@ -41,24 +51,24 @@ export default function AddFoodSheet({ open, onClose, date, meal, target = 'log'
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title={planning ? 'Plan food' : 'Add food'}>
+    <Sheet open={open} onClose={onClose} title={planning ? t('diet.addFood.titlePlan') : t('diet.addFood.titleAdd')}>
       <div className="mb-3 flex items-center gap-2">
         <div className="flex flex-1 rounded-xl bg-card p-1">
-          {(['recent', 'search', 'custom'] as Tab[]).map(t => (
+          {TABS.map(({ id, label }) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`min-h-[40px] flex-1 rounded-lg text-sm font-semibold capitalize transition-colors ${
-                tab === t ? 'bg-muted text-ink' : 'text-sub'
+              key={id}
+              onClick={() => setTab(id)}
+              className={`min-h-[40px] min-w-0 flex-1 whitespace-nowrap rounded-lg text-sm font-semibold transition-colors ${
+                tab === id ? 'bg-muted text-ink' : 'text-sub'
               }`}
             >
-              {t}
+              {t(label)}
             </button>
           ))}
         </div>
         <button
           onClick={() => setScanOpen(true)}
-          aria-label="Scan barcode"
+          aria-label={t('diet.addFood.scanAria')}
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary active:bg-primary/30"
         >
           <ScanBarcode size={22} />
@@ -98,7 +108,7 @@ function RecentTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
   }
 
   async function removeSavedMeal(m: SavedMeal) {
-    if (window.confirm(`Delete saved meal “${m.name}”?`)) await deleteWithTombstone('savedMeals', m.id!)
+    if (window.confirm(t('diet.addFood.deleteSavedMealConfirm', { name: m.name }))) await deleteWithTombstone('savedMeals', m.id!)
   }
 
   async function addFood(f: Food, grams: number) {
@@ -110,7 +120,7 @@ function RecentTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
     <div>
       {savedMeals.length > 0 && (
         <div className="mb-3">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Saved meals</p>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('diet.addFood.savedMeals')}</p>
           {savedMeals.map(m => {
             const kcal = m.items.reduce((acc, it) => {
               const f = foodsById.get(it.foodId)
@@ -124,13 +134,13 @@ function RecentTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
                 >
                   <Layers size={18} className="shrink-0 text-primary" />
                   <span className="min-w-0 flex-1 truncate font-medium">{m.name}</span>
-                  <span className="num text-sm text-sub">
-                    {m.items.length} items · {Math.round(kcal)} kcal
+                  <span className="num shrink-0 whitespace-nowrap text-sm text-sub">
+                    {tp('diet.addFood.savedMealItems', m.items.length)} · {Math.round(kcal)} kcal
                   </span>
                 </button>
                 <button
                   onClick={() => removeSavedMeal(m)}
-                  aria-label={`Delete ${m.name}`}
+                  aria-label={t('diet.addFood.deleteAria', { name: m.name })}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sub active:bg-muted/40"
                 >
                   <Trash2 size={16} />
@@ -141,10 +151,10 @@ function RecentTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
         </div>
       )}
 
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">Recent foods</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('diet.addFood.recentFoods')}</p>
       {recents.length === 0 && (
         <p className="py-6 text-center text-sm text-sub">
-          Nothing yet — use Search or Custom to add your first food.
+          {t('diet.addFood.recentEmpty')}
         </p>
       )}
       {recents.map(f => (
@@ -166,7 +176,7 @@ function FoodRow({ food, onAdd }: { food: Food; onAdd: (grams: number) => void }
       >
         <span className="truncate font-medium">
           {food.name}
-          {food.userOverridden && <span className="ml-1 text-xs text-primary">·edited</span>}
+          {food.userOverridden && <span className="ml-1 text-xs text-primary">{t('diet.addFood.edited')}</span>}
         </span>
         <span className="num text-xs text-sub">
           {food.brand ? `${food.brand} · ` : ''}
@@ -176,7 +186,7 @@ function FoodRow({ food, onAdd }: { food: Food; onAdd: (grams: number) => void }
       <div className="num flex shrink-0 items-center gap-1 text-sm">
         <button
           onClick={() => setGrams(Math.max(5, g - 10))}
-          aria-label="Less grams"
+          aria-label={t('diet.addFood.lessGrams')}
           className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/30 active:bg-muted"
         >
           −
@@ -184,7 +194,7 @@ function FoodRow({ food, onAdd }: { food: Food; onAdd: (grams: number) => void }
         <span className="w-12 text-center font-semibold">{g} g</span>
         <button
           onClick={() => setGrams(g + 10)}
-          aria-label="More grams"
+          aria-label={t('diet.addFood.moreGrams')}
           className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/30 active:bg-muted"
         >
           +
@@ -220,7 +230,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
       return
     }
     if (!navigator.onLine) {
-      setError('Offline — showing your local foods only.')
+      setError(t('diet.addFood.offline'))
       setLoading(false)
       return
     }
@@ -234,7 +244,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
         setLoading(false)
       } catch (e) {
         if (controller.signal.aborted || (e as Error).name === 'AbortError') return
-        setError('Food database unreachable.')
+        setError(t('diet.addFood.unreachable'))
         setLoading(false)
       }
     }, 400)
@@ -271,7 +281,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
           autoFocus
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder="Search foods…"
+          placeholder={t('diet.addFood.searchPlaceholder')}
           className="min-h-[48px] w-full text-base"
         />
         {loading && <Loader2 size={18} className="shrink-0 animate-spin text-sub" />}
@@ -279,7 +289,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
 
       {local.length > 0 && (
         <>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">My foods</p>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sub">{t('diet.addFood.myFoods')}</p>
           {local.map(f => (
             <button
               key={f.id}
@@ -289,7 +299,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
               <span className="truncate font-medium">{f.name}</span>
               <span className="num text-xs text-sub">
                 {f.brand ? `${f.brand} · ` : ''}
-                {f.kcal100} kcal/100g · P {f.protein100} C {f.carbs100} F {f.fat100}
+                {num(f.kcal100)} kcal/100g · {t('diet.macro.p')} {num(f.protein100)} {t('diet.macro.c')} {num(f.carbs100)} {t('diet.macro.f')} {num(f.fat100)}
               </span>
             </button>
           ))}
@@ -305,7 +315,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
       {online.length > 0 && (
         <>
           <p className="mb-1 mt-2 text-xs font-semibold uppercase tracking-wide text-sub">
-            Online databases
+            {t('diet.addFood.onlineDatabases')}
           </p>
           {online.map(p => (
             <button
@@ -321,7 +331,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
               </span>
               <span className="num text-xs text-sub">
                 {p.brand ? `${p.brand} · ` : ''}
-                {p.kcal100} kcal/100g · P {p.protein100} C {p.carbs100} F {p.fat100}
+                {num(p.kcal100)} kcal/100g · {t('diet.macro.p')} {num(p.protein100)} {t('diet.macro.c')} {num(p.carbs100)} {t('diet.macro.f')} {num(p.fat100)}
               </span>
             </button>
           ))}
@@ -329,7 +339,7 @@ function SearchTab({ add, onDone }: { add: AddFn; onDone: () => void }) {
       )}
 
       {q.trim().length >= 3 && !loading && online.length === 0 && local.length === 0 && !error && (
-        <p className="py-6 text-center text-sm text-sub">No results — try the Custom tab.</p>
+        <p className="py-6 text-center text-sm text-sub">{t('diet.addFood.noResults')}</p>
       )}
     </div>
   )
@@ -374,26 +384,26 @@ function CustomTab({ add, planning, onDone }: { add: AddFn; planning: boolean; o
 
   return (
     <div className="space-y-3">
-      <Field label="Name" value={name} onChange={setName} type="text" placeholder="e.g. Mum's lasagna" />
+      <Field label={t('diet.food.name')} value={name} onChange={setName} type="text" placeholder={t('diet.custom.namePlaceholder')} />
       <div className="grid grid-cols-2 gap-3">
         <Field label="kcal / 100g" value={kcal} onChange={setKcal} placeholder="0" />
-        <Field label="Protein / 100g" value={protein} onChange={setProtein} placeholder="0" />
-        <Field label="Carbs / 100g" value={carbs} onChange={setCarbs} placeholder="0" />
-        <Field label="Fat / 100g" value={fat} onChange={setFat} placeholder="0" />
+        <Field label={t('diet.food.protein100')} value={protein} onChange={setProtein} placeholder="0" />
+        <Field label={t('diet.food.carbs100')} value={carbs} onChange={setCarbs} placeholder="0" />
+        <Field label={t('diet.food.fat100')} value={fat} onChange={setFat} placeholder="0" />
       </div>
-      <Field label="Serving size in grams (optional)" value={serving} onChange={setServing} placeholder="100" />
+      <Field label={t('diet.custom.serving')} value={serving} onChange={setServing} placeholder="100" />
       <button
         onClick={save}
         disabled={!valid}
         className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
-        {planning ? 'Save & plan' : 'Save & log'}
+        {planning ? t('diet.custom.savePlan') : t('diet.custom.saveLog')}
       </button>
       <button
         onClick={() => setRecipeMode(true)}
         className="flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-sub active:text-ink"
       >
-        <Layers size={16} /> Build from a recipe (cook once, log portions)
+        <Layers size={16} className="shrink-0" /> {t('diet.custom.fromRecipe')}
       </button>
     </div>
   )
@@ -445,20 +455,20 @@ function RecipeBuilder({ add, planning, onDone, onBack }: {
   return (
     <div className="space-y-3">
       <button onClick={onBack} className="text-sm font-medium text-sub active:text-ink">
-        ‹ Back to custom food
+        {t('diet.recipe.back')}
       </button>
-      <Field label="Recipe name" value={name} onChange={setName} type="text" placeholder="e.g. Sunday ragù" />
+      <Field label={t('diet.recipe.name')} value={name} onChange={setName} type="text" placeholder={t('diet.recipe.namePlaceholder')} />
 
       <div>
         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">
-          Add raw ingredients (from your foods)
+          {t('diet.recipe.ingredients')}
         </span>
         <div className="flex items-center gap-2 rounded-xl bg-card px-3">
           <Search size={16} className="shrink-0 text-sub" />
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="Search your foods…"
+            placeholder={t('diet.recipe.searchPlaceholder')}
             className="min-h-[44px] w-full text-base"
           />
         </div>
@@ -472,7 +482,7 @@ function RecipeBuilder({ add, planning, onDone, onBack }: {
             className="flex min-h-[44px] w-full items-center justify-between px-2 text-left active:bg-muted/30"
           >
             <span className="truncate text-sm font-medium">{f.name}</span>
-            <span className="num text-xs text-sub">{f.kcal100} kcal/100g</span>
+            <span className="num shrink-0 text-xs text-sub">{num(f.kcal100)} kcal/100g</span>
           </button>
         ))}
       </div>
@@ -491,7 +501,7 @@ function RecipeBuilder({ add, planning, onDone, onBack }: {
           />
           <button
             onClick={() => setItems(list => list.filter((_, i) => i !== idx))}
-            aria-label={`Remove ${it.food.name}`}
+            aria-label={t('diet.recipe.removeAria', { name: it.food.name })}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-sub active:bg-muted/40"
           >
             <X size={16} />
@@ -499,12 +509,13 @@ function RecipeBuilder({ add, planning, onDone, onBack }: {
         </div>
       ))}
 
-      <Field label="Total cooked weight (g)" value={cooked} onChange={setCooked} placeholder="e.g. 1200" />
+      <Field label={t('diet.recipe.cooked')} value={cooked} onChange={setCooked} placeholder={t('diet.recipe.cookedPlaceholder')} />
 
       {valid && (
         <p className="num rounded-xl bg-card px-3 py-2 text-center text-sm text-sub">
-          Per 100g: <b className="text-ink">{per100.kcal100} kcal</b> · P {per100.protein100} · C{' '}
-          {per100.carbs100} · F {per100.fat100}
+          {t('diet.recipe.per100')} <b className="text-ink">{num(per100.kcal100)} kcal</b> · {t('diet.macro.p')}{' '}
+          {num(per100.protein100)} · {t('diet.macro.c')} {num(per100.carbs100)} · {t('diet.macro.f')}{' '}
+          {num(per100.fat100)}
         </p>
       )}
 
@@ -513,7 +524,7 @@ function RecipeBuilder({ add, planning, onDone, onBack }: {
         disabled={!valid}
         className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
       >
-        {planning ? 'Save recipe & plan 100 g' : 'Save recipe & log 100 g'}
+        {planning ? t('diet.recipe.savePlan') : t('diet.recipe.saveLog')}
       </button>
     </div>
   )

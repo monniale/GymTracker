@@ -2,4 +2,11 @@
 <resources>
     <!-- App background (tailwind `bg`, PWA theme_color): window, splash and SystemBars fallback strips. -->
     <color name="gt_bg">#0B0F14</color>
+    <!-- Home-screen widget (tailwind tokens). -->
+    <color name="gt_card">#1B2431</color>
+    <color name="gt_edge">#2A3442</color>
+    <color name="gt_muted">#37414F</color>
+    <color name="gt_primary">#F97316</color>
+    <color name="gt_ink">#F8FAFC</color>
+    <color name="gt_sub">#94A3B8</color>
 </resources>

@@ -37,6 +37,8 @@ export interface DeviceSettingsPlugin {
   getStatus(): Promise<DeviceStatusRaw>
   /** Resolves `{ fallback: true }` when the target screen was missing and app details opened instead; rejects 'UNAVAILABLE'. */
   open(options: { target: DeviceSettingsTarget; channelId?: string }): Promise<{ fallback: boolean }>
+  /** Android 13+: the app's Java resources follow `lang` ('' = the phone's language). */
+  setAppLanguage(options: { lang: string }): Promise<{ applied: boolean }>
 }
 
 export const DeviceSettings = registerPlugin<DeviceSettingsPlugin>('DeviceSettings')
@@ -54,5 +56,14 @@ export async function openDeviceSettings(target: DeviceSettingsTarget, channelId
     await DeviceSettings.open(channelId ? { target, channelId } : { target })
   } catch (e) {
     console.warn('DeviceSettings.open failed', target, e)
+  }
+}
+
+/** Keeps the native side (rest-timer alert, channel names, widget) in the in-app language. Never throws. */
+export async function syncAppLanguage(lang: string): Promise<void> {
+  try {
+    await DeviceSettings.setAppLanguage({ lang })
+  } catch (e) {
+    console.warn('DeviceSettings.setAppLanguage failed', e)
   }
 }

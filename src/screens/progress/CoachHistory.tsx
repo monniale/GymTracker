@@ -6,15 +6,16 @@ import { db } from '../../db/db'
 import { addDays, fmtDate, fmtDateTime, monthLabel, startOfMonth } from '../../lib/dates'
 import { weekRangeLabel } from '../../lib/weekBriefing'
 import { deleteJudgement, judgementKey } from '../../lib/coachHistory'
+import { t } from '../../i18n'
 import type { CoachInsightTone, CoachJudgement } from '../../types'
 
 type Filter = 'all' | 'workout' | 'diet' | 'week'
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'workout', label: 'Workouts' },
-  { id: 'diet', label: 'Diet' },
-  { id: 'week', label: 'Weeks' },
+  { id: 'all', label: t('progress.coach.filterAll') },
+  { id: 'workout', label: t('progress.coach.filterWorkouts') },
+  { id: 'diet', label: t('progress.coach.filterDiet') },
+  { id: 'week', label: t('progress.coach.filterWeeks') },
 ]
 
 function toneText(t: CoachInsightTone): string {
@@ -86,15 +87,15 @@ export default function CoachHistory() {
       <div className="mb-4 flex items-center gap-2">
         <Link
           to="/progress"
-          aria-label="Back"
+          aria-label={t('common.back')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={24} />
         </Link>
-        <h1 className="min-w-0 truncate font-display text-3xl font-bold">Coach history</h1>
+        <h1 className="min-w-0 truncate font-display text-3xl font-bold">{t('progress.coachTile.title')}</h1>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Filter verdicts">
+      <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label={t('progress.coach.filterAria')}>
         {FILTERS.map(f => (
           <button
             key={f.id}
@@ -115,10 +116,10 @@ export default function CoachHistory() {
           <Sparkles size={22} className="mx-auto text-primary" aria-hidden />
           <p className="mt-2 text-sm text-sub">
             {filter === 'diet'
-              ? 'No diet reports stored yet. Generate one from the Diet tab.'
+              ? t('progress.coach.emptyDiet')
               : filter === 'week'
-                ? 'No weekly reviews yet. Open Progress › Week review to get one.'
-                : 'No verdicts stored yet. With a Gemini key connected, every coach’s note is kept here.'}
+                ? t('progress.coach.emptyWeek')
+                : t('progress.coach.emptyAll')}
           </p>
         </div>
       ) : (
@@ -147,10 +148,12 @@ export default function CoachHistory() {
 function JudgementCard({ row, current, sessionExists }: { row: CoachJudgement; current: boolean; sessionExists: boolean }) {
   const [open, setOpen] = useState(false)
   const KindIcon = row.kind === 'workout' ? Dumbbell : row.kind === 'week' ? CalendarRange : UtensilsCrossed
-  const subject = row.kind === 'workout' ? row.title || 'Workout' : row.kind === 'week' ? 'Week review' : 'Diet day'
+  const subject = row.kind === 'workout'
+    ? row.title || t('progress.coach.workout')
+    : row.kind === 'week' ? t('progress.weekTile.title') : t('progress.coach.dietDay')
 
   async function remove() {
-    if (!window.confirm('Delete this verdict? It is removed on every synced device.')) return
+    if (!window.confirm(t('progress.coach.deleteConfirm'))) return
     await deleteJudgement(row)
   }
 
@@ -164,7 +167,7 @@ function JudgementCard({ row, current, sessionExists }: { row: CoachJudgement; c
             <span className="min-w-0 truncate">{subject}</span>
             {!current && (
               <span className="shrink-0 whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-semibold">
-                Earlier verdict
+                {t('progress.coach.earlier')}
               </span>
             )}
           </p>
@@ -193,7 +196,7 @@ function JudgementCard({ row, current, sessionExists }: { row: CoachJudgement; c
                 to={`/workout/summary/${String(row.sessionId)}?report=1`}
                 className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary"
               >
-                <ExternalLink size={14} aria-hidden /> Open workout
+                <ExternalLink size={14} aria-hidden /> {t('progress.coach.openWorkout')}
               </Link>
             ) : row.kind === 'week' ? (
               <Link
@@ -201,17 +204,17 @@ function JudgementCard({ row, current, sessionExists }: { row: CoachJudgement; c
                 state={{ monday: row.date, sunday: addDays(row.date, 6) }}
                 className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary"
               >
-                <ExternalLink size={14} aria-hidden /> Open week
+                <ExternalLink size={14} aria-hidden /> {t('progress.coach.openWeek')}
               </Link>
             ) : row.kind === 'diet' ? (
               <Link to="/diet" state={{ date: row.date }} className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary">
-                <ExternalLink size={14} aria-hidden /> Open day
+                <ExternalLink size={14} aria-hidden /> {t('progress.coach.openDay')}
               </Link>
             ) : (
-              <span className="text-xs text-sub">Workout deleted</span>
+              <span className="text-xs text-sub">{t('progress.coach.workoutDeleted')}</span>
             )}
             <button onClick={() => void remove()} className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-danger">
-              <Trash2 size={14} aria-hidden /> Delete
+              <Trash2 size={14} aria-hidden /> {t('common.delete')}
             </button>
           </div>
         </div>

@@ -17,6 +17,8 @@ import { haptic } from '../../native/haptics'
 import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
+import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { t, tp, fmtNum } from '../../i18n'
 import type { Equipment, Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
 
 const WARMUP_REST_SEC = 30
@@ -78,12 +80,16 @@ export default function ActiveSession() {
   const workDone = new Map<Id, number>()
   for (const s of sets) if (!s.isWarmup) workDone.set(s.exerciseId, (workDone.get(s.exerciseId) ?? 0) + 1)
   const hasSetsLeft = (it: TemplateItem) => (workDone.get(it.exerciseId) ?? 0) < it.targetSets
+  const shownName = (id: Id) => {
+    const ex = exMap.get(id)
+    return ex ? exerciseDisplayName(ex.name) : '…'
+  }
 
   /** The next exercise (in order, wrapping) that still has sets left, other than items[idx]. */
   function nextExerciseName(idx: number): string | undefined {
     for (let k = 1; k < items.length; k++) {
       const it = items[(idx + k) % items.length]
-      if (hasSetsLeft(it)) return exMap.get(it.exerciseId)?.name ?? '…'
+      if (hasSetsLeft(it)) return shownName(it.exerciseId)
     }
     return undefined
   }
@@ -92,7 +98,7 @@ export default function ActiveSession() {
   function supersetNextName(idx: number): string | undefined {
     let head = idx
     while (head > 0 && items[head - 1].supersetWithNext) head--
-    for (let k = head; k < idx; k++) if (hasSetsLeft(items[k])) return exMap.get(items[k].exerciseId)?.name ?? '…'
+    for (let k = head; k < idx; k++) if (hasSetsLeft(items[k])) return shownName(items[k].exerciseId)
     return undefined
   }
 
@@ -106,7 +112,7 @@ export default function ActiveSession() {
   async function onFinish() {
     if (finishing || !session) return
     if (sets.length === 0) {
-      if (!window.confirm('No sets logged — discard this session?')) return
+      if (!window.confirm(t('workout.session.confirmDiscard'))) return
       await db.sessions.delete(session.id!)
       setActiveSessionId(null)
       clearRest()
@@ -131,7 +137,7 @@ export default function ActiveSession() {
             {fmtDuration(now - session.startedAt)}
             {generating && (
               <span className="flex items-center gap-1 text-primary">
-                <Sparkles size={12} className="animate-pulse" /> planning…
+                <Sparkles size={12} className="animate-pulse" /> {t('workout.session.planning')}
               </span>
             )}
           </p>
@@ -139,9 +145,9 @@ export default function ActiveSession() {
         <button
           onClick={onFinish}
           disabled={finishing}
-          className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-4 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-50"
+          className="flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-accent px-4 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-50"
         >
-          <Flag size={18} /> {finishing ? 'Scoring…' : 'Finish'}
+          <Flag size={18} /> {finishing ? t('workout.session.scoring') : t('workout.session.finish')}
         </button>
       </div>
 
@@ -164,8 +170,8 @@ export default function ActiveSession() {
             />
             {item.supersetWithNext && idx < items.length - 1 && (
               <div className="relative z-10 -my-2.5 flex justify-center">
-                <span className="flex items-center gap-1 rounded-full border border-primary/40 bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-                  <Link2 size={11} /> Superset
+                <span className="flex items-center gap-1 whitespace-nowrap rounded-full border border-primary/40 bg-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                  <Link2 size={11} /> {t('workout.shared.superset')}
                 </span>
               </div>
             )}
@@ -177,7 +183,7 @@ export default function ActiveSession() {
         onClick={() => setPickerOpen(true)}
         className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-edge py-4 font-medium text-sub active:bg-muted/30"
       >
-        <Plus size={20} /> Add exercise
+        <Plus size={20} /> {t('workout.shared.addExercise')}
       </button>
 
       <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={addExercise} />
@@ -235,6 +241,7 @@ function ExerciseCard({
   const nextIndex = logged.length
   const restSec = item.restSec ?? exercise?.defaultRestSec ?? defaultRestSec
   const isBarbell = !cardio && exercise?.equipment === 'barbell'
+  const name = exercise ? exerciseDisplayName(exercise.name) : undefined
 
   const suggestion = useMemo(
     () => cardio ? null : suggestNext(
@@ -298,7 +305,7 @@ function ExerciseCard({
     just: { weightKg: number; reps: number; durationSec?: number; distanceM?: number },
     isWarmup: boolean,
   ): string {
-    if (!isWarmup && supersetNextName) return `Next: ${supersetNextName}`
+    if (!isWarmup && supersetNextName) return t('workout.rest.next', { name: supersetNextName })
     const done = workLogged + (isWarmup ? 0 : 1)
     const planned = item.targetSets + extraRows
     if (done < planned) {
@@ -308,11 +315,13 @@ function ExerciseCard({
         target = fmtCardioSet(cardioDraftForWork(done, lastWork))
       } else {
         const next = draftForWork(done, lastWork)
-        target = next.weightKg > 0 ? `${next.weightKg} kg × ${next.reps}` : `${next.reps} reps`
+        target = next.weightKg > 0 ? `${fmtNum(next.weightKg)} kg × ${next.reps}` : tp('units.reps', next.reps)
       }
-      return `${exercise?.name ?? 'Next set'} · set ${done + 1}/${planned} · ${target}`
+      return t('workout.rest.setTarget', {
+        name: name ?? t('workout.rest.nextSet'), n: done + 1, total: planned, target,
+      })
     }
-    return nextExerciseName ? `Next: ${nextExerciseName}` : 'Last exercise — finish when ready'
+    return nextExerciseName ? t('workout.rest.next', { name: nextExerciseName }) : t('workout.rest.last')
   }
 
   async function logSet(weightKg: number, reps: number, isWarmup: boolean) {
@@ -350,7 +359,7 @@ function ExerciseCard({
   async function addRamp() {
     const steps = warmupRamp(rampWeight, barKg)
     if (steps.length === 0) return
-    const t = Date.now()
+    const at = Date.now()
     await db.sets.bulkAdd(steps.map((st, i) => ({
       sessionId,
       exerciseId: item.exerciseId,
@@ -358,7 +367,7 @@ function ExerciseCard({
       weightKg: st.weightKg,
       reps: st.reps,
       isWarmup: true,
-      completedAt: t + i,
+      completedAt: at + i,
       e1rm: epley(st.weightKg, st.reps),
     })))
   }
@@ -382,11 +391,11 @@ function ExerciseCard({
       {/* Name gets its own row: on 360px phones the badges left it ~45px. */}
       <div className="flex items-center gap-1">
         <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold">
-          {exercise?.name ?? '…'}
+          {name ?? '…'}
         </p>
         <button
           onClick={() => setNoteOpen(true)}
-          aria-label={`Notes for ${exercise?.name}`}
+          aria-label={t('workout.session.notesFor', { name: name ?? '' })}
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg active:bg-muted ${
             exercise?.notes ? 'text-primary' : 'text-sub'
           }`}
@@ -406,10 +415,10 @@ function ExerciseCard({
         {showRamp && (
           <button
             onClick={addRamp}
-            aria-label="Add warm-up ramp"
+            aria-label={t('workout.session.addRamp')}
             className="ml-auto flex h-8 items-center gap-1 whitespace-nowrap rounded-lg bg-muted/40 px-2 text-xs font-semibold text-sub active:bg-muted"
           >
-            <Zap size={14} /> Ramp
+            <Zap size={14} /> {t('workout.session.ramp')}
           </button>
         )}
       </div>
@@ -435,13 +444,13 @@ function ExerciseCard({
               >
                 <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                 <span className="num flex-1 font-display text-lg font-semibold">
-                  {isCardioSet(s) ? fmtCardioSet(s) : `${s.weightKg} kg × ${s.reps}`}
-                  {s.isWarmup && <span className="ml-2 text-xs font-medium text-sub">warm-up</span>}
+                  {isCardioSet(s) ? fmtCardioSet(s) : `${fmtNum(s.weightKg)} kg × ${s.reps}`}
+                  {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                 </span>
                 <Check size={18} className="text-accent" aria-hidden />
                 <button
                   onClick={() => deleteSet(s.id!)}
-                  aria-label="Delete set"
+                  aria-label={t('workout.shared.deleteSet')}
                   className="flex h-9 w-9 items-center justify-center rounded-lg text-sub active:bg-muted/40"
                 >
                   <X size={16} />
@@ -484,9 +493,9 @@ function ExerciseCard({
               <span className="num flex-1 text-base text-sub">
                 {cardio
                   ? fmtCardioSet(cardioDraftFor(i))
-                  : ghost.weightKg > 0 ? `${ghost.weightKg} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
+                  : ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
               </span>
-              {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label="AI suggestion" />}
+              {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label={t('workout.session.aiSuggestion')} />}
             </div>
           )
         })}
@@ -496,7 +505,7 @@ function ExerciseCard({
         onClick={() => setExtraRows(n => n + 1)}
         className="mt-2 flex min-h-[40px] items-center gap-1 px-1 text-sm font-medium text-sub active:text-ink"
       >
-        <Plus size={16} /> Add set
+        <Plus size={16} /> {t('workout.shared.addSet')}
       </button>
 
       {exercise && (
@@ -529,24 +538,24 @@ function NoteSheet({ open, onClose, exercise }: {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title={exercise.name}>
+    <Sheet open={open} onClose={onClose} title={exerciseDisplayName(exercise.name)}>
       <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">
-        Notes (seat settings, cues…)
+        {t('workout.notes.label')}
       </label>
       <textarea
         value={text}
         onChange={e => setText(e.target.value)}
         rows={3}
         className="w-full rounded-xl bg-card p-3 text-base"
-        placeholder="e.g. seat 4, grip at rings, elbows tucked"
+        placeholder={t('workout.notes.placeholder')}
       />
-      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Equipment</p>
+      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.shared.equipment')}</p>
       <div className="flex flex-wrap gap-2">
         {EQUIPMENTS.map(eq => (
           <button
             key={eq}
             onClick={() => setEquip(eq)}
-            className={`min-h-[40px] rounded-full px-3 text-sm font-medium ${
+            className={`min-h-[40px] whitespace-nowrap rounded-full px-3 text-sm font-medium ${
               equip === eq ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
             }`}
           >
@@ -554,8 +563,8 @@ function NoteSheet({ open, onClose, exercise }: {
           </button>
         ))}
       </div>
-      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">Log as</p>
-      <div className="flex gap-2" role="group" aria-label="Log as">
+      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.notes.logAs')}</p>
+      <div className="flex gap-2" role="group" aria-label={t('workout.notes.logAs')}>
         {(['strength', 'cardio'] as const).map(k => (
           <button
             key={k}
@@ -565,13 +574,13 @@ function NoteSheet({ open, onClose, exercise }: {
               logAs === k ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
             }`}
           >
-            {k === 'strength' ? 'Strength' : 'Cardio'}
+            {k === 'strength' ? t('workout.notes.strength') : t('workout.notes.cardio')}
           </button>
         ))}
       </div>
       <div className={`mt-3 items-center justify-between ${logAs === 'cardio' ? 'hidden' : 'flex'}`}>
         <NumberStepper
-          label="Progression step"
+          label={t('workout.notes.step')}
           value={step}
           onChange={setStep}
           step={1.25}
@@ -584,7 +593,7 @@ function NoteSheet({ open, onClose, exercise }: {
         onClick={save}
         className="mt-4 w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
       >
-        Save
+        {t('common.save')}
       </button>
     </Sheet>
   )
@@ -642,15 +651,15 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
           }}
           className="num mb-1.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary active:bg-primary/30"
         >
-          ↑ {suggestion.weightKg} kg × {suggestion.reps}
+          ↑ {fmtNum(suggestion.weightKg)} kg × {suggestion.reps}
           <span className="font-medium opacity-70">
-            {suggestion.reason === 'weight-up' ? 'new weight' : 'one more rep'}
+            {suggestion.reason === 'weight-up' ? t('workout.pending.newWeight') : t('workout.pending.oneMoreRep')}
           </span>
         </button>
       )}
       {aiFilled && !showSuggestion && (
         <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary">
-          <Sparkles size={12} /> AI suggested
+          <Sparkles size={12} /> {t('workout.pending.aiSuggested')}
         </p>
       )}
       <div className="flex items-center gap-2">
@@ -658,13 +667,13 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
         <button
           onClick={() => setExpanded(x => !x)}
           className="num flex-1 py-1 text-left font-display text-xl font-bold active:opacity-70"
-          aria-label="Adjust weight and reps"
+          aria-label={t('workout.pending.adjust')}
         >
-          {weight > 0 ? `${weight} kg` : '— kg'} × {reps}
+          {weight > 0 ? `${fmtNum(weight)} kg` : '— kg'} × {reps}
         </button>
         <button
           onClick={() => setWarmup(w => !w)}
-          aria-label="Toggle warm-up"
+          aria-label={t('workout.pending.toggleWarmup')}
           aria-pressed={warmup}
           className={`flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold ${
             warmup ? 'bg-muted text-ink' : 'bg-muted/30 text-sub'
@@ -674,7 +683,7 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
         </button>
         <button
           onClick={submit}
-          aria-label="Log set"
+          aria-label={t('workout.pending.logSet')}
           className="flex h-12 w-14 items-center justify-center rounded-xl bg-primary text-bg active:opacity-90"
         >
           <Check size={26} strokeWidth={3} />
@@ -684,16 +693,16 @@ function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion,
         <div className="mt-2 border-t border-edge/50 pt-2">
           <div className="flex flex-wrap justify-around gap-2">
             <NumberStepper label="kg" value={weight} onChange={editWeight} step={2.5} min={0} max={600} compact="narrow" />
-            <NumberStepper label="reps" value={reps} onChange={editReps} step={1} min={1} max={100} compact="narrow" />
+            <NumberStepper label={t('workout.shared.reps')} value={reps} onChange={editReps} step={1} min={1} max={100} compact="narrow" />
           </div>
           {plateHint && (
-            <p className="num mt-1.5 text-center text-xs text-sub">Plates/side: {plateHint}</p>
+            <p className="num mt-1.5 text-center text-xs text-sub">{t('workout.pending.plates', { plates: plateHint })}</p>
           )}
         </div>
       )}
       {tooHeavy && (
         <p className="mt-1 text-xs font-medium text-danger">
-          Unusually heavy ({'>'}{SCORING.maxWeightBwMult}× bodyweight) — tap ✓ again to confirm.
+          {t('workout.pending.tooHeavy', { mult: SCORING.maxWeightBwMult })}
         </p>
       )}
     </div>
@@ -740,13 +749,13 @@ function CardioPendingRow({ setNumber, init, onLog }: {
         <button
           onClick={() => setExpanded(x => !x)}
           className="num min-w-0 flex-1 truncate py-1 text-left font-display text-xl font-bold active:opacity-70"
-          aria-label="Adjust time and distance"
+          aria-label={t('workout.pending.adjustCardio')}
         >
           {fmtCardioSet({ durationSec, distanceM })}
         </button>
         <button
           onClick={submit}
-          aria-label="Log cardio"
+          aria-label={t('workout.pending.logCardio')}
           className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-primary text-bg active:opacity-90"
         >
           <Check size={26} strokeWidth={3} />
@@ -759,7 +768,7 @@ function CardioPendingRow({ setNumber, init, onLog }: {
             <NumberStepper label="sec" value={sec} onChange={edit(setSec)} step={15} min={0} max={59} compact />
             <NumberStepper label="km" value={km} onChange={edit(setKm)} step={0.1} min={0} max={300} compact />
           </div>
-          {durationSec <= 0 && <p className="mt-1 text-xs font-medium text-danger">Set a time to log this.</p>}
+          {durationSec <= 0 && <p className="mt-1 text-xs font-medium text-danger">{t('workout.pending.needTime')}</p>}
         </div>
       )}
     </div>

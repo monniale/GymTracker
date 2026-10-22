@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { startOfMonth, addMonths, monthLabel, sameMonth, monthGrid, WEEKDAY_LABELS } from './dates'
+import { describe, it, expect, afterEach } from 'vitest'
+import {
+  startOfMonth, addMonths, monthLabel, sameMonth, monthGrid, WEEKDAY_LABELS,
+  addDays, fmtDate, fmtDateTime, fmtLongDate, localDateStr,
+} from './dates'
+import { useUiStore } from './uiStore'
 
 describe('month calendar helpers', () => {
   it('startOfMonth returns the first day of the month', () => {
@@ -44,5 +48,28 @@ describe('month calendar helpers', () => {
     expect(grid).toContain('2026-02-01')
     expect(grid).toContain('2026-02-28')
     expect(grid[0]).toBe('2026-01-26') // Monday before Feb 1 (Sun)
+  })
+})
+
+describe('date labels follow the UI language', () => {
+  afterEach(() => useUiStore.setState({ language: 'en' }))
+
+  it('English: "Today", "Mon 13 Oct", "Thu 15 Oct 2026"', () => {
+    expect(fmtDate(localDateStr())).toBe('Today')
+    expect(fmtDate(addDays(localDateStr(), -1))).toBe('Yesterday')
+    expect(fmtDate('2025-10-13')).toBe('Mon 13 Oct')
+    expect(fmtLongDate('2026-10-15')).toBe('Thu 15 Oct 2026')
+    expect(fmtDateTime(new Date(2025, 9, 13, 14, 5).getTime())).toBe('Mon 13 Oct, 14:05')
+  })
+
+  it('Italian: day first, lowercase names in running text, capitalized month heading', () => {
+    useUiStore.setState({ language: 'it' })
+    expect(fmtDate(localDateStr())).toBe('Oggi')
+    expect(fmtDate(addDays(localDateStr(), 1))).toBe('Domani')
+    expect(fmtDate('2025-10-13')).toBe('lun 13 ott')
+    expect(fmtLongDate('2026-10-15')).toBe('gio 15 ott 2026')
+    expect(fmtDateTime(new Date(2025, 9, 13, 14, 5).getTime())).toBe('lun 13 ott, 14:05')
+    expect(monthLabel('2026-10-01')).toBe('Ottobre 2026')
+    expect(monthLabel('2026-01-31')).toBe('Gennaio 2026')
   })
 })

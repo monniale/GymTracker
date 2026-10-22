@@ -8,6 +8,7 @@ import { beep } from '../lib/audio'
 import { fmtDuration } from '../lib/dates'
 import { haptic } from '../native/haptics'
 import { isNative } from '../native/platform'
+import { t } from '../i18n'
 
 /** Only alert for an expiry seen live: no stale beep when the app comes back from the background. */
 const STALE_ALERT_MS = 3000
@@ -52,7 +53,7 @@ export default function RestTimerBar() {
         <TimerReset size={20} className={done ? 'text-accent' : 'text-primary'} aria-hidden />
         {done ? (
           <span className="flex-1 font-display text-xl font-semibold text-accent">
-            Rest over — go!
+            {t('components.restTimer.over')}
           </span>
         ) : (
           <span className="num flex-1 font-display text-2xl font-bold">
@@ -82,7 +83,7 @@ export default function RestTimerBar() {
             haptic('tap')
             clearRest()
           }}
-          aria-label="Skip rest"
+          aria-label={t('components.restTimer.skip')}
           className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-sub active:bg-muted"
         >
           <X size={20} />

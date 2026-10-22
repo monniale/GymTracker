@@ -107,6 +107,7 @@ Commit → `scripts/android/release.sh` → `adb install -r <apk>`. This needs t
   - **14. Import:** a backup pushed under `.android-test/` imports, and reminders re-plan.
   - **15. Update and reboot:** `adb install -r` of a newer build keeps the data and re-arms reminders; after `adb reboot` and an unlock, future reminders are back in `dumpsys alarm`.
   - **16. Doze:** `dumpsys battery unplug; dumpsys deviceidle force-idle`, and a reminder 2 min out still fires.
+  - **17. Home-screen widget:** Settings › Home-screen widget › *Add to home screen* (or the launcher's widget picker) places it. It shows rank, points, streak, this week's workouts and the next template; `adb shell dumpsys appwidget` lists it. After a workout (or any change) the numbers update; a tap opens the Workout tab. *Share card* on a workout summary opens the share sheet with a PNG (`run-as <pkg> ls cache/exports`).
   - **On the S25:** the ML Kit scanner and its module download, the Live Update chip, edge-to-edge insets on the current WebView (`dumpsys webviewupdate`), and the rest alert in earbuds and on vibrate.
 
 ## 8. Known limitations
@@ -121,6 +122,8 @@ Commit → `scripts/android/release.sh` → `adb install -r <apk>`. This needs t
   - The Live Update status-bar chip and the One UI countdown rendering are not verified on One UI 8.5.
 - **Exact timing** relies on `USE_EXACT_ALARM`. If Settings ever shows "Exact timing is off", tap Fix: alarms are then inexact and may be late.
 - **Text size:** the WebView text zoom is pinned to 100 %, so the One UI font size does not apply inside the app. This keeps the 360/320 px layouts intact. Changing the font size or Bold font does not reload the app (an open sheet or a typed value survives).
+- **Language:** on Android 13+ the app's own native texts (the "Rest over" alert and its Skip action, channel names, the widget) follow the in-app language. On older Android they follow the phone's language.
+- **Home-screen widget:** it shows what the app last pushed. It refreshes whenever GymTracker runs (launch, resume, any change, midnight while open), not on its own: after days without opening the app, the streak and "this week" can be out of date until the next launch.
 - **Barcode scanner:** ML Kit downloads its scanner module through Play services on first use. If that fails, the camera fallback (zxing) and manual entry remain.
 - **Storage:** `navigator.storage.persist()` is best effort, and Android may still clear WebView storage under extreme pressure. Keep GitHub Sync connected, or export regularly. Uninstalling deletes everything.
 - **Backups:** Android cloud backup is off (`allowBackup=false`), which keeps the PAT and the Gemini key out of Google Drive. GitHub Sync and JSON export are the backups.

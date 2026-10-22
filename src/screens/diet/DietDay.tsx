@@ -9,6 +9,7 @@ import { copyToPlan, eatAllPlanned, eatPlanned } from '../../lib/mealPlan'
 import { gatherWeekNutrition } from '../../lib/dietReport'
 import { useLocalToday } from '../../lib/hooks'
 import { haptic } from '../../native/haptics'
+import { t, fmtNum, type Key } from '../../i18n'
 import ProgressRing from '../../components/ProgressRing'
 import DietCoachCard from '../../components/DietCoachCard'
 import MacroCompletionCard from '../../components/MacroCompletionCard'
@@ -17,11 +18,11 @@ import EntryEditor from './EntryEditor'
 import PlannedEntrySheet from './PlannedEntrySheet'
 import type { FoodLog, MealType, PlannedFood } from '../../types'
 
-const MEALS: { key: MealType; label: string }[] = [
-  { key: 'breakfast', label: 'Breakfast' },
-  { key: 'lunch', label: 'Lunch' },
-  { key: 'dinner', label: 'Dinner' },
-  { key: 'snack', label: 'Snacks' },
+const MEALS: { key: MealType; labelKey: Key }[] = [
+  { key: 'breakfast', labelKey: 'diet.meals.breakfast' },
+  { key: 'lunch', labelKey: 'diet.meals.lunch' },
+  { key: 'dinner', labelKey: 'diet.meals.dinner' },
+  { key: 'snack', labelKey: 'diet.meals.snack' },
 ]
 
 export default function DietDay() {
@@ -104,8 +105,9 @@ export default function DietDay() {
   async function saveAsMeal(meal: MealType) {
     const entries = (planning ? planned : logs).filter(l => l.meal === meal)
     if (entries.length === 0) return
-    const label = MEALS.find(m => m.key === meal)?.label ?? 'Meal'
-    const raw = window.prompt('Name this meal:', label)
+    const labelKey = MEALS.find(m => m.key === meal)?.labelKey
+    const label = t(labelKey ?? 'diet.meals.fallback')
+    const raw = window.prompt(t('diet.day.saveMealPrompt'), label)
     if (raw === null) return // cancelled
     // The Android WebView prompt ignores the default value, so OK on an empty field = default name.
     const name = raw.trim() || label
@@ -116,12 +118,16 @@ export default function DietDay() {
     })
   }
 
+  const P = t('diet.macro.p')
+  const C = t('diet.macro.c')
+  const F = t('diet.macro.f')
+
   return (
     <div className="pt-4">
       <div className="mb-4 flex items-center justify-between">
         <button
           onClick={() => setDate(addDays(date, -1))}
-          aria-label="Previous day"
+          aria-label={t('diet.day.prevDay')}
           className="flex h-11 w-11 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronLeft size={24} />
@@ -134,7 +140,7 @@ export default function DietDay() {
         </button>
         <button
           onClick={() => setDate(addDays(date, 1))}
-          aria-label="Next day"
+          aria-label={t('diet.day.nextDay')}
           className="flex h-11 w-11 items-center justify-center rounded-xl text-sub active:bg-muted/40"
         >
           <ChevronRight size={24} />
@@ -145,13 +151,13 @@ export default function DietDay() {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <button
             onClick={toggleDayType}
-            aria-label="Switch between training and rest day targets"
+            aria-label={t('diet.day.dayTypeAria')}
             className={`flex min-h-[36px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-semibold ${
               isTraining ? 'bg-primary/15 text-primary' : 'bg-muted/40 text-sub'
             }`}
           >
             {isTraining ? <Dumbbell size={13} /> : <BedDouble size={13} />}
-            {isTraining ? 'Training day' : 'Rest day'}
+            {isTraining ? t('diet.day.trainingDay') : t('diet.day.restDay')}
             <ArrowLeftRight size={11} className="opacity-60" />
           </button>
           {date === today && (
@@ -159,12 +165,12 @@ export default function DietDay() {
               onClick={() => setDate(addDays(today, 1))}
               className="flex min-h-[36px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-muted/40 px-3 text-xs font-semibold text-sub active:bg-muted"
             >
-              <CalendarPlus size={13} aria-hidden /> Plan tomorrow
+              <CalendarPlus size={13} aria-hidden /> {t('diet.day.planTomorrow')}
             </button>
           )}
           {isFuture && (
-            <div className="flex shrink-0 rounded-full bg-muted/30 p-0.5 text-xs font-semibold" role="group" aria-label="Add mode">
-              {([['Planning', false], ['Logging', true]] as const).map(([label, value]) => (
+            <div className="flex shrink-0 rounded-full bg-muted/30 p-0.5 text-xs font-semibold" role="group" aria-label={t('diet.day.addModeAria')}>
+              {([['diet.day.planning', false], ['diet.day.logging', true]] as const).map(([label, value]) => (
                 <button
                   key={label}
                   onClick={() => setLogFuture(value)}
@@ -173,7 +179,7 @@ export default function DietDay() {
                     logFuture === value ? 'bg-primary/20 text-primary' : 'text-sub'
                   }`}
                 >
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
@@ -184,24 +190,25 @@ export default function DietDay() {
             <span className="num font-display text-xl font-bold">{Math.round(totals.kcal)}</span>
             <span className="text-[10px] font-medium uppercase text-sub">/ {tg?.kcal} kcal</span>
           </ProgressRing>
-          <MacroRing label="P" value={totals.protein} target={tg?.protein} color="#22C55E" />
-          <MacroRing label="C" value={totals.carbs} target={tg?.carbs} color="#3FC1C9" />
-          <MacroRing label="F" value={totals.fat} target={tg?.fat} color="#E8B93B" />
+          <MacroRing label={P} value={totals.protein} target={tg?.protein} color="#22C55E" />
+          <MacroRing label={C} value={totals.carbs} target={tg?.carbs} color="#3FC1C9" />
+          <MacroRing label={F} value={totals.fat} target={tg?.fat} color="#E8B93B" />
         </div>
         {planned.length > 0 && tg && (
           <p className="num mt-2 flex flex-wrap justify-center gap-x-2 text-xs text-sub">
-            <span className="whitespace-nowrap font-semibold text-ink">With plan:</span>
+            <span className="whitespace-nowrap font-semibold text-ink">{t('diet.day.withPlan')}</span>
             <span className="whitespace-nowrap">{Math.round(withPlan.kcal)} / {tg.kcal} kcal</span>
-            <span className="whitespace-nowrap">P {Math.round(withPlan.protein)}/{tg.protein}</span>
-            <span className="whitespace-nowrap">C {Math.round(withPlan.carbs)}/{tg.carbs}</span>
-            <span className="whitespace-nowrap">F {Math.round(withPlan.fat)}/{tg.fat}</span>
+            <span className="whitespace-nowrap">{P} {Math.round(withPlan.protein)}/{tg.protein}</span>
+            <span className="whitespace-nowrap">{C} {Math.round(withPlan.carbs)}/{tg.carbs}</span>
+            <span className="whitespace-nowrap">{F} {Math.round(withPlan.fat)}/{tg.fat}</span>
           </p>
         )}
         <WaterRow date={date} targetMl={settings?.waterTargetMl ?? 2500} />
       </div>
 
       <div className="space-y-4">
-        {MEALS.map(({ key, label }) => {
+        {MEALS.map(({ key, labelKey }) => {
+          const label = t(labelKey)
           const entries = logs.filter(l => l.meal === key)
           const plannedEntries = planned.filter(p => p.meal === key)
           const kcalOf = (rows: { foodId: FoodLog['foodId']; grams: number }[]) => rows.reduce((acc, l) => {
@@ -224,7 +231,7 @@ export default function DietDay() {
                     <>
                       <button
                         onClick={() => saveAsMeal(key)}
-                        aria-label={`Save ${label} as meal`}
+                        aria-label={t('diet.day.saveMealAria', { meal: label })}
                         className="flex h-10 w-10 items-center justify-center rounded-lg text-sub active:bg-muted/40"
                       >
                         <BookmarkPlus size={18} />
@@ -233,7 +240,7 @@ export default function DietDay() {
                   )}
                   <button
                     onClick={() => setAddMeal(key)}
-                    aria-label={planning ? `Plan food for ${label}` : `Add food to ${label}`}
+                    aria-label={t(planning ? 'diet.day.planFoodAria' : 'diet.day.addFoodAria', { meal: label })}
                     className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15 text-primary active:bg-primary/30"
                   >
                     <Plus size={20} />
@@ -254,7 +261,7 @@ export default function DietDay() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[15px] font-medium">{f.name}</p>
                         <p className="num text-xs text-sub">
-                          {l.grams} g · P {m.protein.toFixed(0)} · C {m.carbs.toFixed(0)} · F {m.fat.toFixed(0)}
+                          {l.grams} g · {P} {m.protein.toFixed(0)} · {C} {m.carbs.toFixed(0)} · {F} {m.fat.toFixed(0)}
                         </p>
                       </div>
                       <span className="num text-sm font-semibold">{Math.round(m.kcal)}</span>
@@ -265,7 +272,7 @@ export default function DietDay() {
                   <div className={`mt-1 rounded-xl border border-dashed border-edge p-1 ${date < today ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-2 px-2 pt-1">
                       <span className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-sub">
-                        {date < today ? 'Planned, not eaten' : 'Planned'}
+                        {date < today ? t('diet.day.plannedNotEaten') : t('diet.day.planned')}
                       </span>
                       <span className="num shrink-0 text-xs text-sub">{Math.round(plannedKcal)} kcal</span>
                       {canEat && (
@@ -276,7 +283,7 @@ export default function DietDay() {
                           }}
                           className="flex min-h-[36px] shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-semibold text-primary active:bg-muted/30"
                         >
-                          <Utensils size={13} aria-hidden /> Eat all
+                          <Utensils size={13} aria-hidden /> {t('diet.day.eatAll')}
                         </button>
                       )}
                     </div>
@@ -293,7 +300,7 @@ export default function DietDay() {
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[15px] font-medium text-ink/80">{f.name}</p>
                               <p className="num text-xs text-sub">
-                                {p.grams} g · P {m.protein.toFixed(0)} · C {m.carbs.toFixed(0)} · F {m.fat.toFixed(0)}
+                                {p.grams} g · {P} {m.protein.toFixed(0)} · {C} {m.carbs.toFixed(0)} · {F} {m.fat.toFixed(0)}
                               </p>
                             </div>
                             <span className="num shrink-0 text-sm font-semibold text-sub">{Math.round(m.kcal)}</span>
@@ -304,10 +311,10 @@ export default function DietDay() {
                                 haptic('tap')
                                 void eatPlanned([p.id!])
                               }}
-                              aria-label={`Eat ${f.name}`}
-                              className="flex h-10 shrink-0 items-center rounded-lg bg-primary/15 px-2.5 text-xs font-bold text-primary active:bg-primary/30"
+                              aria-label={t('diet.day.eatAria', { food: f.name })}
+                              className="flex h-10 shrink-0 items-center whitespace-nowrap rounded-lg bg-primary/15 px-2.5 text-xs font-bold text-primary active:bg-primary/30"
                             >
-                              Eat
+                              {t('diet.day.eat')}
                             </button>
                           )}
                         </div>
@@ -317,13 +324,13 @@ export default function DietDay() {
                 )}
                 {entries.length === 0 && plannedEntries.length === 0 && (
                   <div className="flex items-center justify-between px-2 py-1.5">
-                    <p className="text-sm text-sub">{planning ? 'Nothing planned.' : 'Nothing logged.'}</p>
+                    <p className="min-w-0 text-sm text-sub">{planning ? t('diet.day.nothingPlanned') : t('diet.day.nothingLogged')}</p>
                     {hasYesterday && (
                       <button
                         onClick={() => copyYesterday(key)}
-                        className="flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-primary active:bg-muted/30"
+                        className="flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-sm font-medium text-primary active:bg-muted/30"
                       >
-                        <Copy size={15} /> Copy yesterday
+                        <Copy size={15} /> {t('diet.day.copyYesterday')}
                       </button>
                     )}
                   </div>
@@ -386,7 +393,7 @@ function WaterRow({ date, targetMl }: { date: string; targetMl: number }) {
       </span>
       <button
         onClick={undo}
-        aria-label="Undo water"
+        aria-label={t('diet.water.undo')}
         disabled={total === 0}
         className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/30 text-sub active:bg-muted disabled:opacity-30"
       >
@@ -394,7 +401,7 @@ function WaterRow({ date, targetMl }: { date: string; targetMl: number }) {
       </button>
       <button
         onClick={add}
-        aria-label="Add 250ml water"
+        aria-label={t('diet.water.add')}
         className="num flex h-9 items-center justify-center rounded-lg bg-[#3FC1C9]/15 px-2.5 text-xs font-bold text-[#3FC1C9] active:bg-[#3FC1C9]/30"
       >
         +250
@@ -417,20 +424,20 @@ function WeekReport({ date }: { date: string }) {
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
         <span className="flex items-center gap-2 font-display text-lg font-semibold">
-          <ClipboardList size={18} className="text-sub" /> Last 7 days
+          <ClipboardList size={18} className="text-sub" /> {t('diet.week.title')}
         </span>
         {open ? <ChevronUp size={18} className="text-sub" /> : <ChevronDown size={18} className="text-sub" />}
       </button>
       {open && report && (
         <div className="border-t border-edge/60 px-4 py-3">
           {report.loggedDays === 0 ? (
-            <p className="text-sm text-sub">No food logged in the last 7 days.</p>
+            <p className="text-sm text-sub">{t('diet.week.empty')}</p>
           ) : (
             <div className="num grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <Stat label="Avg calories" value={`${report.avgKcal} kcal`} />
-              <Stat label="Avg protein" value={`${report.avgProtein} g (${report.proteinPerKg} g/kg)`} />
-              <Stat label="On-target days (±10%)" value={`${report.adherent} / ${report.loggedDays}`} />
-              <Stat label="Training days" value={`${report.trainingDays} / 7`} />
+              <Stat label={t('diet.week.avgKcal')} value={`${report.avgKcal} kcal`} />
+              <Stat label={t('diet.week.avgProtein')} value={`${report.avgProtein} g (${fmtNum(report.proteinPerKg, { useGrouping: false })} g/kg)`} />
+              <Stat label={t('diet.week.onTarget')} value={`${report.adherent} / ${report.loggedDays}`} />
+              <Stat label={t('diet.week.trainingDays')} value={`${report.trainingDays} / 7`} />
             </div>
           )}
         </div>

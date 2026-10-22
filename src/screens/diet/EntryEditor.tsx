@@ -9,7 +9,11 @@ import { useAiStore, aiRequestOpts } from '../../lib/aiStore'
 import { gatherSubstitutionBriefing, formatSubstitutionBriefing } from '../../lib/dietReport'
 import { generateSubstitution } from '../../lib/gemini'
 import { applySwap } from '../../lib/foodResolve'
+import { t, fmtNum } from '../../i18n'
 import type { Food, FoodLog, MacroSuggestionItem } from '../../types'
+
+/** One-decimal macro value in the language's format ("12.5" / "12,5"). */
+const dec1 = (n: number) => fmtNum(n, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })
 
 interface Props {
   open: boolean
@@ -42,29 +46,30 @@ export default function EntryEditor({ open, onClose, log, food }: Props) {
       {!editingFood ? (
         <div className="space-y-4">
           <div className="flex justify-center">
-            <NumberStepper label="grams" value={grams} onChange={setGrams} step={10} min={1} max={5000} unit="g" />
+            <NumberStepper label={t('diet.food.grams')} value={grams} onChange={setGrams} step={10} min={1} max={5000} unit="g" />
           </div>
           <p className="num text-center text-sm text-sub">
-            {Math.round(m.kcal)} kcal · P {m.protein.toFixed(1)} · C {m.carbs.toFixed(1)} · F {m.fat.toFixed(1)}
+            {Math.round(m.kcal)} kcal · {t('diet.macro.p')} {dec1(m.protein)} · {t('diet.macro.c')} {dec1(m.carbs)} ·{' '}
+            {t('diet.macro.f')} {dec1(m.fat)}
           </p>
           <button
             onClick={save}
             className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
           >
-            Save
+            {t('common.save')}
           </button>
           <div className="flex justify-between">
             <button
               onClick={() => setEditingFood(true)}
               className="flex min-h-[44px] items-center gap-1.5 px-2 text-sm font-medium text-sub active:text-ink"
             >
-              <Pencil size={16} /> Edit food data
+              <Pencil size={16} /> {t('diet.entry.editFood')}
             </button>
             <button
               onClick={remove}
               className="flex min-h-[44px] items-center gap-1.5 px-2 text-sm font-medium text-danger"
             >
-              <Trash2 size={16} /> Remove entry
+              <Trash2 size={16} /> {t('diet.entry.remove')}
             </button>
           </div>
           <SwapSuggestion log={log} onApplied={onClose} />
@@ -89,7 +94,7 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
 
   async function run() {
     if (!navigator.onLine) {
-      setError('Offline — connect to get a swap.')
+      setError(t('diet.swap.offline'))
       setStatus('error')
       return
     }
@@ -97,7 +102,7 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
     setError(null)
     try {
       const briefing = await gatherSubstitutionBriefing(log.id!)
-      if (!briefing) throw new Error('Could not read this entry.')
+      if (!briefing) throw new Error(t('diet.swap.unreadable'))
       const res = await generateSubstitution(formatSubstitutionBriefing(briefing), aiRequestOpts())
       setHeadline(res.headline)
       setItems(res.items)
@@ -116,10 +121,10 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
         onApplied()
         return
       }
-      setError('Could not add that food — try another.')
+      setError(t('diet.swap.addFailed'))
       setStatus('error')
     } catch {
-      setError('Could not add that food — try another.')
+      setError(t('diet.swap.addFailed'))
       setStatus('error')
     } finally {
       setApplying(null)
@@ -133,13 +138,13 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
           onClick={() => void run()}
           className="flex items-center gap-1.5 rounded-xl bg-primary/15 px-3 py-2 text-sm font-semibold text-primary active:bg-primary/30"
         >
-          <Sparkles size={15} /> Suggest a swap
+          <Sparkles size={15} /> {t('diet.swap.suggest')}
         </button>
       )}
 
       {status === 'loading' && (
         <p className="flex items-center gap-2 text-sm text-sub">
-          <Loader2 size={16} className="animate-spin" /> Finding a swap…
+          <Loader2 size={16} className="animate-spin" /> {t('diet.swap.loading')}
         </p>
       )}
 
@@ -152,7 +157,7 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
             onClick={() => void run()}
             className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-sub active:text-ink"
           >
-            <RefreshCw size={14} /> Try again
+            <RefreshCw size={14} /> {t('common.tryAgain')}
           </button>
         </div>
       )}
@@ -163,7 +168,7 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
             <ArrowLeftRight size={15} /> {headline}
           </p>
           {items.length === 0 ? (
-            <p className="mt-2 text-sm text-sub">No swap found — tap to retry.</p>
+            <p className="mt-2 text-sm text-sub">{t('diet.swap.none')}</p>
           ) : (
             <ul className="mt-2 space-y-2.5">
               {items.map((item, i) => (
@@ -175,17 +180,17 @@ function SwapSuggestion({ log, onApplied }: { log: FoodLog; onApplied: () => voi
                       <span className="num text-sub"> · {item.grams} g</span>
                     </p>
                     <p className="num text-xs text-sub">
-                      {item.kcal} kcal · P {item.protein} · C {item.carbs} · F {item.fat}
+                      {item.kcal} kcal · {t('diet.macro.p')} {item.protein} · {t('diet.macro.c')} {item.carbs} · {t('diet.macro.f')} {item.fat}
                     </p>
                     {item.reason && <p className="mt-0.5 text-xs text-sub/80">{item.reason}</p>}
                   </div>
                   <button
                     onClick={() => void apply(i, item)}
                     disabled={applying !== null}
-                    className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-primary/15 px-2.5 text-xs font-bold text-primary active:bg-primary/30 disabled:opacity-50"
+                    className="flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg bg-primary/15 px-2.5 text-xs font-bold text-primary active:bg-primary/30 disabled:opacity-50"
                   >
                     {applying === i ? <Loader2 size={14} className="animate-spin" /> : <ArrowLeftRight size={14} />}
-                    Swap
+                    {t('diet.swap.swap')}
                   </button>
                 </li>
               ))}
@@ -232,25 +237,25 @@ export function FoodDataEditor({ food, onDone }: { food: Food; onDone: () => voi
 
   return (
     <div className="space-y-3">
-      <MiniField label="Name" value={name} onChange={setName} type="text" />
+      <MiniField label={t('diet.food.name')} value={name} onChange={setName} type="text" />
       <div className="grid grid-cols-2 gap-3">
         <MiniField label="kcal / 100g" value={kcal} onChange={setKcal} />
-        <MiniField label="Protein / 100g" value={protein} onChange={setProtein} />
-        <MiniField label="Carbs / 100g" value={carbs} onChange={setCarbs} />
-        <MiniField label="Fat / 100g" value={fat} onChange={setFat} />
+        <MiniField label={t('diet.food.protein100')} value={protein} onChange={setProtein} />
+        <MiniField label={t('diet.food.carbs100')} value={carbs} onChange={setCarbs} />
+        <MiniField label={t('diet.food.fat100')} value={fat} onChange={setFat} />
       </div>
       <button
         onClick={save}
         className="w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
       >
-        Save food data
+        {t('diet.entry.saveFood')}
       </button>
       {food.source !== 'custom' && food.userOverridden && food.offOriginal && (
         <button
           onClick={resetToApi}
           className="flex w-full items-center justify-center gap-1.5 py-2 text-sm font-medium text-sub active:text-ink"
         >
-          <RotateCcw size={15} /> Reset to database values
+          <RotateCcw size={15} /> {t('diet.entry.resetFood')}
         </button>
       )}
     </div>

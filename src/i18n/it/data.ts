@@ -1,0 +1,55 @@
+import type { Dict } from '../en'
+
+const data: Dict['data'] = {
+  backup: {
+    invalidJson: 'Non è un file JSON valido.',
+    notBackup: 'Non è un file di backup di GymTracker.',
+  },
+  github: {
+    network: 'Rete non raggiungibile',
+    tokenInvalid: 'Token non valido o scaduto',
+    rateLimit: 'Limite di richieste GitHub raggiunto — riprova più tardi',
+    forbidden: 'Accesso negato (controlla i permessi del token)',
+    conflict: 'I dati remoti sono cambiati nel frattempo',
+    rejected: 'GitHub ha rifiutato la richiesta ({status})',
+    error: 'Errore GitHub {status}',
+    cannotReadUser: 'Il token non può leggere l’utente',
+    notFound: 'Repository o percorso non trovato',
+  },
+  sync: {
+    remoteInvalidJson: 'Il file di dati remoto non è un JSON valido',
+    remoteNotSnapshot: 'Il file remoto non è uno snapshot di GymTracker',
+    keptChanging: 'I dati remoti continuano a cambiare — riprova',
+    tokenRejected: 'Token GitHub rifiutato — forse è scaduto. Incollane uno nuovo nelle Impostazioni.',
+    repoNotFound: 'Repository {owner}/{repo} non trovato. Prima crealo su GitHub come repo PRIVATO.',
+  },
+  import: {
+    noWorkouts: 'Il file non contiene allenamenti.',
+    unknownFormat: 'Non è un export di Strong o Hevy (colonne sconosciute).',
+    noSets: 'Nessuna serie trovata nel file.',
+    badDates: {
+      one: '{n} riga con una data illeggibile è stata saltata.',
+      other: '{n} righe con una data illeggibile sono state saltate.',
+    },
+  },
+  shareCard: {
+    points: 'PUNTI',
+    pointsPrs: { one: 'PUNTI · {n} PR', other: 'PUNTI · {n} PR' },
+    rankUp: 'NUOVO RANK!',
+    volumePr: 'PR VOL.',
+    e1rmPr: 'PR e1RM',
+    setsBest: '{sets} · migliore {weight} kg × {reps}',
+    moreExercises: { one: '+ {n} altro esercizio', other: '+ altri {n} esercizi' },
+    statSets: { one: 'serie', other: 'serie' },
+    statVolume: 'volume',
+    statTime: 'tempo',
+    statStreak: 'striscia',
+    streakWeeks: '{n} sett.',
+    shareTitle: 'Condividi allenamento',
+    noCanvas: 'Canvas non disponibile',
+    encodeFailed: 'Impossibile creare l’immagine',
+    readFailed: 'Impossibile leggere l’immagine',
+  },
+}
+
+export default data

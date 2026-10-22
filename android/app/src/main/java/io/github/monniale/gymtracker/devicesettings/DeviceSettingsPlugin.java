@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlarmManager;
+import android.app.LocaleManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.usage.UsageStatsManager;
@@ -12,6 +13,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
+import android.os.LocaleList;
 import android.os.PowerManager;
 import android.provider.Settings;
 import androidx.annotation.NonNull;
@@ -58,6 +60,32 @@ public class DeviceSettingsPlugin extends Plugin {
             Logger.warn(TAG, "status " + what + " unavailable: " + e);
             return fallback;
         }
+    }
+
+    /**
+     * Android 13+: makes the app's own resources (rest-timer "Rest over"/Skip, channel names, the
+     * widget) follow the in-app language instead of the phone's. `locale` is in MainActivity's
+     * configChanges, so the activity is not recreated. Older Android: no-op ({applied: false}).
+     */
+    @PluginMethod
+    public void setAppLanguage(PluginCall call) {
+        JSObject res = new JSObject();
+        boolean applied = false;
+        if (Build.VERSION.SDK_INT >= 33) {
+            try {
+                String tag = call.getString("lang", "");
+                LocaleManager lm = getContext().getSystemService(LocaleManager.class);
+                LocaleList want = tag == null || tag.isEmpty() ? LocaleList.getEmptyLocaleList() : LocaleList.forLanguageTags(tag);
+                if (lm != null) {
+                    if (!want.equals(lm.getApplicationLocales())) lm.setApplicationLocales(want);
+                    applied = true;
+                }
+            } catch (Exception e) {
+                Logger.warn("DeviceSettings", "setAppLanguage failed: " + e.getMessage());
+            }
+        }
+        res.put("applied", applied);
+        call.resolve(res);
     }
 
     @PluginMethod

@@ -1,11 +1,11 @@
 import { useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAiStore, aiRequestOpts } from '../lib/aiStore'
 import { gatherDietBriefing, formatDietBriefing } from '../lib/dietReport'
 import { currentNote, judgementsFor, saveJudgement } from '../lib/coachHistory'
 import { generateDietNote } from '../lib/gemini'
-import AiReportCard, { renderCoachNote, HistoryLink } from './AiReportCard'
+import AiReportCard, { renderCoachNote, HistoryLink, GeminiKeyHint } from './AiReportCard'
+import { t } from '../i18n'
 import type { CoachNote } from '../types'
 
 export default function DietCoachCard({ date }: { date: string }) {
@@ -16,7 +16,7 @@ export default function DietCoachCard({ date }: { date: string }) {
 
   async function generate(): Promise<CoachNote> {
     const briefing = await gatherDietBriefing(date)
-    if (!briefing) throw new Error('Log some food first to get a diet report.')
+    if (!briefing) throw new Error(t('components.dietCoach.noFood'))
     return generateDietNote(formatDietBriefing(briefing), aiRequestOpts(m => { usedModel.current = m }))
   }
 
@@ -26,24 +26,16 @@ export default function DietCoachCard({ date }: { date: string }) {
 
   return (
     <AiReportCard
-      title="Diet report"
+      title={t('components.dietCoach.title')}
       resetKey={date}
       cachedNote={cachedNote}
       generate={generate}
       save={save}
       renderNote={renderCoachNote}
       autoGenerate={false}
-      generateLabel="Generate diet report"
+      generateLabel={t('components.dietCoach.generate')}
       footer={<HistoryLink kind="diet" earlier={stored - 1} />}
-      noKeyHint={
-        <>
-          Get AI feedback on your nutrition.{' '}
-          <Link to="/settings" className="font-semibold text-primary">
-            Add a free Gemini key
-          </Link>{' '}
-          in Settings.
-        </>
-      }
+      noKeyHint={<GeminiKeyHint pitch={t('components.dietCoach.noKey')} />}
     />
   )
 }

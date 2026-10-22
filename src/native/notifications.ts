@@ -7,6 +7,9 @@ import type { ResyncResult } from '../lib/notifyStore'
 import { useAppStore } from '../store'
 import { onDataReplaced, onSyncDirty } from '../db/db'
 import { gatherPlannerData } from '../lib/notifyData'
+import { pushWidgetState } from './widget'
+import { getLang } from '../lib/uiStore'
+import { t } from '../i18n'
 import {
   CAT, CHANNEL_FOR, LEAD_MS, decodeNid, diffSchedules, isManagedId, nid, planCleanup, planHorizon, planNotifications,
 } from '../lib/notifyPlanner'
@@ -26,13 +29,18 @@ import type { NotificationSpec, PendingLike } from '../lib/notifyPlanner'
 
 export type ResyncReason = 'launch' | 'resume' | 'data' | 'import' | 'session' | 'prefs' | 'midnight' | 'permission' | 'manual'
 
+/**
+ * Reminder channels. Names and descriptions follow the app language (built at module load; a
+ * language change reloads the app and `ensureChannels` re-creates the channels with the same ids,
+ * which renames them in Android). Only the TEXT may change here, never an id (invariant 17).
+ */
 export const LN_CHANNELS: Channel[] = [
-  { id: CHANNEL_FOR.workout, name: 'Workout reminders', description: 'Training days, weigh-ins, sessions left open', importance: 3, visibility: 1, vibration: true },
-  { id: CHANNEL_FOR.meal, name: 'Meal reminders', description: 'Log breakfast, lunch, snack, dinner', importance: 3, visibility: 1, vibration: true },
-  { id: CHANNEL_FOR.water, name: 'Water reminders', description: 'Hydration nudges', importance: 2, visibility: 1, vibration: false },
-  { id: CHANNEL_FOR.decay, name: 'Rank & streak warnings', description: 'Decay and streak-at-risk warnings', importance: 3, visibility: 1, vibration: true },
-  { id: CHANNEL_FOR.recap, name: 'Weekly recap', description: 'Your week in numbers', importance: 2, visibility: 1, vibration: false },
-  { id: CHANNEL_FOR.keepalive, name: 'App status', description: 'Asks you to open the app before your reminders run out', importance: 2, visibility: 1, vibration: false },
+  { id: CHANNEL_FOR.workout, name: t('native.engine.channel.workout'), description: t('native.engine.channel.workoutDesc'), importance: 3, visibility: 1, vibration: true },
+  { id: CHANNEL_FOR.meal, name: t('native.engine.channel.meal'), description: t('native.engine.channel.mealDesc'), importance: 3, visibility: 1, vibration: true },
+  { id: CHANNEL_FOR.water, name: t('native.engine.channel.water'), description: t('native.engine.channel.waterDesc'), importance: 2, visibility: 1, vibration: false },
+  { id: CHANNEL_FOR.decay, name: t('native.engine.channel.decay'), description: t('native.engine.channel.decayDesc'), importance: 3, visibility: 1, vibration: true },
+  { id: CHANNEL_FOR.recap, name: t('native.engine.channel.recap'), description: t('native.engine.channel.recapDesc'), importance: 2, visibility: 1, vibration: false },
+  { id: CHANNEL_FOR.keepalive, name: t('native.engine.channel.keepalive'), description: t('native.engine.channel.keepaliveDesc'), importance: 2, visibility: 1, vibration: false },
 ]
 
 /** Channel ids replaced by a `_v(N+1)`: deleted on start (invariant 17). */
@@ -171,7 +179,7 @@ export async function resyncNow(opts: { full?: boolean; reason?: string } = {}):
     } else {
       const now = Date.now()
       const { prefs } = useNotifyStore.getState()
-      const input = { now, prefs, data: await gatherPlannerData(now, prefs, useAppStore.getState().activeSessionId) }
+      const input = { now, prefs, lang: getLang(), data: await gatherPlannerData(now, prefs, useAppStore.getState().activeSessionId) }
       const desired = planNotifications(input)
 
       const pending: PendingLike[] = (await LocalNotifications.getAll({ state: 'SCHEDULED' })).notifications
@@ -236,6 +244,8 @@ function kick(): void {
         pendingFull = false
         pendingReasons.clear()
         await resyncNow({ full, reason })
+        // The home-screen widget rides the same triggers, whatever the notification permission.
+        await pushWidgetState()
       } while (runAgain)
     } finally {
       inFlight = null
@@ -370,14 +380,14 @@ export async function openExactAlarmSettings(): Promise<void> {
 export async function sendTestReminder(delaySec = 15): Promise<void> {
   if (!isNative) return
   const c = await refreshPermissionCache()
-  if (!canPost(c)) throw new Error('Notifications are off for GymTracker — allow them first.')
+  if (!canPost(c)) throw new Error(t('native.engine.notAllowed'))
   await LocalNotifications.cancel({ notifications: [{ id: TEST_ID }] }).catch(() => {})
   const atMs = Date.now() + Math.max(5, delaySec) * 1000
   await LocalNotifications.schedule({
     notifications: [{
       id: TEST_ID,
-      title: 'Test reminder',
-      body: 'Reminders work. Tap to go back to Settings.',
+      title: t('native.engine.testTitle'),
+      body: t('native.engine.testBody'),
       channelId: CHANNEL_FOR.workout,
       smallIcon: SMALL_ICON,
       iconColor: ICON_COLOR,

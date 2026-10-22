@@ -5,7 +5,11 @@ import NumberStepper from '../../components/NumberStepper'
 import { macrosFor } from '../../lib/nutrition'
 import { deletePlanned, eatPlanned, updatePlannedGrams } from '../../lib/mealPlan'
 import { haptic } from '../../native/haptics'
+import { t, fmtNum } from '../../i18n'
 import type { Food, PlannedFood } from '../../types'
+
+/** One-decimal macro value in the language's format ("12.5" / "12,5"). */
+const dec1 = (n: number) => fmtNum(n, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })
 
 interface Props {
   open: boolean
@@ -43,19 +47,20 @@ export default function PlannedEntrySheet({ open, onClose, plan, food, canEat }:
   return (
     <Sheet open={open} onClose={onClose} title={food.name}>
       <div className="space-y-4">
-        <p className="text-center text-xs font-semibold uppercase tracking-wide text-sub">Planned · not eaten yet</p>
+        <p className="text-center text-xs font-semibold uppercase tracking-wide text-sub">{t('diet.planned.status')}</p>
         <div className="flex justify-center">
-          <NumberStepper label="grams" value={grams} onChange={setGrams} step={10} min={1} max={5000} unit="g" />
+          <NumberStepper label={t('diet.food.grams')} value={grams} onChange={setGrams} step={10} min={1} max={5000} unit="g" />
         </div>
         <p className="num text-center text-sm text-sub">
-          {Math.round(m.kcal)} kcal · P {m.protein.toFixed(1)} · C {m.carbs.toFixed(1)} · F {m.fat.toFixed(1)}
+          {Math.round(m.kcal)} kcal · {t('diet.macro.p')} {dec1(m.protein)} · {t('diet.macro.c')} {dec1(m.carbs)} ·{' '}
+          {t('diet.macro.f')} {dec1(m.fat)}
         </p>
         {canEat && (
           <button
             onClick={eat}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
           >
-            <Utensils size={18} aria-hidden /> Eat now
+            <Utensils size={18} aria-hidden /> {t('diet.planned.eatNow')}
           </button>
         )}
         <button
@@ -64,14 +69,14 @@ export default function PlannedEntrySheet({ open, onClose, plan, food, canEat }:
             canEat ? 'border border-edge bg-card' : 'bg-primary text-bg'
           }`}
         >
-          Save
+          {t('common.save')}
         </button>
         <div className="flex justify-end">
           <button
             onClick={remove}
             className="flex min-h-[44px] items-center gap-1.5 px-2 text-sm font-medium text-danger"
           >
-            <Trash2 size={16} /> Remove from plan
+            <Trash2 size={16} /> {t('diet.planned.remove')}
           </button>
         </div>
       </div>

@@ -10,6 +10,7 @@
 # Usage
 #   scripts/android/smoke.sh [--only "1 7 10"] [--apk PATH] [--keep-data] [--no-install]
 #   ANDROID_SERIAL=emulator-5584 scripts/android/smoke.sh
+#   SMOKE_LANG=it scripts/android/smoke.sh --only "1 2 3 4"   # the app in Italian (layout with the longer copy)
 #
 #   --only        run a subset of the checks (setup and the sync-repo guard always run)
 #   --apk         debug APK to install (default: the newest one in the Gradle output folder)
@@ -363,6 +364,15 @@ if [ "$SYNC" = "?" ] || [ "$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')" 
 fi
 [ "$SYNC" = "/" ] || echo "note: debug app is connected to the sync repo '$SYNC' (not the forbidden one)"
 online
+
+# SMOKE_LANG=it: switch the app's UI language before the checks. Checks 6 and 9 match English
+# copy (Settings result line, reminder titles), so run the layout checks in Italian, not those.
+if [ -n "${SMOKE_LANG:-}" ]; then
+  js "localStorage.setItem('gymtracker-ui', JSON.stringify({ state: { language: '$SMOKE_LANG' }, version: 0 })); location.reload(); true" >/dev/null
+  sleep 3
+  attach 30 || die "the WebView did not come back after switching to $SMOKE_LANG"
+  echo "app language: $(js 'document.documentElement.lang')"
+fi
 
 if want 1; then
   section "1. launch"

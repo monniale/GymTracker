@@ -545,6 +545,18 @@ describe('global invariants over a fully enabled fixture', () => {
     expect(planHorizon([k])).toBeUndefined()
     expect(planHorizon([])).toBeUndefined()
   })
+
+  it('an Italian plan has the same alarms with Italian text, so every sig changes', () => {
+    const it_ = planNotifications({ ...fixture, lang: 'it' })
+    expect(it_.map(s => [s.id, s.atMs, s.route])).toEqual(specs.map(s => [s.id, s.atMs, s.route]))
+    for (let i = 0; i < specs.length; i++) expect(it_[i].sig).not.toBe(specs[i].sig)
+    const one = (cat: NotificationSpec['cat']) => it_.find(s => s.cat === cat)!
+    expect(one('meal')).toMatchObject({ title: 'Registra la colazione', body: 'Tocca per registrare la colazione.' })
+    expect(one('water')).toMatchObject({ title: 'Bevi un po’ d’acqua', body: 'È il momento di bere.' })
+    expect(one('recap')).toMatchObject({ title: 'Il tuo riepilogo settimanale', body: 'Settimana scorsa: 4 allenamenti, +380 pt, streak di 5 settimane.' })
+    expect(one('keepalive').title).toBe('Promemoria di GymTracker')
+    expect(planNotifications({ ...fixture, lang: 'en' })).toEqual(specs) // English is the default
+  })
 })
 
 describe('DST', () => {

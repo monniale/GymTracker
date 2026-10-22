@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { pushBack } from '../lib/backStack'
+import { t } from '../i18n'
 
 interface SheetProps {
   open: boolean
@@ -32,7 +33,7 @@ export default function Sheet({ open, onClose, title, children }: SheetProps) {
             <h2 className="font-display text-xl font-semibold">{title}</h2>
             <button
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t('common.close')}
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-sub active:bg-muted"
             >
               <X size={22} />
