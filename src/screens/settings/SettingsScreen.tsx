@@ -6,6 +6,7 @@ import {
   VolumeX,
   Download,
   Upload,
+  FileSpreadsheet,
   AlertTriangle,
 } from "lucide-react";
 import { db } from "../../db/db";
@@ -17,6 +18,7 @@ import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
 import NumberStepper from "../../components/NumberStepper";
 import SyncSection from "./SyncSection";
 import AiSection from "./AiSection";
+import ImportHistorySheet from "./ImportHistorySheet";
 import { isNative } from "../../native/platform";
 import type { Settings } from "../../types";
 
@@ -34,7 +36,9 @@ const RestTimerNativeSettings = isNative
 export default function SettingsScreen() {
   const settings = useLiveQuery(() => db.settings.get(1));
   const fileRef = useRef<HTMLInputElement>(null);
+  const csvRef = useRef<HTMLInputElement>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [historyCsv, setHistoryCsv] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   // Android's first-run card links here with `state.focus` ("sync" | "data").
@@ -360,6 +364,37 @@ export default function SettingsScreen() {
             }}
           />
         </div>
+        <button
+          onClick={() => csvRef.current?.click()}
+          className="mt-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-muted/40 px-3 text-center font-semibold active:bg-muted"
+        >
+          <FileSpreadsheet size={18} className="shrink-0" /> Import from Strong / Hevy (.csv)
+        </button>
+        <input
+          ref={csvRef}
+          type="file"
+          // Same Android rule as the backup input: pickers mislabel .csv, the parser validates.
+          accept={isNative ? undefined : ".csv,text/csv"}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            f.text()
+              .then(setHistoryCsv)
+              .catch((err) => setImportMsg(`Could not read the file: ${(err as Error).message}`));
+          }}
+        />
+        {historyCsv !== null && (
+          <ImportHistorySheet
+            text={historyCsv}
+            onClose={() => setHistoryCsv(null)}
+            onDone={(msg) => {
+              setHistoryCsv(null);
+              setImportMsg(msg);
+            }}
+          />
+        )}
         {importMsg && <p className="mt-2 text-sm text-sub">{importMsg}</p>}
         <p className="mt-2 text-xs text-sub">
           {isNative
