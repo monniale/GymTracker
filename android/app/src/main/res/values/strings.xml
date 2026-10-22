@@ -4,4 +4,21 @@
     <string name="title_activity_main">GymTracker</string>
     <string name="package_name">io.github.monniale.gymtracker</string>
     <string name="custom_url_scheme">io.github.monniale.gymtracker</string>
+    <!-- Home-screen widget -->
+    <string name="widget_name">GymTracker</string>
+    <string name="widget_description">Rank, points, streak and this week\'s workouts</string>
+    <string name="widget_empty">Open GymTracker to load your rank</string>
+    <string name="widget_points">%1$s pts</string>
+    <plurals name="widget_streak">
+        <item quantity="one">%d-week streak</item>
+        <item quantity="other">%d-week streak</item>
+    </plurals>
+    <string name="widget_no_streak">No streak yet</string>
+    <string name="widget_week">%1$d / %2$d workouts this week</string>
+    <string name="widget_next">Next: %1$s</string>
+    <string name="widget_sample_tier">Gold II</string>
+    <string name="widget_sample_points">2,850 pts</string>
+    <string name="widget_sample_streak">4-week streak</string>
+    <string name="widget_sample_week">2 / 3 workouts this week</string>
+    <string name="widget_sample_next">Next: Push Day</string>
 </resources>

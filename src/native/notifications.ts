@@ -7,6 +7,7 @@ import type { ResyncResult } from '../lib/notifyStore'
 import { useAppStore } from '../store'
 import { onDataReplaced, onSyncDirty } from '../db/db'
 import { gatherPlannerData } from '../lib/notifyData'
+import { pushWidgetState } from './widget'
 import {
   CAT, CHANNEL_FOR, LEAD_MS, decodeNid, diffSchedules, isManagedId, nid, planCleanup, planHorizon, planNotifications,
 } from '../lib/notifyPlanner'
@@ -236,6 +237,8 @@ function kick(): void {
         pendingFull = false
         pendingReasons.clear()
         await resyncNow({ full, reason })
+        // The home-screen widget rides the same triggers, whatever the notification permission.
+        await pushWidgetState()
       } while (runAgain)
     } finally {
       inFlight = null

@@ -32,6 +32,9 @@ const NotificationsSection = isNative
 const RestTimerNativeSettings = isNative
   ? lazy(() => import("../../native/ui/RestTimerNativeSettings"))
   : null;
+const WidgetSection = isNative
+  ? lazy(() => import("../../native/ui/WidgetSection"))
+  : null;
 
 export default function SettingsScreen() {
   const settings = useLiveQuery(() => db.settings.get(1));
@@ -323,6 +326,12 @@ export default function SettingsScreen() {
       {NotificationsSection && (
         <Suspense fallback={null}>
           <NotificationsSection />
+        </Suspense>
+      )}
+
+      {WidgetSection && (
+        <Suspense fallback={null}>
+          <WidgetSection />
         </Suspense>
       )}
 
