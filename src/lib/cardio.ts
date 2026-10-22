@@ -1,5 +1,5 @@
 import { fmtDuration } from './dates'
-import type { Exercise, SetRow } from '../types'
+import type { Exercise, SetRow, TemplateItem } from '../types'
 
 /**
  * Cardio sets: time (+ optional distance) instead of weight × reps. A cardio row
@@ -14,6 +14,13 @@ import type { Exercise, SetRow } from '../types'
 export function isCardioExercise(ex: Pick<Exercise, 'kind' | 'muscleGroup'> | undefined): boolean {
   if (!ex) return false
   return ex.kind ? ex.kind === 'cardio' : ex.muscleGroup === 'cardio'
+}
+
+/** A new template line for an exercise: cardio 1 × 20 min, strength 3 × 8, at its default rest. */
+export function defaultTemplateItem(ex: Exercise): TemplateItem {
+  return isCardioExercise(ex)
+    ? { exerciseId: ex.id!, targetSets: 1, targetReps: 20, restSec: ex.defaultRestSec }
+    : { exerciseId: ex.id!, targetSets: 3, targetReps: 8, restSec: ex.defaultRestSec }
 }
 
 export function isCardioSet(s: Pick<SetRow, 'durationSec'>): boolean {

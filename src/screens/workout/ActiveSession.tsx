@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles } from 'lucide-react'
+import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles, BookOpen } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { useNow, useWakeLock } from '../../lib/hooks'
@@ -17,6 +17,8 @@ import { haptic } from '../../native/haptics'
 import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
+import ExerciseDetailSheet from '../../components/library/ExerciseDetailSheet'
+import { libraryIdOf, useExerciseLibrary } from '../../lib/exerciseLibrary'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t, tp, fmtNum } from '../../i18n'
 import type { Equipment, Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
@@ -539,6 +541,7 @@ function NoteSheet({ open, onClose, exercise }: {
 
   return (
     <Sheet open={open} onClose={onClose} title={exerciseDisplayName(exercise.name)}>
+      {libraryIdOf(exercise) && <HowTo exercise={exercise} libId={libraryIdOf(exercise)!} />}
       <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">
         {t('workout.notes.label')}
       </label>
@@ -596,6 +599,25 @@ function NoteSheet({ open, onClose, exercise }: {
         {t('common.save')}
       </button>
     </Sheet>
+  )
+}
+
+/** "How to" for an exercise linked to the library: opens its instructions (and animation, if on). */
+function HowTo({ exercise, libId }: { exercise: Exercise; libId: string }) {
+  const { library } = useExerciseLibrary()
+  const [open, setOpen] = useState(false)
+  const lib = library?.byId.get(libId)
+  if (!lib) return null
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="mb-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-muted/40 font-semibold text-ink active:bg-muted"
+      >
+        <BookOpen size={18} /> {t('library.howTo')}
+      </button>
+      <ExerciseDetailSheet open={open} onClose={() => setOpen(false)} library={library} lib={lib} exercise={exercise} />
+    </>
   )
 }
 

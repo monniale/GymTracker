@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight } from 'lucide-react'
+import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight, BookOpen } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { unlockAudio } from '../../lib/audio'
@@ -141,6 +141,18 @@ export default function WorkoutHome() {
           {t('workout.home.startEmpty')}
         </button>
       </div>
+
+      <Link
+        to="/workout/exercises"
+        className="mt-6 flex items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:bg-muted/30"
+      >
+        <BookOpen size={22} className="shrink-0 text-sub" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-display text-xl font-semibold">{t('library.screen.open')}</span>
+          <span className="block truncate text-sm text-sub">{t('library.screen.hint')}</span>
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-sub" />
+      </Link>
 
       <StopwatchCard />
     </div>

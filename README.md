@@ -72,6 +72,7 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - **Cardio sets** with time and distance. They count for your streak and weekly target, but not for rank points.
 - A **shareable workout card**: a PNG of the session (points, rank, top lifts and PRs) for the share sheet.
 - **Import your history from Strong or Hevy** (CSV export), with a preview before anything is saved.
+- An **exercise library** of 1,300+ exercises: search, filter by muscle group or equipment, or tap a muscle on a front/back **body map**. Each exercise has its target and secondary muscles and step-by-step instructions (English or Italian). Add one to a workout in one tap. Animations are optional (Settings), loaded from GitHub.
 
 ### ⏱️ Rest timer
 - Starts by itself when you log a set: a short rest after warm-ups, and it waits for the last exercise of a superset.
@@ -221,6 +222,7 @@ Without CI: run `npm run deploy` (uses the `gh-pages` branch), or build with `BA
 
 ## 🙏 Credits
 
+- Exercise data (names, muscles, instructions) from **[exercises-dataset](https://github.com/hasaneyldrm/exercises-dataset)** by Hasan Emir Yıldırım (MIT; the license text ships in `public/exercise-library.json`). The optional animations are © **[Gym visual](https://gymvisual.com/)**; they are not part of this repo and load from the dataset's repo only when you turn them on.
 - Food data from **[Open Food Facts](https://world.openfoodfacts.org)** and **[USDA FoodData Central](https://fdc.nal.usda.gov)**
 - AI by **[Google Gemini](https://ai.google.dev)**
 - Icons by **[Lucide](https://lucide.dev)** · barcode reading by **[zxing-wasm](https://github.com/Sec-ant/zxing-wasm)** and **Google ML Kit**

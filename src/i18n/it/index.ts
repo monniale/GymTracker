@@ -12,5 +12,6 @@ import notify from './notify'
 import lib from './lib'
 import ai from './ai'
 import data from './data'
+import library from './library'
 
-export const it: Dict = { common, units, workout, diet, progress, rank, settings, components, native, notify, lib, ai, data }
+export const it: Dict = { common, units, workout, diet, progress, rank, settings, components, native, notify, lib, ai, data, library }
