@@ -395,6 +395,20 @@ export interface MacroSuggestion {
   items: MacroSuggestionItem[]
 }
 
+/** One component of an AI-estimated takeaway meal (macros per 100 g, like `MacroSet`). */
+export interface MealEstimateItem extends MacroSet {
+  name: string
+  grams: number
+  note?: string
+}
+
+/** An AI estimate of a meal with no label (Add food › Estimate). Never stored: the logged foods are the record. */
+export interface MealEstimate {
+  headline: string
+  confidence: 'low' | 'medium' | 'high'
+  items: MealEstimateItem[]
+}
+
 /** Cached macro-completion suggestion, keyed by day. Device-local like DietNoteRow.
  * `basis` is a signature of the remaining macros at generation time so the UI can
  * flag the suggestion as stale once more food is logged. */

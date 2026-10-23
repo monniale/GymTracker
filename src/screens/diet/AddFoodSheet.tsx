@@ -4,6 +4,7 @@ import { Search, Layers, Trash2, WifiOff, Loader2, ScanBarcode, X } from 'lucide
 import { db, deleteWithTombstone } from '../../db/db'
 import Sheet from '../../components/Sheet'
 import BarcodeScanSheet from '../../components/BarcodeScanSheet'
+import EstimateTab from './EstimateTab'
 import NumberStepper from '../../components/NumberStepper'
 import { logFood, recipePer100 } from '../../lib/nutrition'
 import { planFood } from '../../lib/mealPlan'
@@ -11,12 +12,13 @@ import { searchFoods, upsertRemoteFood, remoteFoodKey, PROVIDERS } from '../../l
 import { t, tp, fmtNum, type Key } from '../../i18n'
 import type { Food, Id, MealType, RemoteFood, SavedMeal } from '../../types'
 
-type Tab = 'recent' | 'search' | 'custom'
+type Tab = 'recent' | 'search' | 'custom' | 'estimate'
 
 const TABS: { id: Tab; label: Key }[] = [
   { id: 'recent', label: 'diet.addFood.tabRecent' },
   { id: 'search', label: 'diet.addFood.tabSearch' },
   { id: 'custom', label: 'diet.addFood.tabCustom' },
+  { id: 'estimate', label: 'diet.addFood.tabEstimate' },
 ]
 
 /** A per-100 g value from the DB or an API, in the language's decimal format (no grouping, as before). */
@@ -77,6 +79,7 @@ export default function AddFoodSheet({ open, onClose, date, meal, target = 'log'
       {tab === 'recent' && <RecentTab add={add} onDone={onClose} />}
       {tab === 'search' && <SearchTab add={add} onDone={onClose} />}
       {tab === 'custom' && <CustomTab add={add} planning={planning} onDone={onClose} />}
+      {tab === 'estimate' && <EstimateTab add={add} planning={planning} onDone={onClose} />}
 
       {scanOpen && (
         <BarcodeScanSheet open onClose={() => setScanOpen(false)} onProduct={onScannedProduct} />

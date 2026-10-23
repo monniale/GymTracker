@@ -1,6 +1,6 @@
 import type {
   CoachNote, CoachInsight, CoachInsightCategory, CoachInsightTone,
-  MacroSuggestion, MacroSuggestionItem, MealType, PlannedSet,
+  MacroSuggestion, MacroSuggestionItem, MealEstimate, MealEstimateItem, MealType, PlannedSet,
 } from '../types'
 import { t } from '../i18n'
 import { getLang, type Lang } from './uiStore'
@@ -166,6 +166,14 @@ interface StructuredConfig<T> {
   parse: (text: string) => T
   maxOutputTokens?: number
   temperature?: number
+  /** Images sent after the prompt text (base64, no data: prefix). */
+  images?: InlineImage[]
+}
+
+/** An image part for a multimodal request (the free Flash models accept them). */
+export interface InlineImage {
+  mimeType: string
+  data: string
 }
 
 /**
@@ -189,7 +197,10 @@ async function generateStructured<T>(
 ): Promise<T> {
   const body = {
     systemInstruction: { parts: [{ text: localizedSystemPrompt(systemPrompt) }] },
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents: [{
+      role: 'user',
+      parts: [{ text: prompt }, ...(config.images ?? []).map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } }))],
+    }],
     generationConfig: {
       temperature: config.temperature ?? 0.6,
       // Gemini 2.5/3 Flash count "thinking" tokens against maxOutputTokens and
@@ -494,6 +505,97 @@ export function generateMacroSuggestion(prompt: string, opts: GenerateOpts): Pro
 /** Ask Gemini for swap alternatives to a single logged food. */
 export function generateSubstitution(prompt: string, opts: GenerateOpts): Promise<MacroSuggestion> {
   return generateStructured(prompt, MACRO_SUBSTITUTE_SYSTEM_PROMPT, { schema: MACRO_SUGGESTION_SCHEMA, parse: parseMacroSuggestion }, opts)
+}
+
+/* ---------- Meal estimate (takeaway food with no label) ---------- */
+
+const CONFIDENCE: MealEstimate['confidence'][] = ['low', 'medium', 'high']
+
+const MEAL_ESTIMATE_SCHEMA = {
+  type: 'object',
+  properties: {
+    headline: { type: 'string' },
+    confidence: { type: 'string', enum: CONFIDENCE },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          grams: { type: 'number' },
+          kcal100: { type: 'number' },
+          protein100: { type: 'number' },
+          carbs100: { type: 'number' },
+          fat100: { type: 'number' },
+          note: { type: 'string' },
+        },
+        required: ['name', 'grams', 'kcal100', 'protein100', 'carbs100', 'fat100'],
+      },
+    },
+  },
+  required: ['headline', 'confidence', 'items'],
+}
+
+export const MEAL_ESTIMATE_SYSTEM_PROMPT =
+  `You are a nutritionist estimating a meal from a small takeaway, kebab shop, pizzeria or street-food stand: no label, no chain data.
+You get the user's description and maybe a photo. Split the meal into its components (e.g. bun, patty, cheese, bacon, sauce, fries, drink) and estimate each one's eaten weight in grams from realistic portion sizes for that kind of place (independent shops usually serve bigger and fattier portions than chains; fried food absorbs oil).
+For each component give per-100 g kcal, protein, carbs and fat, consistent with kcal ≈ 4·protein + 4·carbs + 9·fat, and a short note with the assumption (size, cooking).
+Return a short headline summarising the main assumptions (max ~14 words) and a confidence: high only when the description/photo pins down portions, low when guessing.
+Never refuse: always give your best estimate. Never moralise about the food.`
+
+function cleanEstimateItem(raw: unknown): MealEstimateItem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const name = typeof r.name === 'string' ? r.name.trim() : ''
+  const grams = Number(r.grams)
+  if (!name || !Number.isFinite(grams) || grams <= 0) return null
+  const nn = (v: unknown, max: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0
+  }
+  const protein100 = Math.round(nn(r.protein100, 100) * 10) / 10
+  const carbs100 = Math.round(nn(r.carbs100, 100) * 10) / 10
+  const fat100 = Math.round(nn(r.fat100, 100) * 10) / 10
+  let kcal100 = Math.round(nn(r.kcal100, 900))
+  // Trust the macros over a kcal figure that disagrees with them by more than a quarter.
+  const fromMacros = 4 * protein100 + 4 * carbs100 + 9 * fat100
+  if (fromMacros > 0 && Math.abs(kcal100 - fromMacros) > 0.25 * fromMacros) kcal100 = Math.round(fromMacros)
+  return {
+    name,
+    grams: Math.round(Math.min(grams, 2000)),
+    kcal100, protein100, carbs100, fat100,
+    note: typeof r.note === 'string' && r.note.trim() ? r.note.trim() : undefined,
+  }
+}
+
+/** Parse a meal estimate, degrading gracefully on invalid/truncated JSON (never throws). */
+export function parseMealEstimate(text: string): MealEstimate {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    const h = text.match(/"headline"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+    return { headline: h ? jsonUnescape(h[1]) : t('ai.macro.cutOff'), confidence: 'low', items: [] }
+  }
+  const p = (parsed ?? {}) as Partial<MealEstimate>
+  return {
+    headline: typeof p.headline === 'string' ? p.headline.trim() : '',
+    confidence: CONFIDENCE.includes(p.confidence as MealEstimate['confidence']) ? p.confidence! : 'low',
+    items: Array.isArray(p.items) ? p.items.map(cleanEstimateItem).filter((i): i is MealEstimateItem => i !== null) : [],
+  }
+}
+
+/** Ask Gemini to break a described (and optionally photographed) meal into items with macros. */
+export function generateMealEstimate(description: string, image: InlineImage | null, opts: GenerateOpts): Promise<MealEstimate> {
+  const prompt = description.trim()
+    ? `Meal: ${description.trim()}`
+    : 'Meal: see the photo (no description given).'
+  return generateStructured(prompt, MEAL_ESTIMATE_SYSTEM_PROMPT, {
+    schema: MEAL_ESTIMATE_SCHEMA,
+    parse: parseMealEstimate,
+    temperature: 0.3,
+    images: image ? [image] : undefined,
+  }, opts)
 }
 
 interface RawModel {

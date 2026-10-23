@@ -313,7 +313,8 @@ export async function renderSessionCard(m: SessionCardModel, emblemSrc?: string)
   )
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
+/** A blob as base64 without the `data:` prefix. */
+export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader()
     r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''))
