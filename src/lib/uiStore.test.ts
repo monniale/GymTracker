@@ -57,6 +57,31 @@ describe('uiStore demoLoaded (the flag that blocks sync while the demo is loaded
   })
 })
 
+describe('uiStore effortScale (RPE or RIR display)', () => {
+  beforeEach(() => {
+    useUiStore.getState().setEffortScale('rpe')
+  })
+
+  it('defaults to RPE and is persisted in gymtracker-ui', () => {
+    // A fresh install (nothing saved) keeps the create() default; merge is not called.
+    expect(useUiStore.getInitialState().effortScale).toBe('rpe')
+    useUiStore.getState().setEffortScale('rir')
+    expect(saved().state.effortScale).toBe('rir')
+  })
+
+  it('survives a reload, and anything but rir reads as rpe', async () => {
+    writeSaved({ effortScale: 'rir' })
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().effortScale).toBe('rir')
+    writeSaved({ effortScale: 'borg' })
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().effortScale).toBe('rpe')
+    writeSaved({})
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().effortScale).toBe('rpe')
+  })
+})
+
 describe('crossTabUiAction (another tab saved gymtracker-ui)', () => {
   const raw = (state: Record<string, unknown>) => JSON.stringify({ state, version: 0 })
 

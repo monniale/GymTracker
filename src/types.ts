@@ -87,6 +87,11 @@ export interface SetRow {
   /** Cardio sets (src/lib/cardio.ts): time and optional distance; weightKg/reps/e1rm are 0. */
   durationSec?: number
   distanceM?: number
+  /** Rate of perceived exertion, 6–10 in 0.5 steps (`normalizeRpe`); absent = not recorded. */
+  rpe?: number
+  /** Set type beside the warm-up flag (src/lib/setTypes.ts; read it with `setKind`). Writers never
+   * store 'working': absent means a working set. Metadata only: every type scores as today. */
+  setType?: 'working' | 'drop' | 'failure' | 'amrap'
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }

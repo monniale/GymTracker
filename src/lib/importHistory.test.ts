@@ -87,6 +87,58 @@ describe('parseHistoryCsv — Strong', () => {
   })
 })
 
+describe('importing RPE and set types', () => {
+  it('Strong: D/F set order and the RPE column; junk RPE is ignored', () => {
+    const text = [
+      'Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE',
+      '2024-03-12 18:05:00,Push,1h,Bench Press (Barbell),W,40,10,0,0,,,',
+      '2024-03-12 18:05:00,Push,1h,Bench Press (Barbell),1,100,5,0,0,,,8.5',
+      '2024-03-12 18:05:00,Push,1h,Bench Press (Barbell),D,80,8,0,0,,,9',
+      '2024-03-12 18:05:00,Push,1h,Bench Press (Barbell),F2,70,6,0,0,,,hard',
+      '2024-03-12 18:05:00,Push,1h,Bench Press (Barbell),3,100,4,0,0,,,0',
+    ].join('\n')
+    const [s] = parseHistoryCsv(text).sessions
+    expect(s.sets.map(x => [x.isWarmup, x.setType, x.rpe])).toEqual([
+      [true, undefined, undefined],
+      [false, undefined, 8.5],
+      [false, 'drop', 9],
+      [false, 'failure', undefined],
+      [false, undefined, undefined],
+    ])
+    // Absent, not undefined-valued: a working set never carries a set type.
+    expect('setType' in s.sets[1]).toBe(false)
+    expect('rpe' in s.sets[0]).toBe(false)
+  })
+
+  it('Strong: an RPE in a decimal-comma export reads, rounded to half points', () => {
+    const text = 'Date;Workout Name;Duration;Exercise Name;Set Order;Weight;Reps;Distance;Seconds;Notes;Workout Notes;RPE\n'
+      + '2024-03-12 18:05:00;Push;1h;Bench Press (Barbell);1;62,5;8;0;0;;;7,5\n'
+    expect(parseHistoryCsv(text).sessions[0].sets[0].rpe).toBe(7.5)
+  })
+
+  it('Hevy: set_type failure/dropset/warmup/normal and the rpe column', () => {
+    const head = '"title","start_time","end_time","exercise_title","set_type","weight_kg","reps","rpe"'
+    const row = (type: string, kg: number, reps: number, rpe: string) =>
+      `"A","12 Mar 2024, 18:05","12 Mar 2024, 19:00","Squat (Barbell)","${type}","${kg}","${reps}","${rpe}"`
+    const text = [head, row('warmup', 60, 5, ''), row('normal', 100, 5, '8.5'), row('dropset', 80, 8, ''),
+      row('failure', 90, 6, '10'), row('normal', 100, 5, 'n/a')].join('\n')
+    const [s] = parseHistoryCsv(text).sessions
+    expect(s.sets.map(x => [x.isWarmup, x.setType, x.rpe])).toEqual([
+      [true, undefined, undefined],
+      [false, undefined, 8.5],
+      [false, 'drop', undefined],
+      [false, 'failure', 10],
+      [false, undefined, undefined],
+    ])
+    expect(s.sets.some(x => 'setType' in x && x.setType === undefined)).toBe(false)
+  })
+
+  it('Hevy fixture: the rpe column lands on its set', () => {
+    const [upper] = parseHistoryCsv(HEVY_CSV).sessions
+    expect(upper.sets.map(x => x.rpe)).toEqual([undefined, 8, undefined, undefined])
+  })
+})
+
 describe('parseHistoryCsv — Hevy', () => {
   it('reads sessions with end times, warm-ups, bodyweight and cardio rows', () => {
     const { format, sessions } = parseHistoryCsv(HEVY_CSV)
@@ -260,6 +312,31 @@ describe('planImportScoring', () => {
     const weighted = planImportScoring(imported, ctx({ existingSets: [prior({ weightKg: 10, loadKg: 10 })] }))
     expect(weighted[0].event.breakdown[0]).toMatchObject({ e1rmPr: false, volumePr: false })
     expect(weighted[0].event.prBonus).toBe(0)
+  })
+
+  it('copies RPE and set type onto the planned rows and scores exactly as without them', () => {
+    const plain = (): ImportedSession[] => [
+      session(T(2024, 3, 1, 18), [['Bench', 100, 5], ['Bench', 80, 8]]),
+      session(T(2024, 3, 5, 18), [['Bench', 102.5, 5], ['Bench', 80, 10], ['Bench', 70, 12], ['Pull', 0, 10]]),
+    ]
+    const tagged = plain()
+    tagged[0].sets[0].rpe = 8.5
+    tagged[0].sets[1].setType = 'drop'
+    tagged[1].sets[0].rpe = 9.5
+    tagged[1].sets[1].setType = 'failure'
+    tagged[1].sets[2] = { ...tagged[1].sets[2], setType: 'drop', rpe: 10 }
+    tagged[1].sets[3].setType = 'failure'
+    const a = planImportScoring(plain(), ctx())
+    const b = planImportScoring(tagged, ctx())
+    expect(b.map(p => p.event)).toEqual(a.map(p => p.event))
+    expect(b.map(p => p.pointsDelta)).toEqual(a.map(p => p.pointsDelta))
+    expect(b.map(p => p.sets.map(s => s.e1rm))).toEqual(a.map(p => p.sets.map(s => s.e1rm)))
+    expect(b[1].event.breakdown[0].e1rmPr).toBe(true)
+    expect(b[0].sets.map(s => [s.rpe, s.setType])).toEqual([[8.5, undefined], [undefined, 'drop']])
+    expect(b[1].sets.map(s => [s.rpe, s.setType])).toEqual([[9.5, undefined], [undefined, 'failure'], [10, 'drop'], [undefined, 'failure']])
+    // Absent keys, never undefined values or 'working'.
+    expect(a.flatMap(p => p.sets).some(s => 'rpe' in s || 'setType' in s)).toBe(false)
+    expect('setType' in b[0].sets[0]).toBe(false)
   })
 
   it('keeps cardio rows out of the points', () => {

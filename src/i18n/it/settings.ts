@@ -26,6 +26,12 @@ const settings: Dict['settings'] = {
     plates: 'Dischi che hai',
     hint: 'Usati dal calcolo dei dischi che compare quando regoli il peso di una serie col bilanciere.',
   },
+  workout: {
+    effortScale: 'Scala dello sforzo',
+    effortScaleHint: 'Come mostrare e scegliere lo sforzo di una serie: RPE (@8 = circa 2 ripetizioni in riserva) o ripetizioni in riserva (RIR 2).',
+    rpe: 'RPE',
+    rir: 'RIR',
+  },
   restTimer: {
     title: 'Timer di recupero',
     defaultRest: 'Recupero base',

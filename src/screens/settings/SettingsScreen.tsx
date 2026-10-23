@@ -20,6 +20,7 @@ import { localDateStr } from "../../lib/dates";
 import { archiveCurrentSeason } from "../../lib/season";
 import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
 import NumberStepper from "../../components/NumberStepper";
+import SegmentedControl from "../../components/SegmentedControl";
 import SyncSection from "./SyncSection";
 import AiSection from "./AiSection";
 import ImportHistorySheet from "./ImportHistorySheet";
@@ -350,6 +351,8 @@ export default function SettingsScreen() {
         )}
       </Section>
 
+      <EffortScaleSection />
+
       {NotificationsSection && (
         <Suspense fallback={null}>
           <NotificationsSection />
@@ -566,6 +569,26 @@ function LanguageSection() {
           </button>
         ))}
       </div>
+    </Section>
+  );
+}
+
+/** How set effort is shown and picked (device-local): RPE "@8" or reps in reserve "RIR 2". Stored sets keep RPE. */
+function EffortScaleSection() {
+  const scale = useUiStore((s) => s.effortScale);
+  const setScale = useUiStore((s) => s.setEffortScale);
+  return (
+    <Section title={t("settings.workout.effortScale")}>
+      <SegmentedControl
+        value={scale}
+        options={[
+          { value: "rpe", label: t("settings.workout.rpe") },
+          { value: "rir", label: t("settings.workout.rir") },
+        ]}
+        onChange={setScale}
+        ariaLabel={t("settings.workout.effortScale")}
+      />
+      <p className="mt-2 text-xs text-sub">{t("settings.workout.effortScaleHint")}</p>
     </Section>
   );
 }
