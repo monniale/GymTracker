@@ -26,6 +26,9 @@ export interface Exercise {
   /** Exercise-library entry this row was added from (`public/exercise-library.json` id, e.g. "0025").
    * Catalog rows are linked by name instead (`SEED_LIBRARY_IDS`). */
   libraryId?: string
+  /** Fraction of bodyweight this move lifts (equipment 'bodyweight' only, e.g. 1.0 pull-up,
+   * 0.64 push-up). Absent = the default by name (`defaultBwFactor` in src/lib/load.ts). */
+  bwFactor?: number
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -59,6 +62,11 @@ export interface Session {
   extraExerciseIds: Id[]
   /** Set on workouts brought in from another app's CSV export (Settings › Data). */
   importedFrom?: 'strong' | 'hevy'
+  /** Set when the session is created by a build that scores bodyweight load
+   * (src/lib/load.ts): on such a session a bodyweight exercise's load is
+   * bodyweightKg × bwFactor + SetRow.weightKg. Absent on every older session, which
+   * keeps load = weightKg everywhere (forward-only, so re-scoring reproduces old totals). */
+  bwScoring?: true
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -68,10 +76,13 @@ export interface SetRow {
   sessionId: Id
   exerciseId: Id
   setNumber: number
+  /** kg on the bar or machine. For a bodyweight exercise on a `Session.bwScoring` session it is
+   * the ADDED kg and may be negative (assisted); the load is `effectiveLoad` (src/lib/load.ts). */
   weightKg: number
   reps: number
   isWarmup: boolean
   completedAt: number
+  /** Epley e1RM of the set's load (`setE1rm` in src/lib/load.ts); 0 for unweighted and cardio rows. */
   e1rm: number
   /** Cardio sets (src/lib/cardio.ts): time and optional distance; weightKg/reps/e1rm are 0. */
   durationSec?: number

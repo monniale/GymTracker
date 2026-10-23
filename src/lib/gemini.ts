@@ -140,7 +140,9 @@ Round every weight to a loadable increment (multiples of 2.5 kg). If an exercise
 Return one plan entry per exercise ref. Do not add exercises that were not listed.`
 
 /** Parse a weight plan. On invalid/truncated JSON it returns an empty plan so
- * the caller silently falls back to the offline progression engine. */
+ * the caller silently falls back to the offline progression engine. A negative
+ * weight is kept (assisted bodyweight move); the caller clamps it per exercise
+ * (`snapWeight`), so it reaches only a bodyweight exercise. */
 export function parseWeightPlan(text: string): RawWorkoutPlan {
   let parsed: unknown
   try {
@@ -159,7 +161,7 @@ export function parseWeightPlan(text: string): RawWorkoutPlan {
     for (const s of e.sets) {
       const w = Number((s as Record<string, unknown>)?.weightKg)
       const r = Number((s as Record<string, unknown>)?.reps)
-      if (Number.isFinite(w) && w >= 0 && Number.isFinite(r) && r > 0) {
+      if (Number.isFinite(w) && Number.isFinite(r) && r > 0) {
         sets.push({ weightKg: w, reps: Math.round(r) })
       }
     }

@@ -1,5 +1,6 @@
 import { db } from '../db/db'
 import { standardFor, levelFor } from './standards'
+import { effectiveLoad, usesBodyweightLoad } from './load'
 import { t, fmtNum } from '../i18n'
 import type { Dict } from '../i18n/en'
 import type { Vars } from '../i18n/types'
@@ -52,13 +53,16 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 ]
 
 export async function computeAchievementStats(): Promise<AchievementStats> {
-  const sessions = await db.sessions.filter(s => s.endedAt !== undefined).toArray()
+  const allSessions = await db.sessions.toArray()
+  const sessions = allSessions.filter(s => s.endedAt !== undefined)
+  const sessionsById = new Map(allSessions.map(s => [s.id!, s]))
   const sets = await db.sets.filter(s => !s.isWarmup).toArray()
   const events = await db.scoreEvents.toArray()
   const rank = await db.rankState.get(1)
   const settings = await db.settings.get(1)
   const foodDates = new Set((await db.foodLogs.toArray()).map(l => l.date))
   const exercises = await db.exercises.toArray()
+  const exMap = new Map(exercises.map(e => [e.id!, e]))
   const exNames = new Map<Id, string>(exercises.map(e => [e.id!, e.nameLower]))
 
   const bw = settings?.bodyweightKg ?? 75
@@ -68,6 +72,8 @@ export async function computeAchievementStats(): Promise<AchievementStats> {
     if (!nameLower) continue
     const std = standardFor(nameLower)
     if (!std) continue
+    // The pull-up standard rates the bodyweight load; an unstamped row holds the added kg only.
+    if (std.key === 'pullup' && !usesBodyweightLoad(exMap.get(s.exerciseId), sessionsById.get(s.sessionId))) continue
     const ratio = levelFor(s.e1rm, bw, std).ratio
     if (ratio > (liftRatios.get(std.key) ?? 0)) liftRatios.set(std.key, ratio)
   }
@@ -79,7 +85,10 @@ export async function computeAchievementStats(): Promise<AchievementStats> {
 
   return {
     totalSessions: sessions.length,
-    totalVolumeKg: Math.round(sets.reduce((a, s) => a + s.weightKg * s.reps, 0)),
+    // Effective load: bodyweight sets of a stamped session count the bodyweight moved.
+    totalVolumeKg: Math.round(
+      sets.reduce((a, s) => a + effectiveLoad(s, exMap.get(s.exerciseId), sessionsById.get(s.sessionId)) * s.reps, 0),
+    ),
     streakWeeks: rank?.streakWeeks ?? 0,
     totalPrs,
     maxSessionPoints: Math.max(0, ...sessions.map(s => s.points ?? 0)),

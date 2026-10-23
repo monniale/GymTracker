@@ -69,6 +69,7 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - **One-tap logging**: every set is pre-filled from your last session.
 - **Progression suggestions**: the app tells you when to add weight, using double progression.
 - **Warm-up ramps** and a **plate calculator** for barbell lifts.
+- **Bodyweight exercises score your bodyweight**: pull-ups, dips and push-ups count bodyweight (times a per-exercise share) plus any added kg, logged as "BW × 12", "BW+10 kg × 8" or assisted "BW−20 kg × 6". Workouts logged before this feature keep their scores.
 - Equipment variants (barbell, dumbbell, machine, cable…), per-exercise notes, and exercises added mid-session.
 - **History calendar**: open any past workout and fix a typo. Its score is recalculated.
 - **Cardio sets** with time and distance. They count for your streak and weekly target, but not for rank points.

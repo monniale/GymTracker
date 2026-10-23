@@ -58,6 +58,14 @@ export interface ScoreSet {
   isWarmup: boolean
   /** Cardio sets only (weightKg/reps are 0, so the strength scoring below skips them). */
   durationSec?: number
+  /** Effective load in kg (`effectiveLoad` in src/lib/load.ts: bodyweight × factor + added kg
+   * for a bodyweight exercise on a stamped session). Absent = weightKg. */
+  loadKg?: number
+}
+
+/** The kg every scoring path reads: the effective load when known, else weightKg. */
+export function loadOf(s: Pick<ScoreSet, 'weightKg' | 'loadKg'>): number {
+  return s.loadKg ?? s.weightKg
 }
 
 /**
@@ -95,7 +103,7 @@ export interface ScoreResult {
 
 export function scoreSession(input: ScoreInput): ScoreResult {
   const bw = Math.max(input.bodyweightKg, 30)
-  const work = input.sets.filter(s => !s.isWarmup && s.weightKg > 0 && s.reps > 0)
+  const work = input.sets.filter(s => !s.isWarmup && loadOf(s) > 0 && s.reps > 0)
 
   const byExercise = new Map<Id, ScoreSet[]>()
   for (const s of work) {
@@ -110,14 +118,15 @@ export function scoreSession(input: ScoreInput): ScoreResult {
   let volumePrs = 0
 
   for (const [exerciseId, sets] of byExercise) {
-    const sessionBestE1rm = Math.max(...sets.map(s => epley(s.weightKg, s.reps)))
+    const sessionBestE1rm = Math.max(...sets.map(s => epley(loadOf(s), s.reps)))
     const prior = input.priorBestE1rm.get(exerciseId)
     const baseline = prior ?? sessionBestE1rm
 
     const pointsPerSet = sets
       .map(s => {
-        const relInt = baseline > 0 ? s.weightKg / baseline : 0
-        return (s.weightKg * Math.min(s.reps, SCORING.repCap) * intensityMult(relInt)) / bw
+        const load = loadOf(s)
+        const relInt = baseline > 0 ? load / baseline : 0
+        return (load * Math.min(s.reps, SCORING.repCap) * intensityMult(relInt)) / bw
       })
       .sort((a, b) => b - a)
 
@@ -127,7 +136,7 @@ export function scoreSession(input: ScoreInput): ScoreResult {
     const e1rmPr = prior !== undefined && sessionBestE1rm > prior
     if (e1rmPr) e1rmPrs++
 
-    const volume = sets.reduce((acc, s) => acc + s.weightKg * s.reps, 0)
+    const volume = sets.reduce((acc, s) => acc + loadOf(s) * s.reps, 0)
     const priorVol = input.priorBestVolume.get(exerciseId)
     const volumePr = priorVol !== undefined && volume > priorVol
     if (volumePr) volumePrs++

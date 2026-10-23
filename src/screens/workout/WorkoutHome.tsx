@@ -73,6 +73,9 @@ export default function WorkoutHome() {
       startedAt: Date.now(),
       bodyweightKg: settings?.bodyweightKg ?? 75,
       extraExerciseIds: [],
+      // Bodyweight exercises score with bodyweight × factor + added kg (lib/load.ts).
+      // Forward-only: sessions created before this stamp keep load = weightKg.
+      bwScoring: true,
     })
     setActiveSessionId(id)
     navigate('/workout/session')

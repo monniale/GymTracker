@@ -9,6 +9,10 @@ export default {
     reps: 'reps',
     superset: 'Superset',
     equipment: 'Equipment',
+    /** Bodyweight load of a logged set (lib/load.ts fmtSetLoad): "BW × 12", "BW+10 kg × 8", "BW−20 kg × 6". */
+    bw: 'BW',
+    bwPlus: 'BW+{kg} kg',
+    bwMinus: 'BW−{kg} kg',
   },
   /** Muscle-group labels (ExercisePicker chips and badges). */
   home: {
@@ -81,6 +85,8 @@ export default {
     strength: 'Strength',
     cardio: 'Cardio',
     step: 'Progression step',
+    bwFactor: 'Bodyweight share',
+    bwFactorHint: 'Share of your bodyweight this move lifts (pull-up 100%, push-up about 64%). It sets the load of this move in every workout logged with bodyweight load; points already earned stay.',
   },
   pending: {
     newWeight: 'new weight',
@@ -94,6 +100,7 @@ export default {
     adjustCardio: 'Adjust time and distance',
     logCardio: 'Log cardio',
     needTime: 'Set a time to log this.',
+    assistedHint: 'Below 0 = assisted (band or machine help).',
   },
   summary: {
     complete: '{name} complete',

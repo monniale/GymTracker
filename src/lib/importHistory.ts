@@ -1,7 +1,8 @@
 import { parseCsv } from './csv'
 import { epley, scoreSession } from './scoring'
 import { localDateStr, parseLocalDate } from './dates'
-import { isCardioSet } from './cardio'
+import { isCardioExercise, isCardioSet } from './cardio'
+import { effectiveLoad, setE1rm } from './load'
 import { t, tp } from '../i18n'
 import type { Equipment, Exercise, ExerciseBreakdown, Id, MuscleGroup } from '../types'
 
@@ -406,11 +407,17 @@ export interface PlannedImportSession {
 
 export interface ImportScoringContext {
   exerciseIdOf: (rawName: string) => Id
+  /** The exercise behind an id (its equipment and bodyweight factor set the load of a bodyweight set). */
+  exerciseOf: (id: Id) => Exercise | undefined
   exerciseNames: Map<Id, string>
   /** YYYY-MM-DD; sessions before it are history and add no rank points. */
   seasonStart: string
-  /** Sets already in the app (for prior bests), any order. */
-  existingSets: { exerciseId: Id; weightKg: number; reps: number; isWarmup: boolean; completedAt: number; sessionId: Id }[]
+  /**
+   * Sets already in the app (for prior bests), any order. `loadKg` is the
+   * effective load (`effectiveLoad` with the set's session); absent = `weightKg`.
+   * `bwScoring` is the stamp of the set's session (absent = unstamped).
+   */
+  existingSets: { exerciseId: Id; weightKg: number; reps: number; isWarmup: boolean; completedAt: number; sessionId: Id; loadKg?: number; bwScoring?: boolean }[]
   /** Start times of the app's finished sessions (for the same-day factor). */
   existingSessionStarts: number[]
   bodyweightFor: (date: string) => number
@@ -422,13 +429,24 @@ export interface ImportScoringContext {
  * the earlier imported ones): season-scoped for a session in the current
  * season, all earlier history for an older one. No streak (0) and no points
  * outside the current season; the same-day factor counts the day's earlier
- * sessions.
+ * sessions. Imported sessions are stamped `bwScoring` (importApply), so a
+ * bodyweight set scores bodyweight × factor + its (added, never negative)
+ * weight. Prior bests use each set's effective load and skip zero-load rows,
+ * like `gatherSeasonPriorBests`, and for a bodyweight exercise they skip every
+ * row of an unstamped session (its weight is added kg only, another unit): an
+ * older unstamped bodyweight set, 0 kg or weighted, counts for neither the
+ * e1RM nor the volume.
  */
 export function planImportScoring(sessions: ImportedSession[], ctx: ImportScoringContext): PlannedImportSession[] {
   const seasonStartMs = parseLocalDate(ctx.seasonStart).getTime()
+  const unstampedBodyweight = (s: { exerciseId: Id; bwScoring?: boolean }) => {
+    const ex = ctx.exerciseOf(s.exerciseId)
+    return s.bwScoring !== true && ex?.equipment === 'bodyweight' && !isCardioExercise(ex)
+  }
   const history = ctx.existingSets
-    .filter(s => !s.isWarmup && s.weightKg > 0 && s.reps > 0)
-    .map(s => ({ exerciseId: s.exerciseId, sessionKey: `x${String(s.sessionId)}`, t: s.completedAt, e1rm: epley(s.weightKg, s.reps), vol: s.weightKg * s.reps }))
+    .map(s => ({ ...s, load: s.loadKg ?? s.weightKg }))
+    .filter(s => !s.isWarmup && s.load > 0 && s.reps > 0 && !unstampedBodyweight(s))
+    .map(s => ({ exerciseId: s.exerciseId, sessionKey: `x${String(s.sessionId)}`, t: s.completedAt, e1rm: epley(s.load, s.reps), vol: s.load * s.reps }))
   const starts = [...ctx.existingSessionStarts]
   const out: PlannedImportSession[] = []
 
@@ -445,6 +463,8 @@ export function planImportScoring(sessions: ImportedSession[], ctx: ImportScorin
     const priorBestVolume = new Map<Id, number>()
     for (const { ex, vol } of volBySession.values()) priorBestVolume.set(ex, Math.max(priorBestVolume.get(ex) ?? 0, vol))
 
+    const date = localDateStr(new Date(imp.startedAt))
+    const session = { bodyweightKg: ctx.bodyweightFor(date), bwScoring: true as const }
     const span = Math.max(1, imp.endedAt - imp.startedAt)
     const perExercise = new Map<Id, number>()
     const sets: PlannedSetRow[] = imp.sets.map((s, i) => {
@@ -459,17 +479,22 @@ export function planImportScoring(sessions: ImportedSession[], ctx: ImportScorin
         isWarmup: s.isWarmup,
         // Spread inside the session so ordering and per-day queries hold.
         completedAt: imp.startedAt + Math.round(((i + 1) * span) / (imp.sets.length + 1)),
-        e1rm: epley(s.weightKg, s.reps),
+        e1rm: setE1rm(s, ctx.exerciseOf(exerciseId), session),
         ...(s.durationSec ? { durationSec: s.durationSec } : {}),
         ...(s.distanceM ? { distanceM: s.distanceM } : {}),
       }
     })
 
-    const date = localDateStr(new Date(imp.startedAt))
     const sameDayEarlier = starts.some(t => t < imp.startedAt && localDateStr(new Date(t)) === date)
+    const exMap = new Map<Id, Exercise>()
+    for (const id of perExercise.keys()) {
+      const ex = ctx.exerciseOf(id)
+      if (ex) exMap.set(id, ex)
+    }
     const result = scoreSession({
-      sets,
-      bodyweightKg: ctx.bodyweightFor(date),
+      // toScoreSets wants stored rows (with a sessionId); same mapping for the planned ones.
+      sets: sets.map(s => ({ ...s, loadKg: effectiveLoad(s, exMap.get(s.exerciseId), session) })),
+      bodyweightKg: session.bodyweightKg,
       priorBestE1rm,
       priorBestVolume,
       streakWeeks: 0,
@@ -486,8 +511,9 @@ export function planImportScoring(sessions: ImportedSession[], ctx: ImportScorin
     })
     starts.push(imp.startedAt)
     for (const s of sets) {
-      if (s.isWarmup || isCardioSet(s) || s.weightKg <= 0 || s.reps <= 0) continue
-      history.push({ exerciseId: s.exerciseId, sessionKey: `i${n}`, t: s.completedAt, e1rm: s.e1rm, vol: s.weightKg * s.reps })
+      if (s.isWarmup || isCardioSet(s) || s.e1rm <= 0) continue
+      const load = effectiveLoad(s, exMap.get(s.exerciseId), session)
+      history.push({ exerciseId: s.exerciseId, sessionKey: `i${n}`, t: s.completedAt, e1rm: s.e1rm, vol: load * s.reps })
     }
   }
   return out

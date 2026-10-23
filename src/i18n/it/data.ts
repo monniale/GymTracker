@@ -43,7 +43,7 @@ const data: Dict['data'] = {
     rankUp: 'NUOVO RANK!',
     volumePr: 'PR VOL.',
     e1rmPr: 'PR e1RM',
-    setsBest: '{sets} · migliore {weight} kg × {reps}',
+    setsBest: '{sets} · migliore {set}',
     moreExercises: { one: '+ {n} altro esercizio', other: '+ altri {n} esercizi' },
     statSets: { one: 'serie', other: 'serie' },
     statVolume: 'volume',

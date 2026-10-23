@@ -176,9 +176,16 @@ describe('planImportScoring', () => {
     name: 'S', startedAt, endedAt: startedAt + 3_600_000,
     sets: sets.map(([exerciseName, weightKg, reps, isWarmup]) => ({ exerciseName, weightKg, reps, isWarmup: !!isWarmup })),
   })
+  const catalog = new Map<number | string, Exercise>([
+    [1, { id: 1, name: 'Bench Press', nameLower: 'bench press', muscleGroup: 'chest', equipment: 'barbell', defaultRestSec: 150, isCustom: false }],
+    [2, { id: 2, name: 'Squat', nameLower: 'squat', muscleGroup: 'legs', equipment: 'barbell', defaultRestSec: 180, isCustom: false }],
+    [3, { id: 3, name: 'Treadmill Run', nameLower: 'treadmill run', muscleGroup: 'cardio', equipment: 'machine', defaultRestSec: 60, isCustom: false }],
+    [4, { id: 4, name: 'Pull-Up', nameLower: 'pull-up', muscleGroup: 'back', equipment: 'bodyweight', defaultRestSec: 150, isCustom: false }],
+  ])
   const ctx = (over = {}) => ({
-    exerciseIdOf: (raw: string) => (raw === 'Bench' ? 1 : raw === 'Squat' ? 2 : 3),
-    exerciseNames: new Map<number | string, string>([[1, 'Bench Press'], [2, 'Squat'], [3, 'Treadmill Run']]),
+    exerciseIdOf: (raw: string) => (raw === 'Bench' ? 1 : raw === 'Squat' ? 2 : raw === 'Pull' ? 4 : 3),
+    exerciseOf: (id: number | string) => catalog.get(id),
+    exerciseNames: new Map<number | string, string>([[1, 'Bench Press'], [2, 'Squat'], [3, 'Treadmill Run'], [4, 'Pull-Up']]),
     seasonStart: '2024-03-13',
     existingSets: [],
     existingSessionStarts: [],
@@ -221,6 +228,38 @@ describe('planImportScoring', () => {
     expect(p.sets[0].completedAt).toBeLessThan(p.sets[2].completedAt)
     expect(p.event.dayFactor).toBe(0.25)
     expect(p.event.streakMult).toBe(1)
+  })
+
+  it('scores imported bodyweight sets on bodyweight × factor + added kg', () => {
+    const plans = planImportScoring([
+      session(T(2024, 3, 1, 18), [['Pull', 0, 10], ['Pull', 10, 8]]),
+      session(T(2024, 3, 5, 18), [['Pull', 0, 11]]),
+    ], ctx())
+    // Pull-Up factor 1.0 at 80 kg: 80 × 10 and 90 × 8.
+    expect(plans[0].sets.map(s => Math.round(s.e1rm * 10) / 10)).toEqual([106.7, 114])
+    expect(plans[0].sets.map(s => s.weightKg)).toEqual([0, 10]) // stored as added kg
+    expect(plans[0].event.total).toBeGreaterThan(0)
+    // The earlier imported session is history at its load: 80 × 11 beats neither its e1RM (90 × 8) nor its volume.
+    expect(plans[1].event.breakdown[0]).toMatchObject({ volumePr: false, e1rmPr: false })
+    expect(planImportScoring([
+      session(T(2024, 3, 1, 18), [['Pull', 0, 10]]),
+      session(T(2024, 3, 5, 18), [['Pull', 0, 12]]),
+    ], ctx())[1].event.breakdown[0]).toMatchObject({ volumePr: true, e1rmPr: true })
+  })
+
+  it('reads prior bests at the effective load and skips zero-load rows', () => {
+    const imported = [session(T(2024, 3, 5, 18), [['Pull', 0, 10]])]
+    const prior = (p: object) => ({ exerciseId: 4, reps: 10, isWarmup: false, completedAt: T(2024, 3, 1, 18), sessionId: 'old', ...p })
+    // An unstamped plain pull-up row (0 kg, no load): no prior, so no PR on the first stamped session.
+    const unstamped = planImportScoring(imported, ctx({ existingSets: [prior({ weightKg: 0 })] }))
+    expect(unstamped[0].event.breakdown[0]).toMatchObject({ e1rmPr: false, volumePr: false })
+    // A stamped row at 70 kg of load is a real prior: 80 × 10 beats it.
+    const stamped = planImportScoring(imported, ctx({ existingSets: [prior({ weightKg: 0, loadKg: 70, bwScoring: true })] }))
+    expect(stamped[0].event.breakdown[0]).toMatchObject({ e1rmPr: true, volumePr: true })
+    // An unstamped weighted pull-up stored the added kg only (another unit): no prior either.
+    const weighted = planImportScoring(imported, ctx({ existingSets: [prior({ weightKg: 10, loadKg: 10 })] }))
+    expect(weighted[0].event.breakdown[0]).toMatchObject({ e1rmPr: false, volumePr: false })
+    expect(weighted[0].event.prBonus).toBe(0)
   })
 
   it('keeps cardio rows out of the points', () => {

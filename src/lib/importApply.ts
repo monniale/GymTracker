@@ -5,6 +5,7 @@ import { t } from '../i18n'
 import { checkAchievements } from './achievements'
 import { isCardioSet } from './cardio'
 import { localDateStr } from './dates'
+import { withLoads } from './load'
 import {
   resolveExercises, planImportScoring, type ExerciseMatch, type ImportFormat, type ParsedHistory,
 } from './importHistory'
@@ -111,6 +112,7 @@ export async function applyImport(parsed: ParsedHistory): Promise<ImportResult> 
         const matches: ExerciseMatch[] = resolveExercises(rawNames(fresh), catalog)
         const idOf = new Map<string, Id>()
         const names = new Map<Id, string>(catalog.map(e => [e.id!, e.name]))
+        const exById = new Map<Id, Exercise>(catalog.map(e => [e.id!, e]))
         let created = 0
         for (const m of matches) {
           if (m.existing) {
@@ -121,13 +123,19 @@ export async function applyImport(parsed: ParsedHistory): Promise<ImportResult> 
           await db.exercises.add(row)
           idOf.set(m.raw, row.id!)
           names.set(row.id!, row.name)
+          exById.set(row.id!, row)
           created++
         }
 
         const exerciseIds = [...new Set(idOf.values())]
-        const existingSets = exerciseIds.length ? await db.sets.where('exerciseId').anyOf(exerciseIds).toArray() : []
+        const existingRows = exerciseIds.length ? await db.sets.where('exerciseId').anyOf(exerciseIds).toArray() : []
+        // Effective loads and stamps from the sessions already read above (no extra query).
+        const sessionsById = new Map(sessions.map(s => [s.id!, s]))
+        const existingSets = withLoads(existingRows, exById, sessionsById)
+          .map(s => ({ ...s, bwScoring: sessionsById.get(s.sessionId)?.bwScoring === true }))
         const plans = planImportScoring(fresh, {
           exerciseIdOf: raw => idOf.get(raw)!,
+          exerciseOf: id => exById.get(id),
           exerciseNames: names,
           seasonStart: rank?.seasonStart ?? localDateStr(),
           existingSets,
@@ -148,6 +156,8 @@ export async function applyImport(parsed: ParsedHistory): Promise<ImportResult> 
             points: p.event.total,
             extraExerciseIds: [],
             importedFrom: parsed.format,
+            // Scored with bodyweight load (planImportScoring), so a rescore reproduces it.
+            bwScoring: true,
           })
           await db.sets.bulkAdd(p.sets.map(s => ({ id: crypto.randomUUID(), sessionId, ...s })))
           await db.scoreEvents.add({ id: crypto.randomUUID(), sessionId, ...p.event })

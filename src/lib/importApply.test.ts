@@ -110,6 +110,57 @@ describe('importing a Strong history', () => {
   })
 })
 
+describe('importing bodyweight sets', () => {
+  const PULL = [
+    'Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE',
+    '2026-10-05 18:00:00,Pull,1h,Pull Up,1,0,10,0,0,,,',
+    '2026-10-05 18:00:00,Pull,1h,Pull Up,2,10,8,0,0,,,',
+    '2026-10-05 18:00:00,Pull,1h,Pull Up,3,-5,8,0,0,,,',
+  ].join('\n')
+
+  it('stamps the sessions and stores e1RM at bodyweight load (added kg never negative)', async () => {
+    await applyImport(parseHistoryCsv(PULL))
+    const [s] = await db.sessions.toArray()
+    expect(s).toMatchObject({ bwScoring: true, bodyweightKg: 82 })
+    const sets = await db.sets.where('sessionId').equals(s.id!).sortBy('setNumber')
+    expect(sets.map(x => x.weightKg)).toEqual([0, 10, 0])
+    // Pull-Up factor 1.0 at 82 kg.
+    expect(sets.map(x => Math.round(x.e1rm * 10) / 10)).toEqual([109.3, 116.5, 103.9])
+  })
+
+  it('a rescore of the stamped import reproduces its points', async () => {
+    await applyImport(parseHistoryCsv(PULL))
+    const [s] = await db.sessions.toArray()
+    const before = (await db.scoreEvents.where('sessionId').equals(s.id!).first())!.total
+    expect(before).toBeGreaterThan(0)
+    await rescoreSession(s.id!)
+    expect((await db.scoreEvents.where('sessionId').equals(s.id!).first())!.total).toBe(before)
+  })
+
+  it('reads an unstamped 0-kg bodyweight session as no prior best', async () => {
+    const pullUp = (await db.exercises.where('nameLower').equals('pull-up').first())!
+    const old = await db.sessions.add({ id: 'old', name: 'Old', startedAt: T(2026, 10, 2, 18), endedAt: T(2026, 10, 2, 19), bodyweightKg: 82, extraExerciseIds: [] })
+    await db.sets.add({ id: 'o1', sessionId: old, exerciseId: pullUp.id!, setNumber: 1, weightKg: 0, reps: 15, isWarmup: false, completedAt: T(2026, 10, 2, 18) + 600_000, e1rm: 0 })
+    await applyImport(parseHistoryCsv(PULL))
+    const ev = (await db.scoreEvents.where('date').equals('2026-10-05').first())!
+    expect(ev.breakdown[0]).toMatchObject({ exerciseName: 'Pull-Up', e1rmPr: false, volumePr: false })
+  })
+
+  it('never compares with an unstamped weighted pull-up, and a rescore reproduces the import', async () => {
+    const pullUp = (await db.exercises.where('nameLower').equals('pull-up').first())!
+    const old = await db.sessions.add({ id: 'old', name: 'Old', startedAt: T(2026, 10, 2, 18), endedAt: T(2026, 10, 2, 19), bodyweightKg: 82, extraExerciseIds: [] })
+    // Added kg only (pre-feature build): e1RM 12.7, another unit than the import's bodyweight load.
+    await db.sets.add({ id: 'o1', sessionId: old, exerciseId: pullUp.id!, setNumber: 1, weightKg: 10, reps: 8, isWarmup: false, completedAt: T(2026, 10, 2, 18) + 600_000, e1rm: 12.7 })
+    await applyImport(parseHistoryCsv(PULL))
+    const s = (await db.sessions.where('startedAt').equals(T(2026, 10, 5, 18)).first())!
+    const ev = (await db.scoreEvents.where('sessionId').equals(s.id!).first())!
+    expect(ev.breakdown[0]).toMatchObject({ exerciseName: 'Pull-Up', e1rmPr: false, volumePr: false })
+    expect(ev.prBonus).toBe(0)
+    await rescoreSession(s.id!)
+    expect((await db.scoreEvents.where('sessionId').equals(s.id!).first())!.total).toBe(ev.total)
+  })
+})
+
 describe('importing while the demo is loaded', () => {
   afterEach(() => useUiStore.getState().setDemoLoaded(false))
 

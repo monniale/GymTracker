@@ -7,6 +7,7 @@ import { DEFAULT_BAR_KG } from './plates'
 import { localDateStr, mondayOf, parseLocalDate } from './dates'
 import { isCardioExercise, isCardioSet, cardioSessionTotals, cardioMinutes, fmtDistance, paceSecPerKm, fmtPace } from './cardio'
 import { sessionItems } from './sessionItems'
+import { bwFactorOf, effectiveLoad, usesBodyweightLoad } from './load'
 import type { Id } from '../types'
 
 /**
@@ -18,7 +19,10 @@ import type { Id } from '../types'
 export interface BriefingExercise {
   name: string
   muscleGroup: string
-  sets: { weightKg: number; reps: number }[]
+  /** `weightKg` as logged (added kg when `bodyweightFactor` is set), `loadKg` the effective load. */
+  sets: { weightKg: number; reps: number; loadKg: number }[]
+  /** Fraction of bodyweight moved, set only for a bodyweight exercise of a stamped session. */
+  bodyweightFactor?: number
   bestE1rm: number
   priorBestE1rm: number | null
   e1rmPr: boolean
@@ -68,28 +72,33 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
 
   const exercises: BriefingExercise[] = event.breakdown.map(b => {
     const ex = exMap.get(b.exerciseId)
+    const bodyweightLoad = usesBodyweightLoad(ex, session)
     const exSets = sets
       .filter(s => s.exerciseId === b.exerciseId && !s.isWarmup)
       .sort((a, z) => a.setNumber - z.setNumber)
-      .map(s => ({ weightKg: s.weightKg, reps: s.reps }))
+      .map(s => ({ weightKg: s.weightKg, reps: s.reps, loadKg: effectiveLoad(s, ex, session) }))
     const prior = priorBests.e1rm.get(b.exerciseId) ?? null
 
     const std = ex ? standardFor(ex.nameLower) : null
+    // The pull-up standard rates the bodyweight load: not an unstamped session's added kg.
+    const rated = std && (std.key !== 'pullup' || bodyweightLoad)
     const strengthLevel =
-      std && session.bodyweightKg > 0 ? levelFor(b.bestE1rm, session.bodyweightKg, std).level : null
+      std && rated && session.bodyweightKg > 0 ? levelFor(b.bestE1rm, session.bodyweightKg, std).level : null
 
     const targetReps = targetRepsById.get(b.exerciseId) ?? 8
-    const sug = suggestNext(exSets, targetReps, ex?.progressionStepKg ?? 2.5)
+    const sug = suggestNext(exSets, targetReps, ex?.progressionStepKg ?? 2.5, { bodyweight: bodyweightLoad })
+    const sugKg = sug ? (bodyweightLoad ? bwKg(sug.weightKg) : `${sug.weightKg} kg`) : ''
     const nextSuggestion = sug
       ? sug.reason === 'weight-up'
-        ? `${sug.weightKg} kg for ${sug.reps} reps`
-        : `${sug.reps} reps at ${sug.weightKg} kg`
+        ? `${sugKg} for ${sug.reps} reps`
+        : `${sug.reps} reps at ${sugKg}`
       : null
 
     return {
       name: b.exerciseName,
       muscleGroup: ex?.muscleGroup ?? 'other',
       sets: exSets,
+      ...(bodyweightLoad && ex ? { bodyweightFactor: bwFactorOf(ex) } : {}),
       bestE1rm: Math.round(b.bestE1rm),
       priorBestE1rm: prior !== null ? Math.round(prior) : null,
       e1rmPr: b.e1rmPr,
@@ -145,6 +154,16 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
   }
 }
 
+/** Added kg on bodyweight: "BW", "BW+10kg", "BW-20kg" (assisted). */
+function bwKg(addedKg: number): string {
+  return addedKg === 0 ? 'BW' : `BW${addedKg > 0 ? '+' : '-'}${Math.abs(addedKg)}kg`
+}
+
+/** "80kg×8"; on a bodyweight exercise the weight is added kg: "BW×12", "BW+10kg×8", "BW-20kg×6". */
+function briefingSet(s: { weightKg: number; reps: number }, bodyweightLoad: boolean): string {
+  return `${bodyweightLoad ? bwKg(s.weightKg) : `${s.weightKg}kg`}×${s.reps}`
+}
+
 /** Serialize a briefing into a compact, grounded prompt for Gemini. Pure. */
 export function formatBriefing(b: WorkoutBriefing): string {
   const lines: string[] = []
@@ -162,9 +181,14 @@ export function formatBriefing(b: WorkoutBriefing): string {
   )
   lines.push('')
   lines.push('Exercises:')
+  if (b.exercises.some(e => e.bodyweightFactor !== undefined)) {
+    lines.push('(BW = bodyweight; on bodyweight exercises the kg are added to it, ×factor = share of bodyweight moved, e1RM counts it)')
+  }
   for (const e of b.exercises) {
-    const setsStr = e.sets.length ? e.sets.map(s => `${s.weightKg}kg×${s.reps}`).join(', ') : 'no work sets'
+    const bw = e.bodyweightFactor !== undefined
+    const setsStr = e.sets.length ? e.sets.map(s => briefingSet(s, bw)).join(', ') : 'no work sets'
     const tags: string[] = []
+    if (bw) tags.push(`bodyweight ×${e.bodyweightFactor}`)
     if (e.e1rmPr) tags.push('NEW e1RM PR')
     if (e.volumePr) tags.push('volume PR')
     if (e.strengthLevel) tags.push(`level ${e.strengthLevel}`)
@@ -209,6 +233,8 @@ export interface PlanExercise {
   name: string
   muscleGroup: string
   equipment?: string
+  /** Weights are ADDED kg on top of bodyweight (negative = assisted): `usesBodyweightLoad`. */
+  bodyweightLoad?: boolean
   targetSets: number
   targetReps: number
   stepKg: number
@@ -267,7 +293,9 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
       }
       const recentBestE1rm = all.length ? Math.round(Math.max(...all.map(s => s.e1rm))) : null
       const stepKg = ex?.progressionStepKg ?? 2.5
-      const baseline = suggestNext(lastSets, item.targetReps, stepKg)
+      // The session being planned is new, so stamped: a bodyweight move progresses on added kg.
+      const bodyweightLoad = usesBodyweightLoad(ex, session)
+      const baseline = suggestNext(lastSets, item.targetReps, stepKg, { bodyweight: bodyweightLoad })
       const std = ex ? standardFor(ex.nameLower) : null
       const strengthLevel =
         std && session.bodyweightKg > 0 && recentBestE1rm !== null
@@ -279,6 +307,7 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
         name: ex?.name ?? 'Exercise',
         muscleGroup: ex?.muscleGroup ?? 'other',
         equipment: ex?.equipment,
+        ...(bodyweightLoad ? { bodyweightLoad: true } : {}),
         targetSets: item.targetSets,
         targetReps: item.targetReps,
         stepKg,
@@ -304,6 +333,9 @@ export function formatWorkoutPlanBriefing(b: WorkoutPlanBriefing): string {
   lines.push(`Session: ${b.sessionName}`)
   lines.push(`Bodyweight: ${b.bodyweightKg} kg; barbell ${b.barKg} kg; round weights to 2.5 kg increments.`)
   lines.push('')
+  if (b.exercises.some(e => e.equipment === 'bodyweight')) {
+    lines.push('Weights for bodyweight exercises are ADDED kg on top of bodyweight (0 = plain bodyweight, negative = assisted by a machine or band).')
+  }
   lines.push('Exercises (plan opening sets for each, keyed by ref):')
   for (const e of b.exercises) {
     const last = e.lastSets.length

@@ -160,3 +160,26 @@ describe('cardio sets', () => {
     expect(only.breakdown).toEqual([])
   })
 })
+
+describe('scoreSession with an effective load (loadKg)', () => {
+  const bwSet = (loadKg: number, reps: number) => ({ exerciseId: 1, weightKg: 0, reps, isWarmup: false, loadKg })
+
+  it('reads loadKg instead of weightKg everywhere', () => {
+    // BW 80 pull-ups 3×8 → same points, e1RM and volume as 80 kg × 8.
+    const viaLoad = scoreSession(input({ sets: [bwSet(80, 8), bwSet(80, 8), bwSet(80, 8)], priorBestE1rm: new Map([[1, 100]]), priorBestVolume: new Map([[1, 1000]]) }))
+    const viaWeight = scoreSession(input({ sets: [set(1, 80, 8), set(1, 80, 8), set(1, 80, 8)], priorBestE1rm: new Map([[1, 100]]), priorBestVolume: new Map([[1, 1000]]) }))
+    expect(viaLoad.total).toBeGreaterThan(0)
+    expect(viaLoad).toEqual(viaWeight)
+    expect(viaLoad.breakdown[0]).toMatchObject({ e1rmPr: true, volumePr: true, countedSets: 3 })
+  })
+
+  it('skips a zero load even with weightKg set, and falls back to weightKg when absent', () => {
+    const zero = scoreSession(input({ sets: [{ ...set(1, 80, 8), loadKg: 0 }] }))
+    expect(zero.breakdown).toEqual([])
+    const lighter = scoreSession(input({ sets: [{ ...set(1, 80, 8), loadKg: 40 }] }))
+    expect(lighter).toEqual(scoreSession(input({ sets: [set(1, 40, 8)] })))
+    const absent = scoreSession(input({ sets: [set(1, 80, 8)] }))
+    const same = scoreSession(input({ sets: [{ ...set(1, 80, 8), loadKg: 80 }] }))
+    expect(same).toEqual(absent)
+  })
+})

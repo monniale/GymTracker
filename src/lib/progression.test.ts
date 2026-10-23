@@ -74,3 +74,33 @@ describe('warmupRamp', () => {
     expect(ramp.map(r => r.weightKg)).toEqual([20, 35, 55, 72.5])
   })
 })
+
+describe('suggestNext (bodyweight load)', () => {
+  const bw = { bodyweight: true }
+
+  it('without the option ignores bodyweight-only sets as before', () => {
+    expect(suggestNext([{ weightKg: 0, reps: 8 }], 8)).toBeNull()
+  })
+
+  it('climbs reps first at bodyweight', () => {
+    expect(suggestNext([{ weightKg: 0, reps: 8 }, { weightKg: 0, reps: 6 }], 8, 2.5, bw))
+      .toEqual({ weightKg: 0, reps: 7, reason: 'reps-up' })
+  })
+
+  it('then adds at most 1.25 kg', () => {
+    expect(suggestNext([{ weightKg: 0, reps: 8 }, { weightKg: 0, reps: 8 }], 8, 2.5, bw))
+      .toEqual({ weightKg: 1.25, reps: 8, reason: 'weight-up' })
+    expect(suggestNext([{ weightKg: 5, reps: 8 }], 8, 1, bw)?.weightKg).toBe(6)
+  })
+
+  it('shrinks the assistance on an assisted move', () => {
+    expect(suggestNext([{ weightKg: -20, reps: 8 }, { weightKg: -20, reps: 8 }], 8, 2.5, bw))
+      .toEqual({ weightKg: -18.75, reps: 8, reason: 'weight-up' })
+    expect(suggestNext([{ weightKg: -20, reps: 5 }], 8, 2.5, bw))
+      .toEqual({ weightKg: -20, reps: 6, reason: 'reps-up' })
+  })
+
+  it('still needs reps', () => {
+    expect(suggestNext([{ weightKg: 0, reps: 0 }], 8, 2.5, bw)).toBeNull()
+  })
+})

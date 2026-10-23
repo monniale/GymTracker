@@ -9,6 +9,9 @@ const workout: Dict['workout'] = {
     reps: 'rip.',
     superset: 'Superset',
     equipment: 'Attrezzatura',
+    bw: 'PC',
+    bwPlus: 'PC+{kg} kg',
+    bwMinus: 'PC−{kg} kg',
   },
   home: {
     title: 'Allenamento',
@@ -77,6 +80,8 @@ const workout: Dict['workout'] = {
     strength: 'Forza',
     cardio: 'Cardio',
     step: 'Incremento',
+    bwFactor: 'Quota di peso corporeo',
+    bwFactorHint: 'Quanta parte del tuo peso corporeo sposti (trazioni 100%, piegamenti circa 64%). Vale per questo esercizio in tutti gli allenamenti registrati con il peso corporeo; i punti già ottenuti restano.',
   },
   pending: {
     newWeight: 'nuovo peso',
@@ -90,6 +95,7 @@ const workout: Dict['workout'] = {
     adjustCardio: 'Regola tempo e distanza',
     logCardio: 'Registra cardio',
     needTime: 'Imposta un tempo per registrarlo.',
+    assistedHint: 'Sotto 0 = assistito (elastico o macchina).',
   },
   summary: {
     complete: '{name} completato',

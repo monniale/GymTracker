@@ -48,8 +48,8 @@ export default {
     rankUp: 'RANK UP!',
     volumePr: 'VOL PR',
     e1rmPr: 'e1RM PR',
-    /** `{sets}` is the counted sets ("3 sets"). */
-    setsBest: '{sets} · best {weight} kg × {reps}',
+    /** `{sets}` is the counted sets ("3 sets"), `{set}` the best set ("80 kg × 8", "BW+10 kg × 8"). */
+    setsBest: '{sets} · best {set}',
     moreExercises: { one: '+ {n} more exercise', other: '+ {n} more exercises' },
     /** Footer stat labels (drawn upper-case). */
     statSets: { one: 'set', other: 'sets' },
