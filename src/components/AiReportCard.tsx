@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Sparkles, Loader2, RefreshCw, AlertTriangle, WifiOff, History } from 'lucide-react'
 import { useAiStore } from '../lib/aiStore'
-import { GeminiError } from '../lib/gemini'
+import { AiError } from '../lib/ai/provider'
 import { t, tp } from '../i18n'
 import type { CoachInsightTone, CoachNote } from '../types'
 
@@ -25,8 +25,9 @@ function toneDot(t: CoachInsightTone): string {
   }
 }
 
+/** Card copy for a failed AI call, whatever the provider (GeminiError extends AiError). */
 export function errMsg(e: unknown): string {
-  if (e instanceof GeminiError) {
+  if (e instanceof AiError) {
     switch (e.kind) {
       case 'auth':
       case 'bad-key': return t('components.aiReport.errKey')
@@ -310,7 +311,7 @@ export function HistoryLink({ kind, earlier }: { kind: 'workout' | 'diet' | 'wee
   )
 }
 
-/** No-key hint of an AI card: the card's pitch, then a link to Settings to add a Gemini key. */
+/** No-key hint of an AI card: the card's pitch, then a link to Settings to connect an AI model. */
 export function GeminiKeyHint({ pitch }: { pitch: string }) {
   return (
     <>

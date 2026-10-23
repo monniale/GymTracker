@@ -115,7 +115,7 @@ export default {
     photoFailed: 'Could not read that photo.',
     estimate: 'Estimate',
     estimating: 'Estimating…',
-    noKey: 'Add a Gemini key in Settings › AI to estimate meals without a label (takeaways, kebab shops, pizzerias).',
+    noKey: 'Connect an AI model in Settings › AI to estimate meals without a label (takeaways, kebab shops, pizzerias).',
     offline: 'Offline — connect to estimate.',
     empty: 'No items recognised — add more detail and try again.',
     saveFailed: 'Could not save the meal — try again.',

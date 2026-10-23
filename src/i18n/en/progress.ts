@@ -121,7 +121,7 @@ export default {
     filterWeeks: 'Weeks',
     emptyDiet: 'No diet reports stored yet. Generate one from the Diet tab.',
     emptyWeek: 'No weekly reviews yet. Open Progress › Week review to get one.',
-    emptyAll: 'No verdicts stored yet. With a Gemini key connected, every coach’s note is kept here.',
+    emptyAll: 'No verdicts stored yet. With an AI model connected, every coach’s note is kept here.',
     workout: 'Workout',
     dietDay: 'Diet day',
     deleteConfirm: 'Delete this verdict? It is removed on every synced device.',
