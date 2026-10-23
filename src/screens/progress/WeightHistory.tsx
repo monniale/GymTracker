@@ -9,12 +9,16 @@ import {
   inRange, movingAverage, weeklyRate, buildWeightStory, dateMs,
   type WeightRange, type WeightBadge, type StoryEntry,
 } from '../../lib/bodyweight'
-import { LineChart, type ChartPoint } from '../../components/Charts'
+import { LineChart, refLineInReach, type ChartPoint } from '../../components/Charts'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
+import GoalFields from '../settings/GoalFields'
+import { goalStatus, type GoalStatus } from '../../lib/goalStatus'
 import { t, tp, fmtNum } from '../../i18n'
 
 const GREEN = '#22C55E'
+/** Goal reference line on the chart (tailwind `primary`). */
+const GOAL = '#F97316'
 const RANGES: { id: WeightRange; label: string }[] = [
   { id: '1m', label: t('progress.weight.range1m') },
   { id: '3m', label: t('progress.weight.range3m') },
@@ -40,6 +44,7 @@ export default function WeightHistory() {
   const today = useLocalToday()
   const [range, setRange] = useState<WeightRange>('3m')
   const [editing, setEditing] = useState<{ date: string; weightKg: number; isNew: boolean } | null>(null)
+  const [goalOpen, setGoalOpen] = useState(false)
   // Months whose open state the user flipped from the default.
   const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set())
   const flip = (month: string) =>
@@ -50,6 +55,7 @@ export default function WeightHistory() {
     })
 
   const log = useLiveQuery(() => db.bodyLog.orderBy('date').toArray())
+  const settings = useLiveQuery(() => db.settings.get(1))
   const workoutsByMonth = useLiveQuery(async () => {
     const map = new Map<string, number>()
     const sessions = await db.sessions.toArray()
@@ -75,6 +81,11 @@ export default function WeightHistory() {
   const rate = weeklyRate(entries, today)
   const lowest = entries.reduce<typeof first | undefined>((m, e) => (!m || e.weightKg < m.weightKg ? e : m), undefined)
   const highest = entries.reduce<typeof first | undefined>((m, e) => (!m || e.weightKg > m.weightKg ? e : m), undefined)
+  const goal: GoalStatus = settings ? goalStatus(entries, settings, today) : { kind: 'none' }
+  const showTrend = points.length > 2
+  // The chart drops a goal line too far from the plotted data; the legend follows it.
+  const goalOnChart = goal.kind !== 'none'
+    && refLineInReach([...points, ...(showTrend ? trend : [])].map(p => p.y), goal.goalKg)
   const rangeChange = shown.length > 1 ? round1(shown[shown.length - 1].weightKg - shown[0].weightKg) : null
 
   async function save(date: string, weightKg: number) {
@@ -137,6 +148,7 @@ export default function WeightHistory() {
               <Stat label={t('progress.weight.trend4w')} value={rate === null ? '—' : t('progress.weight.perWeek', { value: signed(rate) })} />
               <Stat label={t('progress.weight.lowest')} value={lowest ? `${fmt1(lowest.weightKg)} kg` : '—'} hint={lowest ? shortDate(dateMs(lowest.date)) : undefined} />
               <Stat label={t('progress.weight.highest')} value={highest ? `${fmt1(highest.weightKg)} kg` : '—'} hint={highest ? shortDate(dateMs(highest.date)) : undefined} />
+              {settings && <GoalStat goal={goal} onOpen={() => setGoalOpen(true)} />}
             </div>
           </section>
 
@@ -166,19 +178,25 @@ export default function WeightHistory() {
               <>
                 <LineChart
                   points={points}
-                  trend={points.length > 2 ? trend : undefined}
+                  trend={showTrend ? trend : undefined}
                   color={GREEN}
                   height={180}
                   yFmt={fmt1}
                   xFmt={shortDate}
+                  refLine={goal.kind === 'none' ? undefined : { y: goal.goalKg, color: GOAL, label: t('progress.weight.goalLine', { value: fmt1(goal.goalKg) }) }}
                 />
                 <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-sub">
                   <span className="flex items-center gap-1.5 whitespace-nowrap">
                     <span className="h-0.5 w-4 rounded-full" style={{ background: GREEN }} /> {t('progress.weight.weighIns')}
                   </span>
-                  {points.length > 2 && (
+                  {showTrend && (
                     <span className="flex items-center gap-1.5 whitespace-nowrap">
                       <span className="w-4 border-t-2 border-dashed border-sub" /> {t('progress.weight.average7')}
+                    </span>
+                  )}
+                  {goalOnChart && (
+                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                      <span className="w-4 border-t-2 border-dashed" style={{ borderColor: GOAL }} /> {t('progress.weight.goal')}
                     </span>
                   )}
                 </p>
@@ -233,6 +251,11 @@ export default function WeightHistory() {
         onDelete={remove}
         exists={date => entries.some(e => e.date === date)}
       />
+
+      <Sheet open={goalOpen && !!settings} onClose={() => setGoalOpen(false)} title={t('progress.weight.goalSheet')}>
+        {/* Same current weight as the goal stat: the newest weigh-in, else settings.bodyweightKg. */}
+        {settings && <GoalFields settings={settings} currentKg={latest?.weightKg} />}
+      </Sheet>
     </div>
   )
 }
@@ -245,6 +268,45 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
         {value}
         {hint && <span className="ml-1.5 text-xs font-normal text-sub">{hint}</span>}
       </p>
+    </div>
+  )
+}
+
+/** Full-width last row of the stats grid: goal weight + time to goal, or a "Set a goal" button. */
+function GoalStat({ goal, onOpen }: { goal: GoalStatus; onOpen: () => void }) {
+  if (goal.kind === 'none') {
+    return (
+      <div className="col-span-2 min-w-0">
+        <p className="truncate text-xs text-sub">{t('progress.weight.goal')}</p>
+        <button
+          onClick={onOpen}
+          className="min-h-[44px] whitespace-nowrap font-display text-lg font-semibold text-primary active:opacity-70"
+        >
+          {t('progress.weight.goalSet')}
+        </button>
+      </div>
+    )
+  }
+  const sub = goal.kind === 'reached'
+    ? t('progress.weight.goalReached')
+    : goal.kind === 'offTrack'
+      ? t('progress.weight.goalNotOnTrack')
+      : goal.kind === 'far'
+        ? t('progress.weight.goalFar')
+        : t('progress.weight.goalEta', { n: fmtNum(goal.weeks) })
+  return (
+    <div className="col-span-2 flex min-w-0 items-end justify-between gap-3">
+      <div className="min-w-0">
+        <p className="truncate text-xs text-sub">{t('progress.weight.goal')}</p>
+        <p className="num truncate font-display text-lg font-semibold">{fmt1(goal.goalKg)} kg</p>
+        <p className={`num truncate text-xs ${goal.kind === 'reached' ? 'font-semibold text-accent' : 'text-sub'}`}>{sub}</p>
+      </div>
+      <button
+        onClick={onOpen}
+        className="min-h-[44px] shrink-0 whitespace-nowrap px-1 text-sm font-semibold text-primary active:opacity-70"
+      >
+        {t('progress.weight.goalEdit')}
+      </button>
     </div>
   )
 }

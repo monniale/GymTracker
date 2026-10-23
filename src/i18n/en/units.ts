@@ -8,6 +8,8 @@ export default {
   kcal: 'kcal',
   g: 'g',
   ml: 'ml',
+  /** Appended to a rate unit: "%/wk". */
+  perWeek: '/wk',
   pts: { one: '{n} pt', other: '{n} pts' },
   points: { one: '{n} point', other: '{n} points' },
   sets: { one: '{n} set', other: '{n} sets' },
