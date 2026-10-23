@@ -16,6 +16,13 @@ import { t } from '../i18n'
  */
 export const DEMO_URL = `${import.meta.env.BASE_URL}demo-backup.json`
 
+/**
+ * The zone the demo was generated in (`npm run demo:build` pins TZ=Europe/Rome). Its epoch-ms
+ * timestamps are re-read as Rome wall-clock times in the viewer's zone, so a session's local day
+ * still matches its day strings (scoreEvents.date, rankState.lastSessionDate) east or west of Rome.
+ */
+export const DEMO_TZ = 'Europe/Rome'
+
 /** Device-local keys the weekly review card keeps in localStorage (WeekCoachCard.tsx). */
 const WEEK_REVIEW_AUTO_KEY = 'gymtracker-week-review-auto'
 
@@ -65,10 +72,47 @@ function shiftDay(value: unknown, days: number): unknown {
   return typeof value === 'string' && DAY_RE.test(value) ? addDays(value, days) : value
 }
 
-/** Same wall-clock time `days` local calendar days later (DST-safe, unlike adding n × 86 400 000). */
-function shiftMs(value: unknown, days: number): unknown {
+const zoneFormats = new Map<string, Intl.DateTimeFormat | null>()
+
+function zoneFormat(zone: string): Intl.DateTimeFormat | null {
+  if (!zoneFormats.has(zone)) {
+    let f: Intl.DateTimeFormat | null = null
+    try {
+      f = new Intl.DateTimeFormat('en-US', {
+        timeZone: zone, hourCycle: 'h23',
+        year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+      })
+    } catch {
+      f = null // unknown zone: keep the instants as they are
+    }
+    zoneFormats.set(zone, f)
+  }
+  return zoneFormats.get(zone) ?? null
+}
+
+/**
+ * The instant that shows, in this device's zone, the wall-clock time `ms` showed in `zone`
+ * (18:30 on a Monday in Rome becomes 18:30 on that Monday here). Identity when this device is in
+ * `zone` or the zone is unknown.
+ */
+export function reanchorMs(ms: number, zone: string): number {
+  const f = zoneFormat(zone)
+  if (!f) return ms
+  const p: Record<string, number> = {}
+  for (const part of f.formatToParts(new Date(ms))) {
+    if (part.type !== 'literal') p[part.type] = Number(part.value)
+  }
+  const local = new Date(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second, ((ms % 1000) + 1000) % 1000)
+  return Number.isFinite(local.getTime()) ? local.getTime() : ms
+}
+
+/**
+ * The same `zone` wall-clock time `days` local calendar days later, here (DST-safe, unlike adding
+ * n × 86 400 000).
+ */
+function shiftMs(value: unknown, days: number, zone: string): unknown {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return value
-  const d = new Date(value)
+  const d = new Date(reanchorMs(value, zone))
   d.setDate(d.getDate() + days)
   return d.getTime()
 }
@@ -94,16 +138,16 @@ export function demoPlanShiftDays(exportedAt: number, todayMs: number): number {
   return diff > 0 ? diff : 0
 }
 
-function rebaseRow(table: TableName, row: unknown, days: number): unknown {
+function rebaseRow(table: TableName, row: unknown, days: number, zone: string): unknown {
   if (!row || typeof row !== 'object') return row
   const out: Record<string, unknown> = { ...(row as Record<string, unknown>) }
   const fields = DATE_FIELDS[table]
   for (const k of fields.days ?? []) if (k in out) out[k] = shiftDay(out[k], days)
-  for (const k of fields.ms ?? []) if (k in out) out[k] = shiftMs(out[k], days)
+  for (const k of fields.ms ?? []) if (k in out) out[k] = shiftMs(out[k], days, zone)
   if (table === 'quests' && Array.isArray(out.quests)) {
     out.quests = out.quests.map(q =>
       q && typeof q === 'object' && 'awardedAt' in q
-        ? { ...q, awardedAt: shiftMs((q as { awardedAt: unknown }).awardedAt, days) }
+        ? { ...q, awardedAt: shiftMs((q as { awardedAt: unknown }).awardedAt, days, zone) }
         : q)
   }
   if (table === 'tombstones' && DATE_KEYED_TABLES.has(String(out.table))) {
@@ -117,21 +161,25 @@ function rebaseRow(table: TableName, row: unknown, days: number): unknown {
  * weeks (`demoShiftDays`). Weekdays, order and Monday keys (quests.weekKey, rankState.lastStreakWeek,
  * weekly coach verdict dates) all survive the shift. The planned meals are the exception: they move
  * by the exact number of days (`demoPlanShiftDays`), so a meal planned for the day after the export
- * is planned for tomorrow. Tables outside TABLES are dropped.
+ * is planned for tomorrow. Every timestamp is first re-read as a `zone` wall-clock time in this
+ * device's zone (`reanchorMs`), so days and timestamps agree in any zone. Tables outside TABLES are
+ * dropped.
  */
 export function rebaseDemoTables(
   tables: Partial<TableDump>,
   exportedAt: number,
   todayMs: number,
+  zone: string = DEMO_TZ,
 ): Partial<TableDump> {
-  const days = demoShiftDays(exportedAt, todayMs)
-  const planDays = demoPlanShiftDays(exportedAt, todayMs)
+  const exported = reanchorMs(exportedAt, zone)
+  const days = demoShiftDays(exported, todayMs)
+  const planDays = demoPlanShiftDays(exported, todayMs)
   const out: Partial<TableDump> = {}
   for (const name of TABLES) {
     const rows = tables[name]
     if (!Array.isArray(rows)) continue
     const shift = name === 'plannedFoods' ? planDays : days
-    out[name] = rows.map(r => rebaseRow(name, r, shift))
+    out[name] = rows.map(r => rebaseRow(name, r, shift, zone))
   }
   return out
 }
@@ -175,8 +223,12 @@ export function canOfferDemo(o: {
   return !o.isNative && !o.demoLoaded && !o.connected && !o.hasUserData
 }
 
-/** Throws when the demo must not replace this device's data (see `canOfferDemo`). */
+/**
+ * Throws when the demo must not replace this device's data (see `canOfferDemo`). The sync store is
+ * re-read first: another tab may have connected since this one loaded.
+ */
 async function assertDemoAllowed(): Promise<void> {
+  await useSyncStore.persist.rehydrate()
   if (isConnected()) throw new Error(t('data.demo.connected'))
   if (await hasUserData()) throw new Error(t('data.demo.notEmpty'))
 }
@@ -244,11 +296,13 @@ export async function loadDemoData(): Promise<void> {
 }
 
 /**
- * Wipes the demo: every synced table (explicit [] for each, so LATE_TABLES rows go too), the
- * device-local AI caches and the weekly review's auto marker, then seeds the catalog again. The
- * device ends clean (nothing to push) and the demo flag off, so sync can run again. The last synced
- * sha is forgotten too: should this device be connected (another tab), the next pass then sees the
- * remote as moved and pulls it, instead of pushing the near-empty database over it.
+ * Wipes the demo: every synced table (explicit [] for each, so LATE_TABLES rows go too, along with
+ * anything the user added while the demo was loaded), the device-local AI caches and the weekly
+ * review's auto marker, then seeds the catalog again. The device ends clean (nothing to push) and
+ * the demo flag off, so sync can run again. The last synced sha is forgotten too, so a connected
+ * device sees the remote as moved and pulls it instead of pushing the near-empty database over it.
+ * The sync store is re-read before that write, so a connection another tab saved since this tab
+ * loaded is kept rather than overwritten with this tab's stale copy.
  */
 export async function clearDemoData(): Promise<void> {
   const empty = Object.fromEntries(TABLES.map(name => [name, []])) as unknown as TableDump
@@ -257,6 +311,7 @@ export async function clearDemoData(): Promise<void> {
     await clearDemoLeftovers()
     await ensureSeeded()
     useAppStore.getState().setActiveSessionId(null)
+    await useSyncStore.persist.rehydrate()
     useSyncStore.setState({ lastSyncedSha: null })
     setSyncDirty(false)
     useUiStore.getState().setDemoLoaded(false)

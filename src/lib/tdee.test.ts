@@ -5,6 +5,7 @@ import {
   KCAL_PER_KG,
   ageFrom,
   bmrMifflin,
+  effectiveRateKgPerWeek,
   goalEta,
   plannedRateKgPerWeek,
   listedRate,
@@ -220,5 +221,45 @@ describe('rateChoice', () => {
     expect(listedRate('gain', 0.75)).toBeNull()
     expect(listedRate('lose', 0)).toBeNull()
     expect(listedRate('lose', undefined)).toBeNull()
+  })
+})
+
+describe('effectiveRateKgPerWeek / targetsFor rateKgPerWeek', () => {
+  const profile = (sex: 'm' | 'f', ageYears: number, heightCm: number, weightKg: number, factor: number) => {
+    const bmr = bmrMifflin({ sex, ageYears, heightCm, weightKg })
+    return { bmr, tdee: bmr * factor, weightKg }
+  }
+
+  it('is the planned rate when no clamp applies', () => {
+    const p = { ...profile('m', 30, 180, 80, ACTIVITY_FACTOR.moderate), goalRatePctPerWeek: -0.5 }
+    const r = targetsFor(p)
+    expect(r.limited).toBe(false)
+    expect(r.rateKgPerWeek).toBeCloseTo(plannedRateKgPerWeek(80, -0.5))
+    expect(effectiveRateKgPerWeek(p)).toBe(r.rateKgPerWeek)
+  })
+
+  it('follows the deficit floor: the time to goal matches the kcal written', () => {
+    // f, 30 y, 160 cm, 55 kg, sedentary: BMR 1239, TDEE 1486.8; -1 % would be -605 kcal/day.
+    const p = { ...profile('f', 30, 160, 55, ACTIVITY_FACTOR.sedentary), goalRatePctPerWeek: -1 }
+    const r = targetsFor(p)
+    expect(r.limited).toBe(true)
+    expect(r.dailyDeltaKcal).toBe(-250)
+    expect(r.rateKgPerWeek).toBeCloseTo((-247.8 * 7) / KCAL_PER_KG)
+    expect(goalEta(55, 50, r.rateKgPerWeek)).toBe(23) // not the 10 weeks of the planned -0.55 kg
+  })
+
+  it('is 0 when the floor is maintenance, so there is no date', () => {
+    // f, 60 y, 150 cm, 45 kg, sedentary: TDEE 1111.8 < 1200, so the floor is TDEE itself.
+    const r = targetsFor({ ...profile('f', 60, 150, 45, ACTIVITY_FACTOR.sedentary), goalRatePctPerWeek: -1 })
+    expect(r.dailyDeltaKcal).toBe(0)
+    expect(r.rateKgPerWeek).toBe(0)
+    expect(goalEta(45, 42, r.rateKgPerWeek)).toBeNull()
+  })
+
+  it('follows the surplus cap', () => {
+    // m, 30 y, 180 cm, 80 kg, moderate: TDEE 2759; +1 % would be +880 kcal/day, capped at +551.8.
+    const r = targetsFor({ ...profile('m', 30, 180, 80, ACTIVITY_FACTOR.moderate), goalRatePctPerWeek: 1 })
+    expect(r.limited).toBe(true)
+    expect(r.rateKgPerWeek).toBeCloseTo((551.8 * 7) / KCAL_PER_KG)
   })
 })

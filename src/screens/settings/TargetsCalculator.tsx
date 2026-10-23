@@ -103,7 +103,10 @@ export function TargetsCalculatorForm({
     })
 
   const kgPerWeek = plannedRateKgPerWeek(weightKg, goalRatePctPerWeek)
-  const etaWeeks = goal === 'maintain' ? null : goalEta(weightKg, goalKg, kgPerWeek)
+  // The time to goal follows the rate the targets deliver: the kcal floor or surplus cap can slow it.
+  const effectiveKg = calc.result.rateKgPerWeek
+  const limited = goal !== 'maintain' && calc.result.limited
+  const etaWeeks = goal === 'maintain' ? null : goalEta(weightKg, goalKg, effectiveKg)
   const [goalMin, goalMax] = goal === 'maintain' ? [0, 0] : goalBounds(goal, weightKg)
 
   return (
@@ -190,6 +193,11 @@ export function TargetsCalculatorForm({
             <p className="mt-1 text-xs text-sub">
               {t('settings.calc.ratePerWeek', { pct: signed(goalRatePctPerWeek, 2), kg: signed(kgPerWeek, 2) })}
             </p>
+            {limited && (
+              <p className="mt-1 text-xs text-accent">
+                {t('settings.calc.rateLimited', { kg: signed(effectiveKg, 2) })}
+              </p>
+            )}
             <div className="mt-3 flex justify-center">
               <NumberStepper
                 label={t('settings.calc.goalWeight')}
@@ -203,7 +211,9 @@ export function TargetsCalculatorForm({
               />
             </div>
             <p className="num mt-1 text-center text-xs text-sub">
-              {etaWeeks === null ? t('settings.calc.etaFar') : tp('settings.calc.eta', etaWeeks)}
+              {etaWeeks !== null
+                ? tp('settings.calc.eta', etaWeeks)
+                : effectiveKg === 0 ? t('settings.calc.etaNone') : t('settings.calc.etaFar')}
             </p>
           </div>
         )}

@@ -6,6 +6,7 @@ import { fmtDate } from '../../lib/dates'
 import { parseHistoryCsv, DEFAULT_IMPORT_OPTIONS, type ImportOptions } from '../../lib/importHistory'
 import { previewImport, applyImport, type ImportPreview } from '../../lib/importApply'
 import { haptic } from '../../native/haptics'
+import { useUiStore } from '../../lib/uiStore'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t, tp } from '../../i18n'
 
@@ -21,6 +22,8 @@ export default function ImportHistorySheet({ text, onClose, onDone }: {
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // clearDemoData wipes every table: an import over the demo would be deleted with it.
+  const demoLoaded = useUiStore(s => s.demoLoaded)
 
   const parsed = useMemo(() => {
     try {
@@ -42,7 +45,7 @@ export default function ImportHistorySheet({ text, onClose, onDone }: {
   }, [parsed])
 
   async function run() {
-    if (!('ok' in parsed) || !parsed.ok || busy) return
+    if (!('ok' in parsed) || !parsed.ok || busy || demoLoaded) return
     haptic('tap')
     setBusy(true)
     setError(null)
@@ -139,10 +142,11 @@ export default function ImportHistorySheet({ text, onClose, onDone }: {
               <p className="text-xs text-sub">
                 {t('settings.importHistory.scoring')}
               </p>
+              {demoLoaded && <p className="text-sm text-danger">{t('settings.importHistory.demoLoaded')}</p>}
               {error && <p className="text-sm text-danger">{error}</p>}
               <button
                 onClick={() => void run()}
-                disabled={busy || preview.workouts === 0}
+                disabled={busy || preview.workouts === 0 || demoLoaded}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
               >
                 {busy && <Loader2 size={18} className="animate-spin" aria-hidden />}

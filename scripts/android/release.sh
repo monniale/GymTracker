@@ -90,6 +90,9 @@ LAST=$(cat "$LAST_FILE" 2>/dev/null || echo 0)
   die "versionCode $CODE < last built $LAST — Android refuses downgrades. Use GT_VERSION_CODE=$LAST (or higher)."
 VERSION=$(node -p 'require("./package.json").version')
 TAG="v$VERSION+$CODE"
+# The commit this APK is built from, pinned now: the release must target it even if HEAD moves
+# during the multi-minute build below.
+HEAD_SHA=$(git rev-parse HEAD)
 REPO=monniale/GymTracker
 
 # --publish pre-flight: fail before the long build, not after it.
@@ -104,7 +107,7 @@ if [ "$PUBLISH" = 1 ]; then
   [ -z "$remote_tag" ] || die "tag $TAG already exists on origin — bump the version or the versionCode"
   # --prune: a branch deleted on GitHub must not keep a stale origin/* ref that still "contains" HEAD.
   git fetch -q --prune origin || die "git fetch origin failed"
-  [ -n "$(git branch -r --contains HEAD)" ] ||
+  [ -n "$(git branch -r --contains "$HEAD_SHA")" ] ||
     die "HEAD $(git rev-parse --short HEAD) is not on origin — push it first (the release targets this commit)"
   echo "== will publish $TAG to $REPO"
 fi
@@ -143,6 +146,8 @@ echo "Install: adb install -r $APK   (never uninstall the app — it deletes all
 
 [ "$PUBLISH" = 1 ] || exit 0
 
+[ "$(git rev-parse HEAD)" = "$HEAD_SHA" ] || die "HEAD moved during the build (was ${HEAD_SHA:0:7}) — the APK no longer matches it; run release.sh --publish again"
+
 # publish — GitHub Release with the APK, its v4 signature and their checksums.
 IDSIG=$APK.idsig
 [ -f "$IDSIG" ] || die "missing $IDSIG — Gradle v4 signing did not write it (android/app/build.gradle signingConfigs)"
@@ -164,7 +169,7 @@ EOF_NOTES
 
 echo
 echo "== publish $TAG"
-URL=$(gh release create "$TAG" --repo "$REPO" --target "$(git rev-parse HEAD)" \
+URL=$(gh release create "$TAG" --repo "$REPO" --target "$HEAD_SHA" \
   --title "GymTracker $VERSION ($CODE)" --generate-notes --notes-file "$NOTES" \
   "$APK" "$IDSIG" "$SHA_FILE")
 echo "Release: $URL"

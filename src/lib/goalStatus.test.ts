@@ -76,4 +76,18 @@ describe('goalStatus', () => {
     expect(goalStatus(shuffled, { bodyweightKg: 90, goalWeightKg: 79.1 }, TODAY).kind).toBe('reached')
     expect(goalStatus([], { bodyweightKg: 70, goalWeightKg: 70.2 }, TODAY).kind).toBe('reached')
   })
+
+  it('with the calculator profile saved, uses the rate the kcal floor allows', () => {
+    // f, 30 y, 160 cm, 55 kg, sedentary at -1 %: the floor holds the deficit at ~-0.225 kg/wk, not -0.55.
+    const profile = { sex: 'f' as const, birthYear: 1996, heightCm: 160, activity: 'sedentary' as const }
+    const s = goalStatus([], { bodyweightKg: 55, goalWeightKg: 50, goalRatePctPerWeek: -1, ...profile }, TODAY)
+    expect(s).toMatchObject({ kind: 'eta', weeks: 23, source: 'planned' })
+    if (s.kind === 'eta') expect(s.rateKgPerWeek).toBeCloseTo(-0.2253, 3)
+  })
+
+  it('is not on track when the floor is maintenance', () => {
+    const profile = { sex: 'f' as const, birthYear: 1966, heightCm: 150, activity: 'sedentary' as const }
+    const s = goalStatus([], { bodyweightKg: 45, goalWeightKg: 42, goalRatePctPerWeek: -1, ...profile }, TODAY)
+    expect(s).toEqual({ kind: 'offTrack', goalKg: 42 })
+  })
 })

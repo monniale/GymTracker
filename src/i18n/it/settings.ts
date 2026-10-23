@@ -47,7 +47,7 @@ const settings: Dict['settings'] = {
     hintNative: 'Esporta apre il menu di condivisione: salvalo su Drive o in File. Disinstallare l’app ne cancella i dati: tieni attiva la sincronizzazione GitHub o esporta spesso.',
     hintWeb: 'Tutti i dati restano su questo dispositivo. Esporta ogni tanto un backup JSON (condividilo su File/iCloud).',
     clearDemo: 'Cancella i dati demo',
-    clearDemoConfirm: 'Cancellare tutti i dati demo e ripartire con l’app vuota?',
+    clearDemoConfirm: 'Cancellare tutto su questo dispositivo, compreso ciò che hai aggiunto dopo aver caricato la demo, e ripartire con l’app vuota?',
     clearDemoFailed: 'Impossibile cancellare i dati demo: {error}',
   },
   danger: {
@@ -116,6 +116,7 @@ const settings: Dict['settings'] = {
     connect: 'Collega',
   },
   importHistory: {
+    demoLoaded: 'Ci sono dati demo. Cancellali prima: ciò che importi ora verrebbe cancellato con loro.',
     title: 'Importa lo storico allenamenti',
     units: 'Gli export di Strong usano le unità impostate in Strong. Scegli quelle che usavi:',
     weight: 'Peso',
@@ -168,9 +169,11 @@ const settings: Dict['settings'] = {
     goal: { title: 'Obiettivo', lose: 'Dimagrire', maintain: 'Mantenere', gain: 'Aumentare' },
     rate: 'Ritmo settimanale',
     ratePerWeek: '{pct}% del peso a settimana ≈ {kg} kg',
+    rateLimited: 'Il minimo o il massimo di calorie lo limita a circa {kg} kg a settimana',
     goalWeight: 'Peso obiettivo',
     eta: { one: 'Circa {n} settimana all’obiettivo', other: 'Circa {n} settimane all’obiettivo' },
     etaFar: 'Più di 2 anni a questo ritmo',
+    etaNone: 'Con queste calorie il peso resta stabile: nessuna data per l’obiettivo',
     advanced: 'Avanzate',
     proteinPerKg: 'Proteine g/kg',
     fatPct: 'Quota grassi',

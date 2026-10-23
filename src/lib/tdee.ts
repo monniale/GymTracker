@@ -134,7 +134,9 @@ function dayTargets(protein: number, carbs: number, fat: number, floor = 0): Mac
  * We accept this (inside the estimate's error) rather than skewing the split.
  *
  * `dailyDeltaKcal` is the effective delta after the clamps (base - tdee,
- * rounded to 10), negative when losing.
+ * rounded to 10), negative when losing. `rateKgPerWeek` is the weekly change
+ * those kcal aim at (`effectiveRateKgPerWeek`) and `limited` says a clamp
+ * moved the base off the planned rate.
  */
 export function targetsFor(p: {
   tdee: number
@@ -144,17 +146,14 @@ export function targetsFor(p: {
   proteinGPerKg?: number
   fatPct?: number
   carbSplit?: number
-}): { training: MacroTargets; rest: MacroTargets; dailyDeltaKcal: number } {
-  const rate = Number.isFinite(p.goalRatePctPerWeek) ? p.goalRatePctPerWeek : 0
-  const rawDelta = (p.weightKg * rate) / 100 * KCAL_PER_KG / 7
-  let base = p.tdee + rawDelta
-  let floor = 0
-  if (rawDelta < 0) {
-    floor = Math.min(Math.max(MIN_KCAL, p.bmr), p.tdee)
-    base = Math.max(base, floor)
-  } else if (rawDelta > 0) {
-    base = Math.min(base, p.tdee * (1 + MAX_SURPLUS))
-  }
+}): {
+  training: MacroTargets
+  rest: MacroTargets
+  dailyDeltaKcal: number
+  rateKgPerWeek: number
+  limited: boolean
+} {
+  const { base, floor, rateKgPerWeek, limited } = clampedBase(p)
 
   const proteinPerKg = clamp(p.proteinGPerKg, PROTEIN_MIN, PROTEIN_MAX, PROTEIN_DEFAULT)
   const fatPct = clamp(p.fatPct, FAT_MIN, FAT_MAX, FAT_DEFAULT)
@@ -173,7 +172,44 @@ export function targetsFor(p: {
     training: dayTargets(protein, carbs * (1 + split), fat, floor),
     rest: dayTargets(protein, carbs * (1 - split), fat, floor),
     dailyDeltaKcal: round10(base - p.tdee),
+    rateKgPerWeek,
+    limited,
   }
+}
+
+/**
+ * Base kcal of `targetsFor` after the clamps, the deficit floor (0 unless losing), and the weekly
+ * change in kg those kcal aim at: the planned rate, or, when a clamp moved the base (`limited`),
+ * the clamped delta × 7 / KCAL_PER_KG (0 when the floor is maintenance).
+ */
+function clampedBase(p: { tdee: number; bmr: number; weightKg: number; goalRatePctPerWeek: number }) {
+  const rate = Number.isFinite(p.goalRatePctPerWeek) ? p.goalRatePctPerWeek : 0
+  const rawDelta = (p.weightKg * rate) / 100 * KCAL_PER_KG / 7
+  let base = p.tdee + rawDelta
+  let floor = 0
+  if (rawDelta < 0) {
+    floor = Math.min(Math.max(MIN_KCAL, p.bmr), p.tdee)
+    base = Math.max(base, floor)
+  } else if (rawDelta > 0) {
+    base = Math.min(base, p.tdee * (1 + MAX_SURPLUS))
+  }
+  const limited = base !== p.tdee + rawDelta
+  const rateKgPerWeek = limited ? ((base - p.tdee) * 7) / KCAL_PER_KG : plannedRateKgPerWeek(p.weightKg, rate)
+  return { base, floor, rateKgPerWeek, limited }
+}
+
+/**
+ * Weekly change in kg the kcal targets for this profile actually aim at: the planned rate
+ * (`plannedRateKgPerWeek`) unless the deficit floor or the surplus cap of `targetsFor` limits it.
+ * Use it for a time-to-goal, so the date matches the targets written.
+ */
+export function effectiveRateKgPerWeek(p: {
+  tdee: number
+  bmr: number
+  weightKg: number
+  goalRatePctPerWeek: number
+}): number {
+  return clampedBase(p).rateKgPerWeek
 }
 
 /** Planned weekly change in kg (negative when losing). */

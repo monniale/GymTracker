@@ -1,4 +1,7 @@
-import { GOAL_REACHED_KG, goalEta, listedRate, plannedRateKgPerWeek } from './tdee'
+import {
+  GOAL_REACHED_KG, ageFrom, bmrMifflin, effectiveRateKgPerWeek, goalEta, listedRate, plannedRateKgPerWeek,
+  tdee as tdeeOf,
+} from './tdee'
 import { weeklyRate } from './bodyweight'
 import type { BodyLogEntry, Settings } from '../types'
 
@@ -12,8 +15,10 @@ import type { BodyLogEntry, Settings } from '../types'
  * goal vs current weight and its magnitude is the picked rate when it is one of
  * the choices for that direction (`listedRate`, the same rule the goal sheet
  * highlights), else none: a stored sign gone stale after the weight crossed the
- * goal never reads as "not on track" on its own. "Reached" uses the shared
- * `GOAL_REACHED_KG` from tdee.ts.
+ * goal never reads as "not on track" on its own. With the calculator profile
+ * saved (sex, birth year, height, activity) the planned rate is the one the kcal
+ * targets can deliver (`effectiveRateKgPerWeek`: the deficit floor or surplus cap
+ * can slow it). "Reached" uses the shared `GOAL_REACHED_KG` from tdee.ts.
  */
 
 export type GoalStatus =
@@ -26,7 +31,8 @@ export type GoalStatus =
 
 export function goalStatus(
   entries: BodyLogEntry[],
-  settings: Pick<Settings, 'bodyweightKg' | 'goalWeightKg' | 'goalRatePctPerWeek'>,
+  settings: Pick<Settings, 'bodyweightKg' | 'goalWeightKg' | 'goalRatePctPerWeek'>
+    & Partial<Pick<Settings, 'sex' | 'birthYear' | 'heightCm' | 'activity'>>,
   today: string,
 ): GoalStatus {
   const goalKg = settings.goalWeightKg
@@ -45,10 +51,22 @@ export function goalStatus(
       : { kind: 'eta', goalKg, weeks, rateKgPerWeek: observed, source: 'observed' }
   }
   const pct = listedRate(dir < 0 ? 'lose' : 'gain', settings.goalRatePctPerWeek) ?? 0
-  const planned = plannedRateKgPerWeek(current, pct * dir)
+  const planned = plannedRate(current, pct * dir, settings, today)
   if (planned === 0) return { kind: 'offTrack', goalKg }
   const weeks = goalEta(current, goalKg, planned)
   return weeks === null
     ? { kind: 'far', goalKg }
     : { kind: 'eta', goalKg, weeks, rateKgPerWeek: planned, source: 'planned' }
+}
+
+/** Planned kg/week at `pct`: what the kcal targets deliver when the profile is saved, else the plain rate. */
+function plannedRate(
+  weightKg: number,
+  pct: number,
+  s: Partial<Pick<Settings, 'sex' | 'birthYear' | 'heightCm' | 'activity'>>,
+  today: string,
+): number {
+  if (pct === 0 || !s.sex || !s.birthYear || !s.heightCm || !s.activity) return plannedRateKgPerWeek(weightKg, pct)
+  const bmr = bmrMifflin({ sex: s.sex, ageYears: ageFrom(s.birthYear, today), heightCm: s.heightCm, weightKg })
+  return effectiveRateKgPerWeek({ tdee: tdeeOf(bmr, s.activity), bmr, weightKg, goalRatePctPerWeek: pct })
 }

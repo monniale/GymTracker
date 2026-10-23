@@ -152,10 +152,13 @@ const TEMPLATE_DEFS: Omit<WorkoutTemplate, 'id' | 'updatedAt'>[] = [
 
 /** Training days per week (0 = Monday). Week 6 is a holiday, week 10 a sick week, week 9 has 4 sessions.
  * Both breaks fall in the first season (it rolls over on 2026-09-21, week 12), so the current season
- * has no idle decay and its points equal carry-over + its score events (what merge.ts recomputes). */
+ * has no idle decay and its points equal carry-over + its score events (what merge.ts recomputes).
+ * The last week ends with a Sunday session, the day before the export: the app shifts the demo by
+ * whole weeks, so a visitor loads it up to 6 days after the shifted export day, and the last session
+ * must stay within the 7-day idle grace (DECAY_GRACE_DAYS) for every weekday. */
 const SCHEDULE: number[][] = [
   [0, 2, 4], [0, 2, 4], [1, 3, 5], [0, 2, 4], [0, 2, 5], [0, 2, 4], [], [0, 2, 4],
-  [1, 3, 5], [0, 1, 3, 5], [], [0, 2, 4], [0, 2, 4], [1, 3, 5], [0, 2, 4], [0, 2, 4],
+  [1, 3, 5], [0, 1, 3, 5], [], [0, 2, 4], [0, 2, 4], [1, 3, 5], [0, 2, 4], [0, 2, 4, 6],
 ]
 const HOLIDAY_WEEK = 6
 const SICK_WEEK = 10

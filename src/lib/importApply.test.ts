@@ -6,6 +6,9 @@ import { ensureSeeded } from '../db/seed'
 import { parseHistoryCsv } from './importHistory'
 import { previewImport, applyImport } from './importApply'
 import { rescoreSession } from './finishSession'
+import { useUiStore } from './uiStore'
+import { collectTables } from '../db/backup'
+import { t } from '../i18n'
 
 const T = (y: number, m: number, d: number, h = 0) => new Date(y, m - 1, d, h).getTime()
 
@@ -104,5 +107,16 @@ describe('importing a Strong history', () => {
     expect(await db.exercises.count()).toBe(before.exercises)
     expect((await db.rankState.get(1))!.points).toBe(before.points)
     expect((await previewImport(parseHistoryCsv(CSV))).duplicates).toBe(3)
+  })
+})
+
+describe('importing while the demo is loaded', () => {
+  afterEach(() => useUiStore.getState().setDemoLoaded(false))
+
+  it('is refused and writes nothing: clearing the demo would delete the import with it', async () => {
+    useUiStore.getState().setDemoLoaded(true)
+    const before = await collectTables()
+    await expect(applyImport(parseHistoryCsv(CSV))).rejects.toThrow(t('settings.importHistory.demoLoaded'))
+    expect(await collectTables()).toEqual(before)
   })
 })

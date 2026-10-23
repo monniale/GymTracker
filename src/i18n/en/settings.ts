@@ -46,7 +46,7 @@ export default {
     hintNative: 'Export opens the share sheet — save it to Drive or Files. Uninstalling the app deletes its data: keep GitHub Sync on or export regularly.',
     hintWeb: 'All data lives on this device. Export a JSON backup now and then (share it to Files/iCloud).',
     clearDemo: 'Clear demo data',
-    clearDemoConfirm: 'Delete all demo data and start with an empty app?',
+    clearDemoConfirm: 'Delete everything on this device, including anything you added after loading the demo, and start with an empty app?',
     clearDemoFailed: 'Could not clear the demo data: {error}',
   },
   danger: {
@@ -115,6 +115,7 @@ export default {
     connect: 'Connect',
   },
   importHistory: {
+    demoLoaded: 'Demo data is loaded. Clear it first: anything imported now would be deleted with it.',
     title: 'Import workout history',
     units: 'Strong exports use the units set in Strong. Pick the ones you used:',
     weight: 'Weight',
@@ -167,9 +168,11 @@ export default {
     goal: { title: 'Goal', lose: 'Lose', maintain: 'Maintain', gain: 'Gain' },
     rate: 'Weekly rate',
     ratePerWeek: '{pct}% of bodyweight a week ≈ {kg} kg',
+    rateLimited: 'The calorie floor or cap limits this to about {kg} kg a week',
     goalWeight: 'Goal weight',
     eta: { one: 'About {n} week to the goal', other: 'About {n} weeks to the goal' },
     etaFar: 'More than 2 years at this rate',
+    etaNone: 'These calories keep your weight: no date for the goal',
     advanced: 'Advanced',
     proteinPerKg: 'Protein g/kg',
     fatPct: 'Fat share',

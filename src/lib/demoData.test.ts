@@ -6,14 +6,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db, isSyncDirty, setSyncDirty } from '../db/db'
 import { collectTables, importBackup, TABLES, type BackupFile, type TableDump } from '../db/backup'
 import { DEFAULT_SETTINGS, ensureSeeded } from '../db/seed'
-import { SEASON_CARRYOVER } from './ranks'
-import { addDays, localDateStr, mondayOf, parseLocalDate } from './dates'
+import { DECAY_GRACE_DAYS, SEASON_CARRYOVER } from './ranks'
+import { addDays, daysBetween, localDateStr, mondayOf, parseLocalDate } from './dates'
 import { useUiStore } from './uiStore'
 import { useAppStore } from '../store'
 import { useSyncStore } from './sync'
 import { t } from '../i18n'
 import {
-  DEMO_URL, canOfferDemo, clearDemoData, demoPlanShiftDays, demoShiftDays, hasUserData, isDemoLoaded,
+  DEMO_TZ, DEMO_URL, canOfferDemo, reanchorMs, clearDemoData, demoPlanShiftDays, demoShiftDays, hasUserData, isDemoLoaded,
   loadDemoData, rebaseDemoTables,
 } from './demoData'
 import type {
@@ -306,6 +306,26 @@ describe('rebaseDemoTables', () => {
     expect((out.quests as QuestState[])[0].weekKey).toBe('2026-10-26')
   })
 
+  it('re-reads timestamps as wall-clock times of the zone the demo was made in', () => {
+    // A demo made in Tokyo: a session at 01:30 on Wed 14 Oct there is 18:30 on Tue 13 Oct here.
+    const f = fixture()
+    const tokyo = Date.UTC(2026, 9, 13, 16, 30) // 01:30 on 14 Oct in Asia/Tokyo (UTC+9)
+    expect(new Date(tokyo).getDate()).toBe(13)
+    f.tables.sessions = [{ ...(f.tables.sessions as Session[])[0], startedAt: tokyo }]
+    const exportedAt = Date.UTC(2026, 9, 14, 3) // 12:00 on Wed 14 Oct in Tokyo
+    const out = rebaseDemoTables(f.tables, exportedAt, T(2026, 10, 28, 12), 'Asia/Tokyo')
+    const s = (out.sessions as Session[])[0]
+    expect(s.startedAt).toBe(T(2026, 10, 28, 1, 30)) // still 01:30 on a Wednesday, two weeks on
+  })
+
+  it('reanchorMs is the identity in the demo zone and for an unknown zone', () => {
+    const ms = T(2026, 10, 19, 18, 42) + 123
+    expect(DEMO_TZ).toBe('Europe/Rome')
+    expect(reanchorMs(ms, DEMO_TZ)).toBe(ms)
+    expect(reanchorMs(ms, 'Not/AZone')).toBe(ms)
+    expect(reanchorMs(Date.UTC(2026, 9, 19, 23, 59, 59, 7), 'UTC')).toBe(T(2026, 10, 19, 23, 59) + 59_007)
+  })
+
   it('changes nothing when today is before the export, and never mutates its input', () => {
     const f = fixture()
     const copy = structuredClone(f.tables)
@@ -338,6 +358,22 @@ describe.skipIf(!hasDemoFile)('public/demo-backup.json', () => {
 
   it('is consistent: foreign keys resolve, rank points match the score events', () => {
     expectConsistent(demoFile().tables)
+  })
+
+  it('never starts idle decay, whatever weekday it is loaded on', () => {
+    // The whole-week shift lands the export day 0-6 days before today, so the newest session must
+    // be within DECAY_GRACE_DAYS - 6 days of the export day.
+    const f = demoFile()
+    const rs = (f.tables.rankState as RankState[])[0]
+    const exportDay = localDateStr(new Date(f.exportedAt))
+    expect(rs.lastSessionDate).toBeDefined()
+    expect(daysBetween(rs.lastSessionDate!, exportDay) + 6).toBeLessThanOrEqual(DECAY_GRACE_DAYS)
+    for (let k = 0; k < 7; k++) {
+      const today = parseLocalDate(addDays(exportDay, 7 * 3 + k)).getTime() + 9 * 3_600_000
+      const out = rebaseDemoTables(f.tables, f.exportedAt, today)
+      const last = (out.rankState as RankState[])[0].lastSessionDate!
+      expect(daysBetween(last, localDateStr(new Date(today)))).toBeLessThanOrEqual(DECAY_GRACE_DAYS)
+    }
   })
 
   it('has every date field covered by the rebase', () => {

@@ -4,7 +4,7 @@ export default {
   demo: {
     banner: 'Demo data loaded',
     clear: 'Clear',
-    confirm: 'Delete all demo data and start with an empty app?',
+    confirm: 'Delete everything on this device, including anything you added after loading the demo, and start with an empty app?',
     error: 'Demo data: {error}',
   },
   tabBar: {
