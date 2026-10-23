@@ -21,6 +21,9 @@ const workout: Dict['workout'] = {
     start: 'Inizia',
     newTemplate: 'Nuova scheda',
     startEmpty: 'Inizia un allenamento libero',
+    tryDemo: 'Prova con i dati demo',
+    tryDemoHint: 'Guarda l’app con 16 settimane di allenamenti e pasti inventati. Puoi cancellarli nelle Impostazioni.',
+    tryDemoLoading: 'Caricamento dati demo…',
   },
   stopwatch: {
     reset: 'Azzera cronometro',

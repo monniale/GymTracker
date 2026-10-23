@@ -22,6 +22,11 @@ const data: Dict['data'] = {
     keptChanging: 'I dati remoti continuano a cambiare — riprova',
     tokenRejected: 'Token GitHub rifiutato — forse è scaduto. Incollane uno nuovo nelle Impostazioni.',
     repoNotFound: 'Repository {owner}/{repo} non trovato. Prima crealo su GitHub come repo PRIVATO.',
+    demoLoaded: 'Ci sono dati demo. Cancellali in Impostazioni › Dati prima di collegare la sincronizzazione.',
+  },
+  demo: {
+    connected: 'La sincronizzazione è collegata, quindi la demo non può sostituire i tuoi dati.',
+    notEmpty: 'Questo dispositivo ha già i tuoi dati, quindi la demo non può sostituirli.',
   },
   import: {
     noWorkouts: 'Il file non contiene allenamenti.',

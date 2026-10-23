@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Film,
   ImageOff,
+  FlaskConical,
 } from "lucide-react";
 import { db } from "../../db/db";
 import { exportBackup, importBackup } from "../../db/backup";
@@ -23,6 +24,7 @@ import AiSection from "./AiSection";
 import ImportHistorySheet from "./ImportHistorySheet";
 import { isNative } from "../../native/platform";
 import { useUiStore, type Lang } from "../../lib/uiStore";
+import { clearDemoData } from "../../lib/demoData";
 import type { Settings } from "../../types";
 import { t } from "../../i18n";
 
@@ -349,6 +351,7 @@ export default function SettingsScreen() {
       <AiSection />
 
       <Section title={t("settings.data.title")} id="settings-data">
+        <ClearDemoButton onMessage={setImportMsg} />
         <div className="flex gap-2">
           <button
             onClick={() =>
@@ -436,6 +439,36 @@ export default function SettingsScreen() {
 
       <VersionFooter />
     </div>
+  );
+}
+
+/** Web demo data (lib/demoData.ts): shown only while it is loaded. */
+function ClearDemoButton({ onMessage }: { onMessage: (msg: string | null) => void }) {
+  const demoLoaded = useUiStore((s) => s.demoLoaded);
+  const [busy, setBusy] = useState(false);
+  if (!demoLoaded) return null;
+
+  async function onClear() {
+    if (!window.confirm(t("settings.data.clearDemoConfirm"))) return;
+    setBusy(true);
+    onMessage(null);
+    try {
+      await clearDemoData();
+    } catch (e) {
+      onMessage(t("settings.data.clearDemoFailed", { error: (e as Error).message }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={() => void onClear()}
+      disabled={busy}
+      className="mb-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-danger/40 px-3 text-center font-semibold text-danger active:bg-danger/10 disabled:opacity-50"
+    >
+      <FlaskConical size={18} className="shrink-0" /> {t("settings.data.clearDemo")}
+    </button>
   );
 }
 

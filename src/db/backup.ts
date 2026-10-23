@@ -2,6 +2,8 @@ import { db, withSyncTrackingSuspended, setSyncDirty, emitDataReplaced } from '.
 import { localDateStr } from '../lib/dates'
 import { isNative } from '../native/platform'
 import { t } from '../i18n'
+import { useUiStore } from '../lib/uiStore'
+import { clearDemoLeftovers } from '../lib/demoData'
 
 export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
@@ -112,7 +114,16 @@ export async function importBackup(fileText: string): Promise<void> {
   if (parsed.app !== 'gymtracker' || !parsed.tables) {
     throw new Error(t('data.backup.notBackup'))
   }
-  await applyTables(parsed.tables)
+  const demo = useUiStore.getState().demoLoaded
+  // Over the demo (lib/demoData.ts), a table the backup lacks (a LATE_TABLES one, from an older
+  // build) is emptied instead of kept: kept demo rows would reach the sync repo once the flag is off.
+  await applyTables(demo
+    ? { ...(Object.fromEntries(TABLES.map(name => [name, []])) as unknown as TableDump), ...parsed.tables }
+    : parsed.tables)
+  if (demo) await clearDemoLeftovers()
+  // A real backup replaced the demo data, so sync may run again. Cleared before the dirty flag so
+  // the sync triggers see it.
+  useUiStore.getState().setDemoLoaded(false)
   // A manual restore is a local change relative to any sync remote.
   setSyncDirty(true)
 }

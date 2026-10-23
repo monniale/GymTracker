@@ -1,7 +1,7 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight, BookOpen } from 'lucide-react'
+import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight, BookOpen, FlaskConical, Loader2 } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { unlockAudio } from '../../lib/audio'
@@ -10,6 +10,10 @@ import { fmtDuration } from '../../lib/dates'
 import { useNotifyStore } from '../../lib/notifyStore'
 import { isNative } from '../../native/platform'
 import { nextTemplate } from '../../lib/nextTemplate'
+import { useUiStore } from '../../lib/uiStore'
+import { canOfferDemo, hasUserData, loadDemoData } from '../../lib/demoData'
+import { useSyncStore } from '../../lib/sync'
+import DemoBanner from '../../components/DemoBanner'
 import { t, tp } from '../../i18n'
 import type { WorkoutTemplate } from '../../types'
 
@@ -39,6 +43,27 @@ export default function WorkoutHome() {
     [restoreDismissed],
   )
   const showRestore = isNative && !restoreDismissed && emptyInstall === true
+  // Web first run: offer the demo backup on a truly empty device that is not connected to sync
+  // (loading it replaces every table; lib/demoData.ts canOfferDemo). Android keeps its RestoreCard.
+  const demoLoaded = useUiStore(s => s.demoLoaded)
+  const syncConnected = useSyncStore(s => !!(s.token && s.owner && s.repo))
+  const userData = useLiveQuery(async () => (isNative ? true : await hasUserData()))
+  const showDemo = userData !== undefined
+    && canOfferDemo({ isNative, demoLoaded, connected: syncConnected, hasUserData: userData })
+  const [demoBusy, setDemoBusy] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
+
+  async function tryDemo() {
+    setDemoBusy(true)
+    setDemoError(null)
+    try {
+      await loadDemoData()
+    } catch (e) {
+      setDemoError(t('components.demo.error', { error: (e as Error).message }))
+    } finally {
+      setDemoBusy(false)
+    }
+  }
 
   async function startWorkout(template?: WorkoutTemplate) {
     unlockAudio() // user gesture: unlock iOS audio for the rest timer beep
@@ -77,6 +102,8 @@ export default function WorkoutHome() {
           <HistoryIcon size={18} /> {t('common.history')}
         </Link>
       </div>
+
+      <DemoBanner />
 
       {showRestore && RestoreCard && (
         <Suspense fallback={null}>
@@ -140,6 +167,23 @@ export default function WorkoutHome() {
         >
           {t('workout.home.startEmpty')}
         </button>
+
+        {showDemo && (
+          <div className="pt-1">
+            <button
+              onClick={() => void tryDemo()}
+              disabled={demoBusy}
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-muted/40 px-3 text-center font-semibold active:bg-muted disabled:opacity-60"
+            >
+              {demoBusy
+                ? <Loader2 size={18} className="shrink-0 animate-spin" />
+                : <FlaskConical size={18} className="shrink-0" aria-hidden />}
+              {demoBusy ? t('workout.home.tryDemoLoading') : t('workout.home.tryDemo')}
+            </button>
+            <p className="mt-1.5 text-center text-xs text-sub">{t('workout.home.tryDemoHint')}</p>
+            {demoError && <p className="mt-1.5 text-center text-xs text-danger">{demoError}</p>}
+          </div>
+        )}
       </div>
 
       <Link
