@@ -21,11 +21,13 @@
  *   predates the table has none, which never deletes the other side's rows.
  * - plannedFoods (meal plan) likewise: union by id, optional per side, foodId
  *   remapped with the barcode dedupe.
+ * - programs (training programs) likewise: union by id (later update wins), optional
+ *   per side, deletes propagate through tombstones.
  */
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog, SavedMeal,
   Settings, RankState, ScoreEvent, Season, DayType, BodyLogEntry, WaterLog,
-  AchievementUnlock, QuestState, Tombstone, CoachJudgement, PlannedFood, Id,
+  AchievementUnlock, QuestState, Tombstone, CoachJudgement, PlannedFood, Program, Id,
 } from '../types'
 import { SEASON_CARRYOVER } from './ranks'
 
@@ -51,6 +53,8 @@ export interface SnapshotTables {
   coachHistory?: CoachJudgement[]
   /** Optional: absent in snapshots from builds before the meal plan existed. */
   plannedFoods?: PlannedFood[]
+  /** Optional: absent in snapshots from builds before training programs existed. */
+  programs?: Program[]
 }
 
 export interface SyncPayload {
@@ -140,6 +144,8 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     .filter(alive('coachHistory', byId))
   const plannedFoodsRaw = unionByKey(L.plannedFoods ?? [], R.plannedFoods ?? [], byId)
     .filter(alive('plannedFoods', byId))
+  const programs = unionByKey(L.programs ?? [], R.programs ?? [], byId)
+    .filter(alive('programs', byId))
   const bodyLog = unionByKey(L.bodyLog, R.bodyLog, row => row.date)
     .filter(alive('bodyLog', row => row.date))
   const dayTypes = unionByKey(L.dayTypes, R.dayTypes, row => row.date)
@@ -238,7 +244,7 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     tables: {
       exercises, templates, sessions, sets, foods, foodLogs, savedMeals,
       settings, rankState, scoreEvents, seasons, dayTypes, bodyLog, waterLogs,
-      achievements, quests, tombstones, coachHistory, plannedFoods,
+      achievements, quests, tombstones, coachHistory, plannedFoods, programs,
     },
     notes,
   }

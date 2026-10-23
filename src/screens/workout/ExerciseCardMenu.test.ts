@@ -45,6 +45,23 @@ describe('swapSessionExercise', () => {
     expect(sessionItems(template, readded, exMap).map(i => i.exerciseId)).toEqual([3, 2, 1])
   })
 
+  it('also updating the template drops the old exercise’s progression state from the line', async () => {
+    const withProgress: WorkoutTemplate = {
+      ...TPL,
+      items: [
+        { ...TPL.items[0], scheme: { kind: 'linear', stepKg: 5, failsToDeload: 3, deloadPct: 0.1 }, progress: { failStreak: 2, nextWeightKg: 140, lastSessionId: 'old' } },
+        { ...TPL.items[1], progress: { failStreak: 0, lastSessionId: 'old' } },
+      ],
+    }
+    await db.templates.put(withProgress)
+    await swapSessionExercise(SESSION, { exerciseId: 1 }, 3, { fromTemplate: true, hasLogged: false, template: withProgress, updateTemplate: true })
+    const { template } = await load()
+    expect(template.items[0]).toMatchObject({ exerciseId: 3, scheme: { kind: 'linear' } })
+    expect(template.items[0].progress).toBeUndefined()
+    // Other lines keep theirs.
+    expect(template.items[1].progress).toEqual({ failStreak: 0, lastSessionId: 'old' })
+  })
+
   it('also updating the template with logged sets: keeps the swap so the old sets stay on a card', async () => {
     await swapSessionExercise(SESSION, { exerciseId: 1 }, 3, { fromTemplate: true, hasLogged: true, template: TPL, updateTemplate: true })
     const { session, template } = await load()

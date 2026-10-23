@@ -174,7 +174,8 @@ function exerciseMaps(ids: Id[], rows: (Exercise | undefined)[]) {
 
 /**
  * Closes a session: gathers season-scoped prior bests, scores it, records the
- * score event and updates rank points. Returns the scored total, or null when
+ * score event and updates rank points, then applies program progression
+ * (`applySessionProgression`, after the scoring transaction). Returns the scored total, or null when
  * the session had no sets (it is then deleted instead).
  */
 export async function finishSession(sessionId: Id): Promise<number | null> {
@@ -236,6 +237,16 @@ export async function finishSession(sessionId: Id): Promise<number | null> {
       await db.rankState.put(rs)
     }
   })
+
+  // Program progression (TemplateItem.progress, Exercise.trainingMaxKg): once per workout, here
+  // only, never in rescoreSession. Its own writes; a failure never undoes the scored finish.
+  // Dynamic import: programs.ts reaches the Dexie layer and the exercise library, kept off this path.
+  try {
+    const { applySessionProgression } = await import('./programs')
+    await applySessionProgression(sessionId)
+  } catch (e) {
+    console.error('applySessionProgression failed', e)
+  }
 
   return result.total
 }

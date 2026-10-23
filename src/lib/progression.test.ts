@@ -35,6 +35,33 @@ describe('suggestNext (double progression)', () => {
   })
 })
 
+describe('suggestNext with a rep range (targetRepsMax)', () => {
+  it('climbs reps past targetReps up to the top of the range', () => {
+    const s = suggestNext([{ weightKg: 60, reps: 8 }, { weightKg: 60, reps: 9 }], 8, 2.5, { targetRepsMax: 12 })
+    expect(s).toEqual({ weightKg: 60, reps: 9, reason: 'reps-up' })
+  })
+
+  it('adds weight once every top set reaches the top, reps back to the bottom', () => {
+    const s = suggestNext([{ weightKg: 60, reps: 12 }, { weightKg: 60, reps: 13 }], 8, 2.5, { targetRepsMax: 12 })
+    expect(s).toEqual({ weightKg: 62.5, reps: 8, reason: 'weight-up' })
+  })
+
+  it('a hold keeps the weakest reps, capped at the top of the range', () => {
+    const s = suggestNext([{ weightKg: 60, reps: 10, rpe: 10 }], 8, 2.5, { targetRepsMax: 12 })
+    expect(s).toEqual({ weightKg: 60, reps: 10, reason: 'hold' })
+  })
+
+  it('a max at or below targetReps is the plain rule', () => {
+    const prev = [{ weightKg: 80, reps: 8 }, { weightKg: 80, reps: 8 }]
+    expect(suggestNext(prev, 8, 2.5, { targetRepsMax: 6 })).toEqual(suggestNext(prev, 8))
+  })
+
+  it('bodyweight: reps climb the range, then at most 1.25 added kg', () => {
+    expect(suggestNext([{ weightKg: 0, reps: 10 }], 6, 2.5, { bodyweight: true, targetRepsMax: 10 }))
+      .toEqual({ weightKg: 1.25, reps: 6, reason: 'weight-up' })
+  })
+})
+
 describe('platesPerSide', () => {
   it('loads 100kg as 25+15 per side', () => {
     const r = platesPerSide(100)

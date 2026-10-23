@@ -55,6 +55,29 @@ describe('gatherWidgetState', () => {
     expect((await gatherWidgetState(T(2026, 10, 15, 12))).nextWorkout).toBe('Push')
   })
 
+  it('follows the running program on unscheduled days; a scheduled template still wins', async () => {
+    await db.templates.add({ name: 'Arms', position: 0, items: [], updatedAt: 1 })
+    const a = await db.templates.add({ name: 'Day A', position: 1, items: [], updatedAt: 1 })
+    const b = await db.templates.add({ name: 'Day B', position: 2, items: [], updatedAt: 1 })
+    await db.templates.add({ name: 'Legs', position: 3, items: [], weekdays: [4], updatedAt: 1 }) // Thursday
+    await db.programs.add({ name: 'A/B', templateIds: [a, b], cycleStartDate: '2026-10-12', updatedAt: 1 })
+    await db.sessions.add({ name: 'Day A', templateId: a, startedAt: T(2026, 10, 12, 18), endedAt: T(2026, 10, 12, 19), bodyweightKg: 80, extraExerciseIds: [] })
+    // A freestyle session after it does not restart the program's rotation.
+    await db.sessions.add({ name: 'Run', startedAt: T(2026, 10, 13, 18), endedAt: T(2026, 10, 13, 19), bodyweightKg: 80, extraExerciseIds: [] })
+
+    // Wed 14 Oct: the program says Day B (the plain rotation would restart at Arms).
+    expect(await gatherWidgetState(T(2026, 10, 14, 12))).toMatchObject({
+      nextWorkout: 'Day B', nextWorkoutTomorrow: 'Legs',
+      nextWorkoutByDay: ['Day B', 'Day B', 'Day B', 'Day B', 'Legs', 'Day B', 'Day B'],
+    })
+    // Thu 15 Oct: Legs is scheduled, so it wins over the program.
+    expect((await gatherWidgetState(T(2026, 10, 15, 12))).nextWorkout).toBe('Legs')
+
+    // Stopped: back to the plain rotation (after the freestyle session: the first template).
+    await db.programs.toCollection().modify({ endedAt: T(2026, 10, 14, 8) })
+    expect((await gatherWidgetState(T(2026, 10, 14, 12))).nextWorkout).toBe('Arms')
+  })
+
   it('works on a fresh install', async () => {
     const s = await gatherWidgetState(T(2026, 10, 15, 12))
     expect(s).toMatchObject({ points: 0, tier: 'Copper III', weekDone: 0, weekTarget: 3, nextWorkout: '' })

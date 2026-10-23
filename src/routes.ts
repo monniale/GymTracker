@@ -27,6 +27,7 @@ export const KNOWN_ROUTES: string[] = [
   '/workout/history',
   '/workout/exercises',
   '/workout/past/:id',
+  '/workout/programs',
   '/diet',
   '/progress',
   '/progress/bodyweight',
@@ -35,4 +36,5 @@ export const KNOWN_ROUTES: string[] = [
   '/progress/exercise/:id',
   '/rank',
   '/settings',
+  '/import',
 ]

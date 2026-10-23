@@ -107,6 +107,9 @@ const workout: Dict['workout'] = {
     step: 'Incremento',
     bwFactor: 'Quota di peso corporeo',
     bwFactorHint: 'Quanta parte del tuo peso corporeo sposti (trazioni 100%, piegamenti circa 64%). Vale per questo esercizio in tutti gli allenamenti registrati con il peso corporeo; i punti già ottenuti restano.',
+    trainingMax: 'Massimale di allenamento (TM)',
+    trainingMaxHint: 'I programmi a percentuale (5/3/1, nSuns) partono da questo peso. 0 = non impostato.',
+    useDerived: 'Usa il 90 % del migliore ({kg} kg)',
   },
   pending: {
     newWeight: 'nuovo peso',
@@ -163,6 +166,12 @@ const workout: Dict['workout'] = {
     shareError: 'Impossibile creare l’immagine.',
     creating: 'Creo l’immagine…',
     share: 'Condividi immagine',
+    outcome: {
+      up: '+{kg} kg la prossima volta',
+      repeat: 'Ripeti',
+      deload: 'Scarico',
+      tmUp: 'TM +{kg} kg',
+    },
   },
   history: {
     title: 'Cronologia',

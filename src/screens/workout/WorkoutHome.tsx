@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight, BookOpen, FlaskConical, Loader2 } from 'lucide-react'
+import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight, BookOpen, FlaskConical, Loader2, CalendarRange } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { unlockAudio } from '../../lib/audio'
@@ -9,7 +9,10 @@ import { useLocalToday, useNow } from '../../lib/hooks'
 import { fmtDuration, parseLocalDate } from '../../lib/dates'
 import { useNotifyStore } from '../../lib/notifyStore'
 import { isNative } from '../../native/platform'
-import { nextTemplate, templatesDoneOn } from '../../lib/nextTemplate'
+import { templatesDoneOn } from '../../lib/nextTemplate'
+import { pickNextWorkout } from '../../lib/widgetData'
+import { activeProgram, lastProgramSession, nextProgramTemplate } from '../../lib/programs'
+import { currentWeek } from '../../lib/prescription'
 import { useUiStore } from '../../lib/uiStore'
 import { canOfferDemo, hasUserData, loadDemoData } from '../../lib/demoData'
 import { useSyncStore } from '../../lib/sync'
@@ -34,8 +37,18 @@ export default function WorkoutHome() {
     async () => templatesDoneOn(await db.sessions.where('startedAt').aboveOrEqual(parseLocalDate(today).getTime()).toArray(), today),
     [today],
   )
-  const upNext = templates && lastFinished !== undefined && doneToday
-    ? nextTemplate(templates, lastFinished ?? undefined, today, doneToday)
+  // The running program (null = none): its rotation fills "Next up" on days without a scheduled
+  // template (schedule wins over the program, `pickNextWorkout`); the widget follows the same rule.
+  const running = useLiveQuery(async () => {
+    const program = await activeProgram()
+    return program ? { program, lastSession: await lastProgramSession(program) } : null
+  })
+  const upNext = templates && lastFinished !== undefined && doneToday && running !== undefined
+    ? pickNextWorkout(templates, lastFinished ?? undefined, today, doneToday, running ?? undefined)
+    : null
+  // The program's own next day, for its card (also on a scheduled day, when "Next up" is the schedule).
+  const programNext = running && templates
+    ? nextProgramTemplate(running.program, templates, running.lastSession, today, doneToday)
     : null
   const settings = useLiveQuery(() => db.settings.get(1))
   const activeSessionId = useAppStore(s => s.activeSessionId)
@@ -212,9 +225,44 @@ export default function WorkoutHome() {
         <ChevronRight size={20} className="shrink-0 text-sub" />
       </Link>
 
+      <Link
+        to="/workout/programs"
+        className="mt-3 flex items-center gap-3 rounded-2xl border border-edge bg-card p-4 active:bg-muted/30"
+      >
+        <CalendarRange size={22} className="shrink-0 text-sub" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-display text-xl font-semibold">{t('programs.screen.open')}</span>
+          <span className="block truncate text-sm text-sub">{t('programs.screen.hint')}</span>
+        </span>
+        <ChevronRight size={20} className="shrink-0 text-sub" />
+      </Link>
+
+      {running && (
+        <Link
+          to="/workout/programs"
+          state={{ programId: running.program.id }}
+          className="mt-3 flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 p-4 active:bg-primary/20"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-display text-lg font-semibold">{running.program.name}</span>
+            <span className="block text-sm text-sub">
+              {programLine(running.program.cycleWeeks, currentWeek(running.program, today), programNext?.template.name)}
+            </span>
+          </span>
+          <ChevronRight size={20} className="shrink-0 text-sub" />
+        </Link>
+      )}
+
       <StopwatchCard />
     </div>
   )
+}
+
+/** "Week 2 of 4 · Day B next", without the week part when the program has no week cycle. */
+function programLine(cycleWeeks: number | undefined, week: number, day: string | undefined): string {
+  if (cycleWeeks && day) return t('programs.home.weekNext', { n: week, total: cycleWeeks, day })
+  if (cycleWeeks) return t('programs.home.week', { n: week, total: cycleWeeks })
+  return day ? t('programs.home.next', { day }) : ''
 }
 
 function StopwatchCard() {

@@ -1,0 +1,356 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "gzclp",
+  "name": {
+    "en": "GZCLP",
+    "it": "GZCLP"
+  },
+  "description": {
+    "en": "A linear progression in three tiers over four rotating days. T1 (heavy, 5×3 with the last set for max reps) and T2 (volume, 3×10) add weight every session; a failed session moves to the next stage at the same weight (T1 6×2 then 10×1, T2 3×8 then 3×6), and a fail on the last stage restarts the first one 15 % lighter. T3 accessories run 3×15 and go up once the sets reach 25 reps.",
+    "it": "Una progressione lineare su tre livelli in quattro giorni a rotazione. T1 (pesante, 5×3 con l'ultima serie al massimo delle ripetizioni) e T2 (volume, 3×10) aumentano il peso a ogni seduta; una seduta fallita passa alla fase successiva con lo stesso peso (T1 6×2 poi 10×1, T2 3×8 poi 3×6) e un fallimento nell'ultima fase riparte dalla prima con il 15 % in meno. I complementari T3 sono 3×15 e salgono quando le serie arrivano a 25 ripetizioni."
+  },
+  "level": "beginner",
+  "daysPerWeek": 3,
+  "templates": [
+    {
+      "name": {
+        "en": "Day A1",
+        "it": "Giorno A1"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 5,
+                "reps": 3,
+                "amrapLast": true
+              },
+              {
+                "sets": 6,
+                "reps": 2,
+                "amrapLast": true
+              },
+              {
+                "sets": 10,
+                "reps": 1,
+                "amrapLast": true
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 3,
+                "reps": 10
+              },
+              {
+                "sets": 3,
+                "reps": 8
+              },
+              {
+                "sets": 3,
+                "reps": 6
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lat Pulldown",
+            "libraryId": "0150",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 15,
+          "targetRepsMax": 25,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Day B1",
+        "it": "Giorno B1"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 5,
+                "reps": 3,
+                "amrapLast": true
+              },
+              {
+                "sets": 6,
+                "reps": 2,
+                "amrapLast": true
+              },
+              {
+                "sets": 10,
+                "reps": 1,
+                "amrapLast": true
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 3,
+                "reps": 10
+              },
+              {
+                "sets": 3,
+                "reps": 8
+              },
+              {
+                "sets": 3,
+                "reps": 6
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Row",
+            "libraryId": "0293",
+            "muscleGroup": "back",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 15,
+          "targetRepsMax": 25,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Day A2",
+        "it": "Giorno A2"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 5,
+                "reps": 3,
+                "amrapLast": true
+              },
+              {
+                "sets": 6,
+                "reps": 2,
+                "amrapLast": true
+              },
+              {
+                "sets": 10,
+                "reps": 1,
+                "amrapLast": true
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 3,
+                "reps": 10
+              },
+              {
+                "sets": 3,
+                "reps": 8
+              },
+              {
+                "sets": 3,
+                "reps": 6
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lat Pulldown",
+            "libraryId": "0150",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 15,
+          "targetRepsMax": 25,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Day B2",
+        "it": "Giorno B2"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 5,
+                "reps": 3,
+                "amrapLast": true
+              },
+              {
+                "sets": 6,
+                "reps": 2,
+                "amrapLast": true
+              },
+              {
+                "sets": 10,
+                "reps": 1,
+                "amrapLast": true
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 1,
+            "deloadPct": 0.15,
+            "stages": [
+              {
+                "sets": 3,
+                "reps": 10
+              },
+              {
+                "sets": 3,
+                "reps": 8
+              },
+              {
+                "sets": 3,
+                "reps": 6
+              }
+            ]
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Row",
+            "libraryId": "0293",
+            "muscleGroup": "back",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 15,
+          "targetRepsMax": 25,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    }
+  ]
+}

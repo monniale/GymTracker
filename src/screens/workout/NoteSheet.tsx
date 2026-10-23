@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookOpen } from 'lucide-react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
+import { deriveTrainingMax } from '../../lib/prescription'
 import { isCardioExercise } from '../../lib/cardio'
 import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
 import { bwFactorOf, defaultBwFactor } from '../../lib/load'
@@ -10,7 +12,7 @@ import Sheet from '../../components/Sheet'
 import ExerciseDetailSheet from '../../components/library/ExerciseDetailSheet'
 import { libraryIdOf, useExerciseLibrary } from '../../lib/exerciseLibrary'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
-import { t } from '../../i18n'
+import { t, fmtNum } from '../../i18n'
 import type { Equipment, Exercise } from '../../types'
 
 export function NoteSheet({ open, onClose, exercise }: {
@@ -25,6 +27,15 @@ export function NoteSheet({ open, onClose, exercise }: {
   // Fraction of bodyweight the exercise moves, edited as a whole percent: NumberStepper shows
   // one decimal, so a 0.05 step on the raw fraction would display 0.64 as "0.6".
   const [bwPct, setBwPct] = useState(Math.round(bwFactorOf({ ...exercise, equipment: 'bodyweight' }) * 100))
+  // Training max for percentage programs; 0 = not set. Re-read on open: finishing a workout can
+  // bump it (applySessionProgression) while this sheet stays mounted.
+  const [tm, setTm] = useState(exercise.trainingMaxKg ?? 0)
+  useEffect(() => { if (open) setTm(exercise.trainingMaxKg ?? 0) }, [open, exercise.trainingMaxKg])
+  // "Use 90 % of best": from every logged set of this exercise, read only while the sheet is open.
+  const derivedTm = useLiveQuery(
+    async () => (open ? deriveTrainingMax(await db.sets.where('exerciseId').equals(exercise.id!).toArray()) : undefined),
+    [open, exercise.id],
+  )
 
   async function save() {
     const byGroup = exercise.muscleGroup === 'cardio' ? 'cardio' : 'strength'
@@ -35,6 +46,7 @@ export function NoteSheet({ open, onClose, exercise }: {
       // Only store an override; matching the muscle-group default clears it.
       kind: logAs === byGroup ? undefined : logAs,
     }
+    if (logAs === 'strength') changes.trainingMaxKg = tm > 0 ? tm : undefined
     if (equip === 'bodyweight') {
       // Same rule: store the factor only when it differs from the default for this name.
       const factor = bwPct / 100
@@ -105,6 +117,28 @@ export function NoteSheet({ open, onClose, exercise }: {
           unit="kg"
         />
       </div>
+      {logAs !== 'cardio' && (
+        <div className="mt-3 flex flex-col items-start">
+          <NumberStepper
+            label={t('workout.notes.trainingMax')}
+            value={tm}
+            onChange={setTm}
+            step={2.5}
+            min={0}
+            max={600}
+            unit="kg"
+          />
+          {derivedTm !== undefined && derivedTm > 0 && derivedTm !== tm && (
+            <button
+              onClick={() => setTm(derivedTm)}
+              className="num mt-1.5 min-h-[40px] max-w-full truncate rounded-full bg-muted/40 px-3 text-sm font-medium text-sub active:bg-muted"
+            >
+              {t('workout.notes.useDerived', { kg: fmtNum(derivedTm) })}
+            </button>
+          )}
+          <p className="mt-1 text-xs text-sub">{t('workout.notes.trainingMaxHint')}</p>
+        </div>
+      )}
       {equip === 'bodyweight' && logAs !== 'cardio' && (
         <div className="mt-3 flex flex-col items-start">
           <NumberStepper

@@ -10,7 +10,9 @@ import { suggestNext } from '../../lib/progression'
 import { platesPerSide, formatPlates, warmupRamp, DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
 import { useWorkoutPlan } from '../../lib/workoutSuggest'
 import { finishSession } from '../../lib/finishSession'
-import { fmtDuration } from '../../lib/dates'
+import { fmtDuration, localDateStr } from '../../lib/dates'
+import { prescribedSets, currentWeek, lineForPrescription, type PrescribedPlan } from '../../lib/prescription'
+import { programForTemplate } from '../../lib/programs'
 import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet, type CardioDraft } from '../../lib/cardio'
 import { EQUIPMENT_LABEL } from '../../lib/equipment'
 import { sessionItems, type SessionItem } from '../../lib/sessionItems'
@@ -26,6 +28,9 @@ import { t, tp, fmtNum } from '../../i18n'
 import type { Exercise, Id, PlannedSet, Session, SetRow, WorkoutTemplate } from '../../types'
 
 const WARMUP_REST_SEC = 30
+
+/** A row's prefill; `amrap` = the program prescribes it as an AMRAP set (reps = the minimum). */
+type Draft = { weightKg: number; reps: number; amrap?: boolean }
 
 export default function ActiveSession() {
   const navigate = useNavigate()
@@ -52,6 +57,11 @@ export default function ActiveSession() {
   ) ?? []
   const exercises = useLiveQuery(() => db.exercises.toArray()) ?? []
   const settings = useLiveQuery(() => db.settings.get(1))
+  // The program running this session's template (if any): its week picks the 5/3/1-style sets.
+  const program = useLiveQuery(
+    async () => (session?.templateId != null ? (await programForTemplate(session.templateId)) ?? null : null),
+    [session?.templateId],
+  )
   const now = useNow(1000)
 
   const exMap = useMemo(() => new Map(exercises.map(e => [e.id!, e])), [exercises])
@@ -71,6 +81,9 @@ export default function ActiveSession() {
   const loggedIds = new Set(sets.map(s => s.exerciseId))
   const items = sessionItems(template, session, exMap, loggedIds)
   const templateLines = template?.items.length ?? 0
+  // The week is read on the session's start day, so a workout that runs past midnight on Sunday
+  // keeps its prescription.
+  const week = program ? currentWeek(program, localDateStr(new Date(session.startedAt))) : 1
   const itemIds = new Set(items.map(i => i.exerciseId))
   /** Not offered as swap targets: swapped-out cards stay pickable, to swap back to them. */
   const swapExclude = new Set(items.filter(i => !i.swappedOut).map(i => i.exerciseId))
@@ -167,6 +180,7 @@ export default function ActiveSession() {
               barKg={settings?.barWeightKg ?? DEFAULT_BAR_KG}
               plates={settings?.platesAvailable ?? DEFAULT_PLATES}
               aiSets={planByExercise.get(String(item.exerciseId))}
+              week={week}
               suppressRest={!!item.supersetWithNext && idx < items.length - 1}
               nextExerciseName={nextExerciseName(idx)}
               supersetNextName={supersetNextName(idx)}
@@ -214,6 +228,8 @@ interface CardProps {
   plates: number[]
   /** AI-planned opening sets for this exercise (F2). Undefined → offline baseline. */
   aiSets?: PlannedSet[]
+  /** Program week (1 without a program): picks `TemplateItem.setsByWeek`. */
+  week: number
   suppressRest: boolean
   /** Next exercise with sets left (rest label once this one is done); undefined → last exercise. */
   nextExerciseName?: string
@@ -222,13 +238,12 @@ interface CardProps {
 }
 
 function ExerciseCard({
-  item, exercise, sessionId, session, template, fromTemplate, inSession, swappedFromName, sessionSets, defaultRestSec, barKg, plates, aiSets: aiPlan, suppressRest,
-  nextExerciseName, supersetNextName,
+  item, exercise, sessionId, session, template, fromTemplate, inSession, swappedFromName, sessionSets, defaultRestSec, barKg, plates, aiSets: aiPlan, week,
+  suppressRest, nextExerciseName, supersetNextName,
 }: CardProps) {
   const startRest = useAppStore(s => s.startRest)
   // Cardio: time + distance rows, no weight suggestion, ramp, plates or AI weights.
   const cardio = isCardioExercise(exercise)
-  const aiSets = cardio ? undefined : aiPlan
   const [extraRows, setExtraRows] = useState(0)
   const [noteOpen, setNoteOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -252,7 +267,6 @@ function ExerciseCard({
   const logged = [...sessionSets].sort((a, b) => a.setNumber - b.setNumber)
   const warmupCount = logged.filter(s => s.isWarmup).length
   const workLogged = logged.length - warmupCount
-  const rowCount = warmupCount + Math.max(item.targetSets, workLogged) + extraRows
   const nextIndex = logged.length
   const restSec = item.restSec ?? exercise?.defaultRestSec ?? defaultRestSec
   const isBarbell = !cardio && exercise?.equipment === 'barbell'
@@ -261,27 +275,45 @@ function ExerciseCard({
   const bodyweightLoad = usesBodyweightLoad(exercise, session)
   const bodyweightKg = session.bodyweightKg
 
+  // The program's prescription for this line (scheme / per-set plan / rep range); null = today's
+  // plain double progression. A fixed plan (linear, percent) is never overridden by the AI.
+  // A swapped-in exercise starts from its own history, not the original's carried weight.
+  const plan: PrescribedPlan | null = useMemo(
+    () => cardio || !exercise || item.swappedOut
+      ? null
+      : prescribedSets(lineForPrescription(item), exercise, prevSets, { week, bodyweightKg, barKg, bodyweightLoad }),
+    [cardio, exercise, item, prevSets, week, bodyweightKg, barKg, bodyweightLoad],
+  )
+  const aiSets = cardio || plan?.fixed ? undefined : aiPlan
+  /** Work rows planned: the prescription's set count (a GZCLP stage can change it), else the line's. */
+  const targetSets = item.swappedOut ? 0 : plan && plan.sets.length > 0 ? plan.sets.length : item.targetSets
+  const rowCount = warmupCount + Math.max(targetSets, workLogged) + extraRows
+  /** "8" or a rep range "8–12". */
+  const repsText = !cardio && item.targetRepsMax && item.targetRepsMax > item.targetReps
+    ? `${item.targetReps}–${item.targetRepsMax}`
+    : String(item.targetReps)
+
   const suggestion = useMemo(
     () => cardio ? null : suggestNext(
       prevSets.map(s => ({ weightKg: s.weightKg, reps: s.reps, rpe: s.rpe, setType: s.setType })),
       item.targetReps,
       exercise?.progressionStepKg ?? 2.5,
-      { bodyweight: bodyweightLoad },
+      { bodyweight: bodyweightLoad, targetRepsMax: item.targetRepsMax },
     ),
-    [cardio, prevSets, item.targetReps, exercise?.progressionStepKg, bodyweightLoad],
+    [cardio, prevSets, item.targetReps, item.targetRepsMax, exercise?.progressionStepKg, bodyweightLoad],
   )
 
   /** A set label: "80 kg × 8", or "BW+10 kg × 8" on a bodyweight exercise. */
   const loadLabel = (s: { weightKg: number; reps: number }) => fmtSetLoad(s, bodyweightLoad)
 
-  // The AI-planned set for this row's work-set position (F2), if any.
+  // The AI-planned set for this row's work-set position (F2), if any (a prescribed set wins).
   function aiSetFor(index: number): PlannedSet | undefined {
     if (!aiSets) return undefined
     const workIndex = index - warmupCount
-    return workIndex >= 0 ? aiSets[workIndex] : undefined
+    return workIndex >= 0 && !plan?.sets[workIndex] ? aiSets[workIndex] : undefined
   }
 
-  function draftFor(index: number): { weightKg: number; reps: number } {
+  function draftFor(index: number): Draft {
     return draftForWork(index - warmupCount, logged.filter(s => !s.isWarmup).slice(-1)[0])
   }
 
@@ -289,8 +321,10 @@ function ExerciseCard({
   function draftForWork(
     workIndex: number,
     lastCurrent: { weightKg: number; reps: number } | undefined,
-  ): { weightKg: number; reps: number } {
-    // Prefer the AI plan; otherwise fall back to the offline prefill unchanged.
+  ): Draft {
+    // The program's prescribed set first, then the AI plan, then the offline prefill unchanged.
+    const pre = workIndex >= 0 ? plan?.sets[workIndex] : undefined
+    if (pre) return { weightKg: pre.weightKg, reps: pre.reps, ...(pre.amrap ? { amrap: true } : {}) }
     const ai = workIndex >= 0 ? aiSets?.[workIndex] : undefined
     if (ai) return { weightKg: ai.weightKg, reps: ai.reps }
     // Match previous-session work sets by position among this session's work rows.
@@ -329,7 +363,7 @@ function ExerciseCard({
   ): string {
     if (!isWarmup && supersetNextName) return t('workout.rest.next', { name: supersetNextName })
     const done = workLogged + (isWarmup ? 0 : 1)
-    const planned = item.targetSets + extraRows
+    const planned = targetSets + extraRows
     if (done < planned) {
       const lastWork = isWarmup ? logged.filter(s => !s.isWarmup).slice(-1)[0] : just
       let target: string
@@ -337,9 +371,13 @@ function ExerciseCard({
         target = fmtCardioSet(cardioDraftForWork(done, lastWork))
       } else {
         const next = draftForWork(done, lastWork)
+        // An AMRAP set reads "80 kg × 5+" (5 = the minimum).
+        const plus = next.amrap ? '+' : ''
         target = bodyweightLoad
-          ? loadLabel(next)
-          : next.weightKg > 0 ? `${fmtNum(next.weightKg)} kg × ${next.reps}` : tp('units.reps', next.reps)
+          ? `${loadLabel(next)}${plus}`
+          : next.weightKg > 0
+            ? `${fmtNum(next.weightKg)} kg × ${next.reps}${plus}`
+            : next.amrap ? `${next.reps}+` : tp('units.reps', next.reps)
       }
       return t('workout.rest.setTarget', {
         name: name ?? t('workout.rest.nextSet'), n: done + 1, total: planned, target,
@@ -381,7 +419,8 @@ function ExerciseCard({
     haptic('set')
   }
 
-  const rampWeight = aiSets?.[0]?.weightKg ?? suggestion?.weightKg ?? draftFor(0).weightKg
+  // The ramp climbs to the first work set: the prescription's when there is one.
+  const rampWeight = plan?.sets[0]?.weightKg ?? aiSets?.[0]?.weightKg ?? suggestion?.weightKg ?? draftFor(0).weightKg
   const showRamp = isBarbell && logged.length === 0 && rampWeight >= barKg * 1.5
 
   async function addRamp() {
@@ -455,7 +494,7 @@ function ExerciseCard({
           </span>
         )}
         <span className="num whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
-          {!item.swappedOut && <>{item.targetSets}×{item.targetReps}{cardio ? ' min' : ''} · </>}{restSec}s
+          {!item.swappedOut && <>{targetSets}×{repsText}{cardio ? ' min' : ''} · </>}{restSec}s
         </span>
         {showRamp && (
           <button
@@ -527,8 +566,10 @@ function ExerciseCard({
                 bodyweightKg={bodyweightKg}
                 bodyweightLoad={bodyweightLoad}
                 loadOf={w => effectiveLoad({ weightKg: w }, exercise, session)}
-                suggestion={aiSets ? null : workLogged === 0 ? suggestion : null}
+                suggestion={plan || aiSets ? null : workLogged === 0 ? suggestion : null}
                 aiFilled={!!aiSetFor(i)}
+                amrap={!!draft.amrap}
+                schemeLabel={plan?.label || undefined}
                 platesFor={platesFor}
                 onLog={logSet}
               />
@@ -542,8 +583,8 @@ function ExerciseCard({
                 {cardio
                   ? fmtCardioSet(cardioDraftFor(i))
                   : bodyweightLoad
-                    ? loadLabel(ghost)
-                    : ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
+                    ? `${loadLabel(ghost)}${ghost.amrap ? '+' : ''}`
+                    : `${ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg` : '—'} × ${ghost.reps}${ghost.amrap ? '+' : ''}`}
               </span>
               {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label={t('workout.session.aiSuggestion')} />}
             </div>

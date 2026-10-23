@@ -15,6 +15,8 @@ import SessionSummary from './screens/workout/SessionSummary'
 import History from './screens/workout/History'
 import ExerciseLibrary from './screens/workout/ExerciseLibrary'
 import PastWorkout from './screens/workout/PastWorkout'
+import Programs from './screens/workout/Programs'
+import ImportShare from './screens/ImportShare'
 import DietDay from './screens/diet/DietDay'
 import ProgressScreen from './screens/progress/ProgressScreen'
 import WeightHistory from './screens/progress/WeightHistory'
@@ -73,6 +75,7 @@ export default function App() {
           <Route path="/workout/history" element={<History />} />
           <Route path="/workout/exercises" element={<ExerciseLibrary />} />
           <Route path="/workout/past/:id" element={<PastWorkout />} />
+          <Route path="/workout/programs" element={<Programs />} />
           <Route path="/diet" element={<DietDay />} />
           <Route path="/progress" element={<ProgressScreen />} />
           <Route path="/progress/bodyweight" element={<WeightHistory />} />
@@ -81,6 +84,8 @@ export default function App() {
           <Route path="/progress/exercise/:id" element={<ExerciseHistory />} />
           <Route path="/rank" element={<RankScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
+          {/* Shared template / program links (`#/import?t=…`, src/lib/shareTemplate.ts). Not a native route. */}
+          <Route path="/import" element={<ImportShare />} />
           <Route path="*" element={<Navigate to="/workout" replace />} />
         </Routes>
       </div>
