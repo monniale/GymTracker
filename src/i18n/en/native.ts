@@ -270,6 +270,27 @@ export default {
     confirm: 'Confirm on the home screen to place it.',
     unsupported: 'Your launcher can’t add it from here: long-press the home screen › Widgets › GymTracker.',
   },
+  /** Settings › Updates (UpdateSection): manual check against the latest GitHub release. */
+  update: {
+    title: 'Updates',
+    installed: 'Installed: {version}',
+    versionCode: '{name} ({code})',
+    debug: 'Debug build: compared by build number only',
+    check: 'Check for updates',
+    checking: 'Checking…',
+    neverChecked: 'Not checked yet',
+    lastChecked: 'Last checked {time}',
+    upToDate: 'Up to date',
+    available: 'Version {name} ({code}) is available',
+    latestUnknown: 'Latest release: {name} ({code})',
+    download: 'Download APK',
+    notes: 'Release notes',
+    noRelease: 'No release published yet',
+    errorRateLimit: 'GitHub limits update checks: try again in an hour.',
+    errorNetwork: 'Couldn’t reach GitHub. Check your connection and try again.',
+    errorHttp: 'GitHub error {status}. Try again later.',
+    hint: 'Install the new APK over this app. Never uninstall it: that deletes all your data.',
+  },
   /** Android share sheet titles (files.ts). */
   share: {
     backup: 'Save GymTracker backup',

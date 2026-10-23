@@ -127,7 +127,7 @@ The same app, packaged for Android with [Capacitor](https://capacitorjs.com). It
 - 📷 **Native barcode scanner**: Google ML Kit, with the camera scanner as a fallback.
 - 🤏 **Feels native**: haptics, back-button navigation, the screen stays on during a workout, and backups export through the share sheet.
 
-See **[ANDROID.md](ANDROID.md)** for how to build and install it.
+The signed APK is attached to each [GitHub Release](https://github.com/monniale/GymTracker/releases), and [Obtainium](https://github.com/ImranR98/Obtainium) can track it for you. The app can also check for a new version in **Settings › Updates**. See **[ANDROID.md](ANDROID.md)** for how to build and install it.
 
 ## 🏁 Get started
 
@@ -149,7 +149,7 @@ On iOS, sounds only play while the app is on screen, which is why it keeps the s
 <details>
 <summary><b>Android (Chrome)</b></summary>
 
-Open the link in **Chrome**, then **⋮ → Install app**. For the full Android app with notifications, see [ANDROID.md](ANDROID.md).
+Open the link in **Chrome**, then **⋮ → Install app**. For the full Android app with notifications, download the APK from [Releases](https://github.com/monniale/GymTracker/releases) or see [ANDROID.md](ANDROID.md).
 </details>
 
 ### 🤖 Turn on the AI coach (optional)
