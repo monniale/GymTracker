@@ -31,6 +31,9 @@ public class WidgetPlugin extends Plugin {
             e.putInt(GymWidgetProvider.K_WEEK_DONE, call.getInt("weekDone", 0));
             e.putInt(GymWidgetProvider.K_WEEK_TARGET, call.getInt("weekTarget", 3));
             e.putString(GymWidgetProvider.K_NEXT, call.getString("nextWorkout", ""));
+            e.putString(GymWidgetProvider.K_NEXT_TOMORROW, call.getString("nextWorkoutTomorrow", ""));
+            Long nextUntil = call.getLong("nextWorkoutUntil");
+            e.putLong(GymWidgetProvider.K_NEXT_UNTIL, nextUntil != null ? nextUntil : 0L);
             Long weekEndsAt = call.getLong("weekEndsAt");
             e.putLong(GymWidgetProvider.K_WEEK_ENDS_AT, weekEndsAt != null ? weekEndsAt : 0L);
             Long updatedAt = call.getLong("updatedAt");

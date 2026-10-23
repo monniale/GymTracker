@@ -1,5 +1,5 @@
 import { db, type GymDB } from '../db/db'
-import { addDays, localDateStr, mondayOf } from './dates'
+import { addDays, localDateStr, mondayOf, weekdayOf } from './dates'
 import { atLocal, nextRecapDate, recapWeekMonday, WINDOW_DAYS } from './notifyPlanner'
 import type { PlannerData } from './notifyPlanner'
 import type { NotifyPrefs } from './notifyPrefs'
@@ -27,9 +27,9 @@ export async function gatherPlannerData(
   return database.transaction(
     'r',
     [database.sessions, database.dayTypes, database.foodLogs, database.waterLogs, database.settings,
-      database.rankState, database.scoreEvents, database.bodyLog],
+      database.rankState, database.scoreEvents, database.bodyLog, database.templates],
     async () => {
-      const [around, weekDone, active, dayTypes, mealCounts, water, settings, rank, bodyRows, recap] = await Promise.all([
+      const [around, weekDone, active, dayTypes, mealCounts, water, settings, rank, bodyRows, recap, templates] = await Promise.all([
         database.sessions
           .where('startedAt').between(atLocal(addDays(today, -7), '00:00'), atLocal(addDays(today, 8), '00:00'))
           .toArray(),
@@ -55,7 +55,16 @@ export async function gatherPlannerData(
               ])
               return { weekMonday: recapWeek, sessions, points: events.reduce((a, e) => a + (e.total || 0), 0) }
             })(),
+        database.templates.orderBy('position').toArray(),
       ])
+
+      // Template schedule: each window date → the template scheduled that weekday (lowest position).
+      const scheduledDays: Record<string, string> = {}
+      for (const d of windowDates) {
+        const wd = weekdayOf(d)
+        const tpl = templates.find(x => x.weekdays?.includes(wd))
+        if (tpl) scheduledDays[d] = tpl.name
+      }
 
       const dayTypeOverrides: PlannerData['dayTypeOverrides'] = {}
       for (const d of dayTypes) if (d) dayTypeOverrides[d.date] = d.type
@@ -78,6 +87,7 @@ export async function gatherPlannerData(
         waterTargetMl: settings?.waterTargetMl ?? 2500,
         lastWaterAt,
         bodyLogDates: bodyRows.filter(b => b !== undefined).map(b => b!.date),
+        scheduledDays,
         rank: rank
           ? {
               points: rank.points,

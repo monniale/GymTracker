@@ -14,6 +14,8 @@ const notify: Dict['notify'] = {
     workoutTitle: 'È ora di allenarsi',
     workoutBodyWeek: '{done} su {target} allenamenti questa settimana: tocca per iniziare.',
     workoutBody: 'Tocca per iniziare l’allenamento.',
+    workoutBodyTemplate: 'Oggi {name} · {done} su {target} allenamenti questa settimana: tocca per iniziare.',
+    workoutBodyTemplateDay: 'Oggi {name}: tocca per iniziare.',
     mealTitle: {
       breakfast: 'Registra la colazione',
       lunch: 'Registra il pranzo',

@@ -34,6 +34,8 @@ public class GymWidgetProvider extends AppWidgetProvider {
     static final String K_NEXT = "nextWorkout";
     static final String K_UPDATED_AT = "updatedAt";
     static final String K_WEEK_ENDS_AT = "weekEndsAt";
+    static final String K_NEXT_UNTIL = "nextWorkoutUntil";
+    static final String K_NEXT_TOMORROW = "nextWorkoutTomorrow";
 
     /** PendingIntent request code of the widget tap (ROUTEMAP invariant 16). */
     private static final int RC_OPEN = 4301;
@@ -85,7 +87,11 @@ public class GymWidgetProvider extends AppWidgetProvider {
             long weekEndsAt = p.getLong(K_WEEK_ENDS_AT, 0L);
             int done = weekEndsAt > 0 && System.currentTimeMillis() >= weekEndsAt ? 0 : p.getInt(K_WEEK_DONE, 0);
             int target = Math.max(1, p.getInt(K_WEEK_TARGET, 3));
-            String next = p.getString(K_NEXT, "");
+            // The day changed since the last push: tomorrow's pick (the weekday schedule moves it).
+            long nextUntil = p.getLong(K_NEXT_UNTIL, 0L);
+            String next = nextUntil > 0 && System.currentTimeMillis() >= nextUntil
+                ? p.getString(K_NEXT_TOMORROW, "")
+                : p.getString(K_NEXT, "");
 
             v.setTextViewText(R.id.widget_tier, p.getString(K_TIER, ""));
             v.setTextColor(R.id.widget_tier, parseColor(p.getString(K_TIER_COLOR, null)));

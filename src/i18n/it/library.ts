@@ -39,6 +39,7 @@ const library: Dict['library'] = {
     createFirstTemplate: 'Crea la tua prima scheda',
     mediaLoading: 'Carico l’animazione…',
     mediaFailed: 'Impossibile caricare l’animazione (offline?).',
+    history: 'Cronologia',
   },
   howTo: 'Come si fa',
   settings: {

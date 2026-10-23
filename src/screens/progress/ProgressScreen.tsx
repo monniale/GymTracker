@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { muscleGroupLabel } from '../../lib/equipment'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays, CalendarRange } from 'lucide-react'
 import { db } from '../../db/db'
@@ -45,9 +45,40 @@ function CountText({ msgKey, n }: { msgKey: PluralMessageKey; n: number }) {
   )
 }
 
+/** The exercise a link opened the screen on (Exercise history › Chart), if it is a valid id. */
+function seededExerciseId(state: unknown): Id | null {
+  const id = (state as { exerciseId?: unknown } | null)?.exerciseId
+  return (typeof id === 'number' && Number.isFinite(id)) || (typeof id === 'string' && id.length > 0) ? id : null
+}
+
 export default function ProgressScreen() {
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [exerciseId, setExerciseId] = useState<Id | null>(null)
+  const seeded = seededExerciseId(useLocation().state)
+  const [exerciseId, setExerciseId] = useState<Id | null>(seeded)
+  const screen = useRef<HTMLDivElement>(null)
+  const exerciseSection = useRef<HTMLElement>(null)
+  // Opened on an exercise: bring its charts into view instead of the tiles at the top. The tiles
+  // above it load one by one and push it down, so keep it aligned for a moment, until the user scrolls.
+  const seededOnMount = useRef(seeded)
+  useEffect(() => {
+    const el = exerciseSection.current
+    if (seededOnMount.current === null || !el) return
+    const align = () => el.scrollIntoView({ block: 'start' })
+    align()
+    if (typeof ResizeObserver === 'undefined' || !screen.current) return
+    const ro = new ResizeObserver(align)
+    ro.observe(screen.current)
+    const stop = () => ro.disconnect()
+    const timer = setTimeout(stop, 1500)
+    window.addEventListener('touchstart', stop, { once: true, passive: true })
+    window.addEventListener('wheel', stop, { once: true, passive: true })
+    return () => {
+      stop()
+      clearTimeout(timer)
+      window.removeEventListener('touchstart', stop)
+      window.removeEventListener('wheel', stop)
+    }
+  }, [])
 
   const exercises = useLiveQuery(() => db.exercises.toArray()) ?? []
   const exMap = useMemo(() => new Map(exercises.map(e => [e.id!, e])), [exercises])
@@ -65,7 +96,7 @@ export default function ProgressScreen() {
   const activeEx = activeExId ? exMap.get(activeExId) : undefined
 
   return (
-    <div className="pt-4">
+    <div ref={screen} className="pt-4">
       <h1 className="mb-4 font-display text-3xl font-bold">{t('progress.screen.title')}</h1>
 
       <BodyweightTile />
@@ -74,15 +105,26 @@ export default function ProgressScreen() {
       <TrainingHeatmapTile />
       <MuscleHeatTile exMap={exMap} />
 
-      <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
-        <button
-          onClick={() => setPickerOpen(true)}
-          className="mb-2 flex w-full items-center justify-between"
-          aria-label={t('progress.screen.chooseExercise')}
-        >
-          <h2 className="font-display text-xl font-semibold">{activeEx ? exerciseDisplayName(activeEx.name) : t('progress.screen.pickExercise')}</h2>
-          <ChevronDown size={18} className="text-sub" />
-        </button>
+      <section ref={exerciseSection} className="mt-4 scroll-mt-4 rounded-2xl border border-edge bg-card p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+            aria-label={t('progress.screen.chooseExercise')}
+          >
+            <h2 className="min-w-0 truncate font-display text-xl font-semibold">{activeEx ? exerciseDisplayName(activeEx.name) : t('progress.screen.pickExercise')}</h2>
+            <ChevronDown size={18} className="shrink-0 text-sub" />
+          </button>
+          {activeExId && (
+            <Link
+              to={`/progress/exercise/${activeExId}`}
+              aria-label={t('progress.exercise.historyLink')}
+              className="flex min-h-[44px] shrink-0 items-center whitespace-nowrap px-1 text-sm font-semibold text-primary"
+            >
+              {t('common.history')} <ChevronRight size={16} aria-hidden />
+            </Link>
+          )}
+        </div>
         {activeExId ? (
           <>
             {isCardioExercise(activeEx)

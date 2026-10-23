@@ -24,6 +24,11 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((parseLocalDate(b).getTime() - parseLocalDate(a).getTime()) / 86400000)
 }
 
+/** Local weekday of a YYYY-MM-DD date: 0-6 as JS Date.getDay() (Sunday 0). */
+export function weekdayOf(date: string): number {
+  return parseLocalDate(date).getDay()
+}
+
 /** Monday of the week containing the given date (weeks start Monday). */
 export function mondayOf(s: string): string {
   const d = parseLocalDate(s)

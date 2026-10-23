@@ -177,6 +177,9 @@ export interface PlannerData {
   lastWaterAt: number | null
   /** Window dates that already have a bodyweight entry. */
   bodyLogDates: string[]
+  /** Window date → name of the template scheduled that weekday (`WorkoutTemplate.weekdays`; two on
+   * one day: the lower position). With any entry these dates replace `prefs.workout.days`. */
+  scheduledDays?: Record<string, string>
   rank: { points: number; seasonStart: string; lastSessionDate?: string; streakWeeks: number; lastStreakWeek: string } | null
   /** Stats of the week the next recap covers (recapWeekMonday(nextRecapDate)); null when the recap is off. */
   recap: { weekMonday: string; sessions: number; points: number } | null
@@ -221,8 +224,13 @@ function spec(
 
 const byTime = (a: NotificationSpec, b: NotificationSpec) => a.atMs - b.atMs || a.id - b.id
 
-function anyReminderEnabled(p: NotifyPrefs): boolean {
-  return (p.workout.enabled && p.workout.days.length > 0)
+/** True when the data carries a template schedule: it then decides the training days. */
+function hasSchedule(data: PlannerData): data is PlannerData & { scheduledDays: Record<string, string> } {
+  return !!data.scheduledDays && Object.keys(data.scheduledDays).length > 0
+}
+
+function anyReminderEnabled(p: NotifyPrefs, data: PlannerData): boolean {
+  return (p.workout.enabled && (p.workout.days.length > 0 || hasSchedule(data)))
     || MEAL_ORDER.some(m => p.meals[m].enabled)
     || p.water.enabled
     || p.rank.decayWarning
@@ -292,10 +300,13 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
   }
 
   if (prefs.workout.enabled) {
+    // A template schedule replaces the weekdays picked in Settings › Notifications.
+    const scheduled = hasSchedule(data) ? data.scheduledDays : null
     const days = new Set(prefs.workout.days)
     const targetMet = data.weekSessionsDone >= data.weeklyTarget
     for (const d of windowDates) {
-      if (!days.has(isoWeekday(d))) continue
+      const name = scheduled ? scheduled[d] : undefined
+      if (scheduled ? name === undefined : !days.has(isoWeekday(d))) continue
       if (data.dayTypeOverrides[d] === 'rest') continue
       if (sessionDays.has(d)) continue
       if (d === today && data.activeSession) continue
@@ -304,9 +315,13 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
       addReason(d, {
         kind: 'workout',
         atMs: atLocal(d, prefs.workout.time),
-        body: currentWeek
-          ? t('notify.planner.workoutBodyWeek', { done: data.weekSessionsDone, target: data.weeklyTarget })
-          : t('notify.planner.workoutBody'),
+        body: name !== undefined
+          ? currentWeek
+            ? t('notify.planner.workoutBodyTemplate', { name, done: data.weekSessionsDone, target: data.weeklyTarget })
+            : t('notify.planner.workoutBodyTemplateDay', { name })
+          : currentWeek
+            ? t('notify.planner.workoutBodyWeek', { done: data.weekSessionsDone, target: data.weeklyTarget })
+            : t('notify.planner.workoutBody'),
       })
     }
   }
@@ -441,7 +456,7 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
   }
 
   /* ---- keep-alive on the last planned day: nothing re-plans while the app is never opened ---- */
-  if (anyReminderEnabled(prefs)) {
+  if (anyReminderEnabled(prefs, data)) {
     const d = windowDates[WINDOW_DAYS - 1]
     push(spec('keepalive', d, 0, atLocal(d, KEEPALIVE_TIME), t('notify.planner.keepAliveTitle'),
       t('notify.planner.keepAliveBody'), '/workout', `keepalive:${d}`))

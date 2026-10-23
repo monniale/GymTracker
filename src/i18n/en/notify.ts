@@ -14,6 +14,9 @@ export default {
     workoutTitle: 'Time to train',
     workoutBodyWeek: '{done} of {target} sessions this week — tap to start.',
     workoutBody: 'Tap to start your workout.',
+    /** A template scheduled that weekday (WorkoutTemplate.weekdays); {name} is the template name. */
+    workoutBodyTemplate: '{name} today · {done} of {target} sessions this week — tap to start.',
+    workoutBodyTemplateDay: '{name} today — tap to start.',
     mealTitle: {
       breakfast: 'Log your breakfast',
       lunch: 'Log your lunch',

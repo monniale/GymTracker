@@ -32,6 +32,7 @@ export const KNOWN_ROUTES: string[] = [
   '/progress/bodyweight',
   '/progress/coach',
   '/progress/week',
+  '/progress/exercise/:id',
   '/rank',
   '/settings',
 ]

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles } from 'lucide-react'
+import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles, MoreHorizontal, ArrowLeftRight } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { useNow, useWakeLock } from '../../lib/hooks'
@@ -17,12 +17,13 @@ import { sessionItems, type SessionItem } from '../../lib/sessionItems'
 import { haptic } from '../../native/haptics'
 import ExercisePicker from './ExercisePicker'
 import { NoteSheet } from './NoteSheet'
+import { CardMenuSheet, SwapSheet } from './ExerciseCardMenu'
 import { PendingRow, CardioPendingRow, SetBadges, type LogExtra } from './PendingRow'
 import { normalizeRpe } from '../../lib/setTypes'
 import { useUiStore } from '../../lib/uiStore'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t, tp, fmtNum } from '../../i18n'
-import type { Exercise, Id, PlannedSet, Session, SetRow } from '../../types'
+import type { Exercise, Id, PlannedSet, Session, SetRow, WorkoutTemplate } from '../../types'
 
 const WARMUP_REST_SEC = 30
 
@@ -65,9 +66,14 @@ export default function ActiveSession() {
   if (!activeSessionId) return finishing ? null : <Navigate to="/workout" replace />
   if (!session || (session.templateId !== undefined && !template)) return null
 
-  // Template exercises first, then anything added mid-session (cardio adds: one 20-minute set).
-  const items = sessionItems(template, session, exMap)
+  // Template exercises first (after this session's swaps), then anything added mid-session
+  // (cardio adds: one 20-minute set); a swapped-out exercise with logged sets keeps a 0-target card.
+  const loggedIds = new Set(sets.map(s => s.exerciseId))
+  const items = sessionItems(template, session, exMap, loggedIds)
+  const templateLines = template?.items.length ?? 0
   const itemIds = new Set(items.map(i => i.exerciseId))
+  /** Not offered as swap targets: swapped-out cards stay pickable, to swap back to them. */
+  const swapExclude = new Set(items.filter(i => !i.swappedOut).map(i => i.exerciseId))
 
   // Work sets done per exercise: drives the rest-timer "what's next" label (Android lock screen).
   const workDone = new Map<Id, number>()
@@ -152,6 +158,10 @@ export default function ActiveSession() {
               exercise={exMap.get(item.exerciseId)}
               sessionId={session.id!}
               session={session}
+              template={template}
+              fromTemplate={idx < templateLines}
+              inSession={swapExclude}
+              swappedFromName={item.swappedFrom !== undefined ? shownName(item.swappedFrom) : undefined}
               sessionSets={sets.filter(s => s.exerciseId === item.exerciseId)}
               defaultRestSec={settings?.defaultRestSec ?? 90}
               barKg={settings?.barWeightKg ?? DEFAULT_BAR_KG}
@@ -190,6 +200,14 @@ interface CardProps {
   sessionId: Id
   /** The active session: its bodyweight and `bwScoring` stamp decide bodyweight-exercise load. */
   session: Session
+  /** The session's template (undefined for a freestyle session). */
+  template?: WorkoutTemplate
+  /** This card is one of the template's lines (swaps can also update the template). */
+  fromTemplate: boolean
+  /** Exercises with a card in this session (swapped-out cards left out): not offered as swap targets. */
+  inSession: ReadonlySet<Id>
+  /** Shown name of the exercise this line was written for, when swapped. */
+  swappedFromName?: string
   sessionSets: SetRow[]
   defaultRestSec: number
   barKg: number
@@ -204,7 +222,7 @@ interface CardProps {
 }
 
 function ExerciseCard({
-  item, exercise, sessionId, session, sessionSets, defaultRestSec, barKg, plates, aiSets: aiPlan, suppressRest,
+  item, exercise, sessionId, session, template, fromTemplate, inSession, swappedFromName, sessionSets, defaultRestSec, barKg, plates, aiSets: aiPlan, suppressRest,
   nextExerciseName, supersetNextName,
 }: CardProps) {
   const startRest = useAppStore(s => s.startRest)
@@ -213,6 +231,8 @@ function ExerciseCard({
   const aiSets = cardio ? undefined : aiPlan
   const [extraRows, setExtraRows] = useState(0)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [swapOpen, setSwapOpen] = useState(false)
   const effortScale = useUiStore(s => s.effortScale)
 
   // Last completed session containing this exercise — prefill + progression source.
@@ -410,7 +430,24 @@ function ExerciseCard({
         >
           <StickyNote size={16} />
         </button>
+        {exercise && (
+          <button
+            onClick={() => setMenuOpen(true)}
+            aria-label={t('workout.cardMenu.open', { name: name ?? '' })}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sub active:bg-muted"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        )}
       </div>
+      {(swappedFromName || item.swappedOut) && (
+        <p className="-mt-0.5 mb-1 flex min-w-0 items-center gap-1 text-xs text-sub">
+          <ArrowLeftRight size={12} className="shrink-0" aria-hidden />
+          <span className="truncate">
+            {item.swappedOut ? t('workout.swap.swappedOut') : t('workout.swap.swappedFrom', { name: swappedFromName ?? '' })}
+          </span>
+        </p>
+      )}
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         {exercise?.equipment && (
           <span className="whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sub">
@@ -418,7 +455,7 @@ function ExerciseCard({
           </span>
         )}
         <span className="num whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
-          {item.targetSets}×{item.targetReps}{cardio ? ' min' : ''} · {restSec}s
+          {!item.swappedOut && <>{item.targetSets}×{item.targetReps}{cardio ? ' min' : ''} · </>}{restSec}s
         </span>
         {showRamp && (
           <button
@@ -526,6 +563,26 @@ function ExerciseCard({
           open={noteOpen}
           onClose={() => setNoteOpen(false)}
           exercise={exercise}
+        />
+      )}
+      {exercise && menuOpen && (
+        <CardMenuSheet
+          onClose={() => setMenuOpen(false)}
+          exercise={exercise}
+          onNotes={() => setNoteOpen(true)}
+          onSwap={item.swappedOut ? undefined : () => setSwapOpen(true)}
+        />
+      )}
+      {exercise && swapOpen && (
+        <SwapSheet
+          onClose={() => setSwapOpen(false)}
+          session={session}
+          template={template}
+          item={item}
+          exercise={exercise}
+          fromTemplate={fromTemplate}
+          hasLogged={logged.length > 0}
+          exclude={inSession}
         />
       )}
     </div>

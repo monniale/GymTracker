@@ -122,6 +122,8 @@ export default {
       label: 'Training days',
       hint: "Unless you've already trained that day",
       pickDays: 'Pick the days you train.',
+      /** Shown instead of the weekday chips when a workout template has weekdays (Workout › edit). */
+      scheduleHint: 'Days follow your template schedule.',
       remindAt: 'Remind at',
       timeLabel: 'Training reminder time',
       skipTarget: 'Skip once the weekly target is met',
