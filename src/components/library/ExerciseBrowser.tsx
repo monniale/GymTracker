@@ -62,14 +62,16 @@ export default function ExerciseBrowser({ mode, onPick, renderCreate, onQueryCha
   const filter: LibraryFilter = useMemo(() => ({ query: q, group, equipment, target }), [q, group, equipment, target])
   useEffect(() => setLimit(PAGE), [filter])
 
-  const linked = useMemo(() => {
-    const ids = new Set<string>()
+  // Library id → my exercise linked to it (the first one, when two rows share an entry).
+  const linkedTo = useMemo(() => {
+    const map = new Map<string, Exercise>()
     for (const e of exercises ?? []) {
       const id = libraryIdOf(e)
-      if (id) ids.add(id)
+      if (id && !map.has(id)) map.set(id, e)
     }
-    return ids
+    return map
   }, [exercises])
+  const linked = useMemo(() => new Set(linkedTo.keys()), [linkedTo])
 
   // My exercises: search on the stored and the shown name; a target filter matches the linked
   // entry's target, or for a custom row without a link, the target's muscle group.
@@ -282,6 +284,8 @@ export default function ExerciseBrowser({ mode, onPick, renderCreate, onQueryCha
         library={library}
         lib={detail?.lib}
         exercise={detail?.exercise}
+        // Browse only: a picker sheet (template editor, live workout) is not a place to leave from.
+        historyExerciseId={mode === 'browse' ? (detail?.exercise ?? (detail?.lib ? linkedTo.get(detail.lib.id) : undefined))?.id : undefined}
       >
         {detail && mode === 'pick' && (
           <button

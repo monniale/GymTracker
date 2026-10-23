@@ -123,6 +123,7 @@ const native: Dict['native'] = {
       label: 'Giorni di allenamento',
       hint: 'Se quel giorno non ti sei già allenato',
       pickDays: 'Scegli i giorni in cui ti alleni.',
+      scheduleHint: 'I giorni seguono la programmazione delle tue schede.',
       remindAt: 'Avvisami alle',
       timeLabel: 'Orario del promemoria allenamento',
       skipTarget: 'Salta se hai già raggiunto l’obiettivo settimanale',

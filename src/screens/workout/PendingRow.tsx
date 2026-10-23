@@ -228,7 +228,7 @@ export function CardioPendingRow({ setNumber, init, onLog }: CardioPendingProps)
 }
 
 /** "BW−10 kg × 8" that wraps only before "× 8" at 320 px, never inside the load or between × and reps. */
-function NoBreakParts({ text }: { text: string }) {
+export function NoBreakParts({ text }: { text: string }) {
   const i = text.lastIndexOf(' × ')
   if (i < 0) return <>{text}</>
   return (

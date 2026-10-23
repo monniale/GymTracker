@@ -204,6 +204,54 @@ describe('WORKOUT', () => {
   })
 })
 
+describe('WORKOUT: template schedule', () => {
+  const prefs = prefsWith({ workout: { enabled: true, days: [1, 3, 5], time: '18:00' } })
+  // Mon 12 Oct window: 12..18 Oct. Push on Tuesday, Legs on Thursday and next Monday's date is outside.
+  const scheduledDays = { '2026-10-13': 'Push', '2026-10-15': 'Legs' }
+
+  it('scheduled dates replace the weekdays picked in prefs, with the template name in the body', () => {
+    const w = ofCat(plan(MON_12_10, prefs, { scheduledDays, weekSessionsDone: 1 }), 'workout')
+    expect(w.map(s => s.key)).toEqual(['workout:2026-10-13', 'workout:2026-10-15'])
+    expect(w.map(s => s.atMs)).toEqual([T(2026, 10, 13, 18), T(2026, 10, 15, 18)])
+    expect(w[0].body).toBe('Push today · 1 of 3 sessions this week — tap to start.')
+    expect(w[1].body).toBe('Legs today · 1 of 3 sessions this week — tap to start.')
+  })
+
+  it('next-week scheduled dates name the template without the week count', () => {
+    const w = ofCat(plan(T(2026, 10, 16, 10), prefs, { scheduledDays: { '2026-10-20': 'Push' } }), 'workout')
+    expect(w.map(s => s.key)).toEqual(['workout:2026-10-20'])
+    expect(w[0].body).toBe('Push today — tap to start.')
+  })
+
+  it('works with no weekday picked in prefs and still plans the keep-alive', () => {
+    const none = prefsWith({ workout: { enabled: true, days: [], time: '18:00' } })
+    const specs = plan(MON_12_10, none, { scheduledDays })
+    expect(ofCat(specs, 'workout')).toHaveLength(2)
+    expect(ofCat(specs, 'keepalive')).toHaveLength(1)
+    expect(ofCat(plan(MON_12_10, none), 'keepalive')).toHaveLength(0)
+  })
+
+  it('keeps the same suppressions (session that day, rest override, target met)', () => {
+    const keys = (d: Partial<PlannerData>) => ofCat(plan(MON_12_10, prefs, { scheduledDays, ...d }), 'workout').map(s => s.key)
+    expect(keys({ sessionDays: ['2026-10-13'] })).toEqual(['workout:2026-10-15'])
+    expect(keys({ dayTypeOverrides: { '2026-10-15': 'rest' } })).toEqual(['workout:2026-10-13'])
+    expect(keys({ weekSessionsDone: 3 })).toEqual([])
+  })
+
+  it('an empty or absent schedule leaves the old plan unchanged', () => {
+    const before = plan(MON_12_10, prefs)
+    expect(plan(MON_12_10, prefs, { scheduledDays: {} })).toEqual(before)
+    expect(ofCat(before, 'workout').map(s => s.key)).toEqual(['workout:2026-10-12', 'workout:2026-10-14', 'workout:2026-10-16'])
+  })
+
+  it('a renamed template changes the sig, so the reminder is rescheduled', () => {
+    const a = ofCat(plan(MON_12_10, prefs, { scheduledDays }), 'workout')[0]
+    const b = ofCat(plan(MON_12_10, prefs, { scheduledDays: { ...scheduledDays, '2026-10-13': 'Push A' } }), 'workout')[0]
+    expect(b.id).toBe(a.id)
+    expect(b.sig).not.toBe(a.sig)
+  })
+})
+
 describe('MEAL', () => {
   const prefs = prefsWith({
     meals: { breakfast: { enabled: true, time: '08:30' }, lunch: { enabled: true, time: '13:00' } } as NotifyPrefs['meals'],
@@ -579,6 +627,15 @@ describe('DST', () => {
     const w = ofCat(plan(T(2026, 10, 22, 10), p), 'workout')
     expect(w).toHaveLength(7)
     expect(w.every(s => new Date(s.atMs).getHours() === 18 && new Date(s.atMs).getMinutes() === 0)).toBe(true)
+  })
+
+  it('a scheduled week spanning the change keeps 18:00 local (Sat 24 CEST, Sun 25 and Mon 26 CET)', () => {
+    const p = prefsWith({ workout: { enabled: true, days: [], time: '18:00', skipWhenTargetMet: false } })
+    const scheduledDays = { '2026-10-24': 'Push', '2026-10-25': 'Pull', '2026-10-26': 'Legs' }
+    const w = ofCat(plan(T(2026, 10, 22, 10), p, { scheduledDays }), 'workout')
+    expect(w.map(s => s.key)).toEqual(['workout:2026-10-24', 'workout:2026-10-25', 'workout:2026-10-26'])
+    expect(w.map(s => s.atMs)).toEqual([Date.UTC(2026, 9, 24, 16), Date.UTC(2026, 9, 25, 17), Date.UTC(2026, 9, 26, 17)])
+    expect(w[2].body).toBe('Legs today — tap to start.') // Monday 26: next week
   })
 })
 

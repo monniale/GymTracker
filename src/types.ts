@@ -48,6 +48,9 @@ export interface WorkoutTemplate {
   name: string
   position: number
   items: TemplateItem[]
+  /** Weekdays this template is scheduled on (0-6 = JS Date.getDay(), Sunday 0), sorted, never
+   * empty (no schedule = field absent). Read by nextTemplate and the workout reminder. */
+  weekdays?: number[]
   updatedAt: number
 }
 
@@ -67,6 +70,9 @@ export interface Session {
    * bodyweightKg × bwFactor + SetRow.weightKg. Absent on every older session, which
    * keeps load = weightKg everywhere (forward-only, so re-scoring reproduces old totals). */
   bwScoring?: true
+  /** Exercises swapped for this session only (src/lib/sessionItems.ts): the template item for
+   * `from` is done as `to`, with the same sets, reps, rest and superset. */
+  swaps?: { from: Id; to: Id }[]
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
