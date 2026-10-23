@@ -1,0 +1,636 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "reddit-ppl",
+  "name": {
+    "en": "Reddit PPL",
+    "it": "Reddit PPL"
+  },
+  "description": {
+    "en": "Push / pull / legs six days a week for beginners who want more volume. The first lift of each day is a linear progression (+2.5 kg a session, +5 kg on the deadlift) with the last set for max reps; three failed sessions in a row cut it by 10 %. Accessories use rep ranges: add weight once every set reaches the top of the range.",
+    "it": "Spinta / trazione / gambe sei giorni a settimana, per principianti che vogliono più volume. La prima alzata di ogni giorno segue una progressione lineare (+2,5 kg a seduta, +5 kg sullo stacco) con l'ultima serie al massimo delle ripetizioni; tre sedute fallite di fila la riducono del 10 %. I complementari usano intervalli di ripetizioni: aumenta il peso quando ogni serie arriva al massimo dell'intervallo."
+  },
+  "level": "beginner",
+  "daysPerWeek": 6,
+  "templates": [
+    {
+      "name": {
+        "en": "Pull A",
+        "it": "Trazione A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 1,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          },
+          "sets": [
+            {
+              "reps": 5,
+              "amrap": true
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Lat Pulldown",
+            "libraryId": "0150",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Seated Cable Row",
+            "libraryId": "0861",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Face Pull",
+            "libraryId": "0203",
+            "muscleGroup": "shoulders",
+            "equipment": "cable"
+          },
+          "targetSets": 5,
+          "targetReps": 15,
+          "targetRepsMax": 20,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Hammer Curl",
+            "libraryId": "0313",
+            "muscleGroup": "biceps",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Curl",
+            "libraryId": "0294",
+            "muscleGroup": "biceps",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Push A",
+        "it": "Spinta A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          },
+          "sets": [
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5,
+              "amrap": true
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Incline Dumbbell Press",
+            "libraryId": "0314",
+            "muscleGroup": "chest",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Triceps Pushdown",
+            "libraryId": "0241",
+            "muscleGroup": "triceps",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Overhead Triceps Extension",
+            "libraryId": "0194",
+            "muscleGroup": "triceps",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lateral Raise",
+            "libraryId": "0334",
+            "muscleGroup": "shoulders",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 15,
+          "targetRepsMax": 20,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Legs A",
+        "it": "Gambe A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          },
+          "sets": [
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5,
+              "amrap": true
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Romanian Deadlift",
+            "libraryId": "0085",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Press",
+            "libraryId": "0739",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Curl",
+            "libraryId": "0586",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Standing Calf Raise",
+            "libraryId": "0605",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 5,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Pull B",
+        "it": "Trazione B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Barbell Row",
+            "libraryId": "0027",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          },
+          "sets": [
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5,
+              "amrap": true
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Pull-Up",
+            "libraryId": "0652",
+            "muscleGroup": "back",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Row",
+            "libraryId": "0293",
+            "muscleGroup": "back",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Face Pull",
+            "libraryId": "0203",
+            "muscleGroup": "shoulders",
+            "equipment": "cable"
+          },
+          "targetSets": 5,
+          "targetReps": 15,
+          "targetRepsMax": 20,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Hammer Curl",
+            "libraryId": "0313",
+            "muscleGroup": "biceps",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Barbell Curl",
+            "libraryId": "0031",
+            "muscleGroup": "biceps",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Push B",
+        "it": "Spinta B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          },
+          "sets": [
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5,
+              "amrap": true
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Bench Press",
+            "libraryId": "0289",
+            "muscleGroup": "chest",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Triceps Pushdown",
+            "libraryId": "0241",
+            "muscleGroup": "triceps",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Overhead Triceps Extension",
+            "libraryId": "0194",
+            "muscleGroup": "triceps",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lateral Raise",
+            "libraryId": "0334",
+            "muscleGroup": "shoulders",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 15,
+          "targetRepsMax": 20,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Legs B",
+        "it": "Gambe B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          },
+          "sets": [
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5
+            },
+            {
+              "reps": 5,
+              "amrap": true
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Romanian Deadlift",
+            "libraryId": "0085",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Press",
+            "libraryId": "0739",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Curl",
+            "libraryId": "0586",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Standing Calf Raise",
+            "libraryId": "0605",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 5,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    }
+  ]
+}

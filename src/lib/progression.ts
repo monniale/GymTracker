@@ -21,6 +21,9 @@ export interface ProgressionOpts {
    * negative (assisted) sets count, and the weight step is at most `BODYWEIGHT_STEP_KG`
    * (doubled, like any step, after an easy session). */
   bodyweight?: boolean
+  /** Top of a rep range (`TemplateItem.targetRepsMax`, default `targetReps`): reps climb up to it,
+   * then the weight goes up and the reps go back to `targetReps`. */
+  targetRepsMax?: number
 }
 
 /** Largest added-kg step suggested for a bodyweight move (a small plate on a dip belt). */
@@ -46,6 +49,9 @@ function effortOf(s: PrevSet): number | undefined {
  * - every top-weight set hit the target reps → add the progression step;
  * - otherwise → same weight, one more rep on the weakest top-weight set
  *   (capped at target reps).
+ * With a rep range (`opts.targetRepsMax` above `targetReps`) "the target"
+ * above is the top of the range: reps climb to it, and the weight step resets
+ * the reps to `targetReps` (the bottom of the range).
  * Sets without an RPE follow the plain rule: the double step needs every
  * top-weight set rated, while one rated RPE 9.5+ set is enough to hold.
  * With `opts.bodyweight` the weight is the added kg (0 = bodyweight only,
@@ -68,7 +74,8 @@ export function suggestNext(
   const pool = straight.length > 0 ? straight : work
   const topWeight = Math.max(...pool.map(s => s.weightKg))
   const topSets = pool.filter(s => s.weightKg === topWeight)
-  const allHitTarget = topSets.every(s => s.reps >= targetReps)
+  const maxReps = Math.max(targetReps, opts.targetRepsMax ?? targetReps)
+  const allHitTarget = topSets.every(s => s.reps >= maxReps)
   const step = opts.bodyweight ? Math.min(stepKg, BODYWEIGHT_STEP_KG) : stepKg
   const weakest = Math.min(...topSets.map(s => s.reps))
 
@@ -76,7 +83,7 @@ export function suggestNext(
   const maxRpe = efforts.length > 0 ? Math.max(...efforts) : undefined
 
   if (maxRpe !== undefined && maxRpe >= HOLD_RPE) {
-    return { weightKg: topWeight, reps: Math.min(targetReps, weakest), reason: 'hold' }
+    return { weightKg: topWeight, reps: Math.min(maxReps, weakest), reason: 'hold' }
   }
 
   if (allHitTarget) {
@@ -89,7 +96,7 @@ export function suggestNext(
     }
   }
 
-  const nextReps = Math.min(targetReps, weakest + 1)
+  const nextReps = Math.min(maxReps, weakest + 1)
   if (nextReps <= weakest) return null
   return { weightKg: topWeight, reps: nextReps, reason: 'reps-up' }
 }

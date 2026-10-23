@@ -1,0 +1,128 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "starting-strength",
+  "name": {
+    "en": "Starting Strength",
+    "it": "Starting Strength"
+  },
+  "description": {
+    "en": "The classic novice barbell program: two full-body workouts (A and B) alternated three times a week. Add 2.5 kg to every upper-body lift and 5 kg to squat and deadlift after each successful session; three failed sessions in a row cut the weight by 10 %.",
+    "it": "Il classico programma per principianti con il bilanciere: due allenamenti total body (A e B) alternati tre volte a settimana. Aggiungi 2,5 kg alle alzate per la parte alta e 5 kg a squat e stacco dopo ogni seduta riuscita; tre sedute fallite di fila riducono il peso del 10 %."
+  },
+  "level": "beginner",
+  "daysPerWeek": 3,
+  "templates": [
+    {
+      "name": {
+        "en": "Workout A",
+        "it": "Allenamento A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 1,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Workout B",
+        "it": "Allenamento B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Power Clean",
+            "libraryId": "0648",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        }
+      ]
+    }
+  ]
+}

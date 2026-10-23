@@ -12,6 +12,13 @@ import type { Exercise, Id, Session, SetRow } from '../types'
 
 const T = (y: number, m: number, d: number, h = 18) => new Date(y, m - 1, d, h).getTime()
 
+// Program progression is its own module (programs.ts, fake-indexeddb tests there): here only the
+// call contract of finishSession / rescoreSession is checked.
+const progression = vi.hoisted(() => ({
+  apply: vi.fn(async (_sessionId: unknown): Promise<void> => {}),
+}))
+vi.mock('./programs', () => ({ applySessionProgression: progression.apply }))
+
 function memoryStorage(): Storage {
   const m = new Map<string, string>()
   return {
@@ -38,6 +45,8 @@ beforeEach(async () => {
   await db.rankState.update(1, { seasonStart: '2026-10-01', points: 500 })
   pullUp = (await db.exercises.where('nameLower').equals('pull-up').first())!
   bench = (await db.exercises.where('nameLower').equals('bench press').first())!
+  progression.apply.mockReset()
+  progression.apply.mockImplementation(async () => {})
 })
 
 afterEach(() => {
@@ -263,5 +272,50 @@ describe('changing a bodyweight share', () => {
     // An unstamped row keeps its added-kg e1rm.
     expect((await db.sets.get('unstamped-0'))!.e1rm).toBeCloseTo(epley(5, 20))
     expect(await healStampedE1rm()).toBe(0)
+  })
+})
+
+describe('program progression', () => {
+  it('finishSession applies it once, after the scoring transaction', async () => {
+    let seen: { endedAt?: number; events: number } | undefined
+    progression.apply.mockImplementation(async (sid: unknown) => {
+      seen = {
+        endedAt: (await db.sessions.get(sid as Id))?.endedAt,
+        events: await db.scoreEvents.where('sessionId').equals(sid as Id).count(),
+      }
+    })
+    await addSession('s', T(2026, 10, 15, 10), [[bench, 80, 5], [bench, 80, 5]])
+    const total = await finishSession('s')
+    expect(total).toBeGreaterThan(0)
+    expect(progression.apply).toHaveBeenCalledTimes(1)
+    expect(progression.apply).toHaveBeenCalledWith('s')
+    expect(seen).toEqual({ endedAt: expect.any(Number), events: 1 })
+  })
+
+  it('rescoreSession never applies it', async () => {
+    await addSession('s', T(2026, 10, 15, 10), [[bench, 80, 5]])
+    await finishSession('s')
+    progression.apply.mockClear()
+    await db.sets.update('s-0', { reps: 8 })
+    expect(await rescoreSession('s')).toBeGreaterThan(0)
+    expect(progression.apply).not.toHaveBeenCalled()
+  })
+
+  it('an empty session (deleted) does not apply it', async () => {
+    await db.sessions.put({ id: 'empty', name: 'empty', startedAt: T(2026, 10, 15, 10), bodyweightKg: 80, extraExerciseIds: [] })
+    expect(await finishSession('empty')).toBeNull()
+    expect(progression.apply).not.toHaveBeenCalled()
+  })
+
+  it('a progression failure never undoes the finished, scored workout', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    progression.apply.mockRejectedValue(new Error('boom'))
+    await addSession('s', T(2026, 10, 15, 10), [[bench, 80, 5]])
+    const total = await finishSession('s')
+    expect(total).toBeGreaterThan(0)
+    expect((await db.sessions.get('s'))!.endedAt).toBeDefined()
+    expect(await db.scoreEvents.where('sessionId').equals('s').count()).toBe(1)
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
   })
 })

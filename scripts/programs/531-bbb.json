@@ -1,0 +1,705 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "531-bbb",
+  "name": {
+    "en": "5/3/1 Boring But Big",
+    "it": "5/3/1 Boring But Big"
+  },
+  "description": {
+    "en": "Four-week waves on a training max (TM, about 90 % of your best): 5s, 3s, 5/3/1 and a deload, with the last main set for max reps. After the main sets, 5×10 at 50 % of the TM of the same lift. The TM goes up 2.5 kg (bench, press) or 5 kg (squat, deadlift) every cycle. Set each training max before the first session.",
+    "it": "Onde di quattro settimane su un massimale di allenamento (TM, circa il 90 % del tuo migliore): settimana da 5, da 3, 5/3/1 e scarico, con l'ultima serie principale al massimo delle ripetizioni. Dopo le serie principali, 5×10 al 50 % del TM della stessa alzata. Il TM sale di 2,5 kg (panca, lento) o di 5 kg (squat, stacco) a ogni ciclo. Imposta ogni massimale di allenamento prima della prima seduta."
+  },
+  "level": "intermediate",
+  "daysPerWeek": 4,
+  "cycleWeeks": 4,
+  "templates": [
+    {
+      "name": {
+        "en": "Press day",
+        "it": "Giorno lento avanti"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 2.5
+          },
+          "setsByWeek": [
+            [
+              {
+                "pct": 0.65,
+                "reps": 5
+              },
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 5,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.7,
+                "reps": 3
+              },
+              {
+                "pct": 0.8,
+                "reps": 3
+              },
+              {
+                "pct": 0.9,
+                "reps": 3,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 3
+              },
+              {
+                "pct": 0.95,
+                "reps": 1,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.4,
+                "reps": 5
+              },
+              {
+                "pct": 0.5,
+                "reps": 5
+              },
+              {
+                "pct": 0.6,
+                "reps": 5
+              }
+            ]
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Chin-Up",
+            "libraryId": "1326",
+            "muscleGroup": "back",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 5,
+          "targetReps": 8,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dips",
+            "libraryId": "0251",
+            "muscleGroup": "chest",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 5,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Deadlift day",
+        "it": "Giorno stacco"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 5
+          },
+          "setsByWeek": [
+            [
+              {
+                "pct": 0.65,
+                "reps": 5
+              },
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 5,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.7,
+                "reps": 3
+              },
+              {
+                "pct": 0.8,
+                "reps": 3
+              },
+              {
+                "pct": 0.9,
+                "reps": 3,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 3
+              },
+              {
+                "pct": 0.95,
+                "reps": 1,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.4,
+                "reps": 5
+              },
+              {
+                "pct": 0.5,
+                "reps": 5
+              },
+              {
+                "pct": 0.6,
+                "reps": 5
+              }
+            ]
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Hanging Leg Raise",
+            "libraryId": "0472",
+            "muscleGroup": "core",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 5,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Back Extension",
+            "libraryId": "0489",
+            "muscleGroup": "back",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Bench day",
+        "it": "Giorno panca"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 2.5
+          },
+          "setsByWeek": [
+            [
+              {
+                "pct": 0.65,
+                "reps": 5
+              },
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 5,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.7,
+                "reps": 3
+              },
+              {
+                "pct": 0.8,
+                "reps": 3
+              },
+              {
+                "pct": 0.9,
+                "reps": 3,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 3
+              },
+              {
+                "pct": 0.95,
+                "reps": 1,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.4,
+                "reps": 5
+              },
+              {
+                "pct": 0.5,
+                "reps": 5
+              },
+              {
+                "pct": 0.6,
+                "reps": 5
+              }
+            ]
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Row",
+            "libraryId": "0293",
+            "muscleGroup": "back",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 5,
+          "targetReps": 10,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Face Pull",
+            "libraryId": "0203",
+            "muscleGroup": "shoulders",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 12,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Squat day",
+        "it": "Giorno squat"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 5
+          },
+          "setsByWeek": [
+            [
+              {
+                "pct": 0.65,
+                "reps": 5
+              },
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 5,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.7,
+                "reps": 3
+              },
+              {
+                "pct": 0.8,
+                "reps": 3
+              },
+              {
+                "pct": 0.9,
+                "reps": 3,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.75,
+                "reps": 5
+              },
+              {
+                "pct": 0.85,
+                "reps": 3
+              },
+              {
+                "pct": 0.95,
+                "reps": 1,
+                "amrap": true
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              },
+              {
+                "pct": 0.5,
+                "reps": 10
+              }
+            ],
+            [
+              {
+                "pct": 0.4,
+                "reps": 5
+              },
+              {
+                "pct": 0.5,
+                "reps": 5
+              },
+              {
+                "pct": 0.6,
+                "reps": 5
+              }
+            ]
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Leg Curl",
+            "libraryId": "0586",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 5,
+          "targetReps": 10,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Ab Wheel Rollout",
+            "libraryId": "0857",
+            "muscleGroup": "core",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    }
+  ]
+}

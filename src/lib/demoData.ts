@@ -61,6 +61,7 @@ const DATE_FIELDS: Record<TableName, DateFields> = {
   tombstones: { ms: ['deletedAt', 'updatedAt'] },
   coachHistory: { days: ['date'], ms: ['generatedAt', 'updatedAt'] },
   plannedFoods: { days: ['date'], ms: ['plannedAt', 'updatedAt'] },
+  programs: { days: ['cycleStartDate'], ms: ['endedAt', 'updatedAt'] },
 }
 
 /** Tables whose primary key is a local day: a tombstone of one of their rows names it by date. */
@@ -191,7 +192,7 @@ export function rebaseDemoTables(
  */
 const USER_TABLES = [
   'templates', 'sessions', 'sets', 'foods', 'foodLogs', 'savedMeals', 'dayTypes', 'bodyLog',
-  'waterLogs', 'coachHistory', 'plannedFoods',
+  'waterLogs', 'coachHistory', 'plannedFoods', 'programs',
 ] as const satisfies readonly TableName[]
 
 /**

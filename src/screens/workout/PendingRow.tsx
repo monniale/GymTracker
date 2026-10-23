@@ -31,12 +31,18 @@ export interface PendingProps {
   suggestion: ProgressionSuggestion | null
   /** This row's opening values came from the AI plan (F2). */
   aiFilled?: boolean
+  /** The program prescribes this set as AMRAP: reps show as "5+" and the set logs as 'amrap'
+   * unless the user picks another type. */
+  amrap?: boolean
+  /** The program's prescription label (src/lib/prescription.ts), shown in place of the suggestion chip. */
+  schemeLabel?: string
   platesFor: (w: number) => string | null
   onLog: (weightKg: number, reps: number, isWarmup: boolean, extra: LogExtra) => void
 }
 
 export function PendingRow({
-  setNumber, initWeight, initReps, bodyweightKg, bodyweightLoad = false, loadOf, suggestion, aiFilled, platesFor, onLog,
+  setNumber, initWeight, initReps, bodyweightKg, bodyweightLoad = false, loadOf, suggestion, aiFilled, amrap = false,
+  schemeLabel, platesFor, onLog,
 }: PendingProps) {
   const [weight, setWeight] = useState(initWeight)
   const [reps, setReps] = useState(initReps)
@@ -44,8 +50,9 @@ export function PendingRow({
   const [warmup, setWarmup] = useState(false)
   const [confirmHeavy, setConfirmHeavy] = useState(false)
   // Effort and type start empty on every row (no carry-over): the row remounts after each log.
+  // A prescribed AMRAP set starts as 'amrap'.
   const [rpe, setRpe] = useState<number | undefined>(undefined)
-  const [setType, setSetType] = useState<ExtraSetType | undefined>(undefined)
+  const [setType, setSetType] = useState<ExtraSetType | undefined>(amrap ? 'amrap' : undefined)
   const scale = useUiStore(s => s.effortScale)
 
   // Once the user edits a field, async-arriving prefill/AI values must not clobber
@@ -56,6 +63,10 @@ export function PendingRow({
   const editReps = (v: number) => { touchedR.current = true; setReps(v) }
   useEffect(() => { if (!touchedW.current) setWeight(initWeight) }, [initWeight])
   useEffect(() => { if (!touchedR.current) setReps(initReps) }, [initReps])
+  // The prescription can arrive after mount (history loads async): follow it until the user picks a type.
+  const touchedT = useRef(false)
+  const pickType = (v: ExtraSetType | undefined) => { touchedT.current = true; setSetType(v) }
+  useEffect(() => { if (!touchedT.current) setSetType(amrap ? 'amrap' : undefined) }, [amrap])
 
   const tooHeavy = (loadOf ? loadOf(weight) : weight) > bodyweightKg * SCORING.maxWeightBwMult
   // A 'hold' suggestion is advice (last time was near max effort), so it shows even when the row already matches.
@@ -74,6 +85,7 @@ export function PendingRow({
     onLog(weight, reps, warmup, { rpe, setType: warmup ? undefined : setType })
   }
   const kind = setKind({ isWarmup: warmup, setType })
+  const repsPlus = kind === 'amrap' ? '+' : ''
 
   return (
     <div className="rounded-xl border border-primary/40 bg-surface px-3 py-2">
@@ -96,7 +108,14 @@ export function PendingRow({
           </span>
         </button>
       )}
-      {aiFilled && !showSuggestion && (
+      {schemeLabel && !showSuggestion && (
+        <p className="mb-1.5 flex min-w-0">
+          <span className="num max-w-full truncate rounded-xl bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary">
+            {schemeLabel}
+          </span>
+        </p>
+      )}
+      {aiFilled && !showSuggestion && !schemeLabel && (
         <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary">
           <Sparkles size={12} /> {t('workout.pending.aiSuggested')}
         </p>
@@ -108,15 +127,16 @@ export function PendingRow({
           className="num flex-1 py-1 text-left font-display text-xl font-bold active:opacity-70"
           aria-label={t('workout.pending.adjust')}
         >
+          {/* An AMRAP set reads "× 5+" (reps = the minimum) instead of carrying the A badge. */}
           {bodyweightLoad
-            ? <NoBreakParts text={fmtSetLoad({ weightKg: weight, reps }, true)} />
-            : `${weight > 0 ? `${fmtNum(weight)} kg` : '— kg'} × ${reps}`}
-          <SetBadges set={{ isWarmup: warmup, setType, rpe }} scale={scale} />
+            ? <NoBreakParts text={`${fmtSetLoad({ weightKg: weight, reps }, true)}${repsPlus}`} />
+            : `${weight > 0 ? `${fmtNum(weight)} kg` : '— kg'} × ${reps}${repsPlus}`}
+          <SetBadges set={{ isWarmup: warmup, setType: setType === 'amrap' ? undefined : setType, rpe }} scale={scale} />
         </button>
         <button
           onClick={() => {
             // Warm-up is its own kind: turning it on drops a chosen drop/failure/AMRAP type.
-            if (!warmup) setSetType(undefined)
+            if (!warmup) pickType(undefined)
             setWarmup(w => !w)
           }}
           aria-label={t('workout.pending.toggleWarmup')}
@@ -145,7 +165,7 @@ export function PendingRow({
             <p className="num mt-1.5 text-center text-xs text-sub">{t('workout.pending.plates', { plates: plateHint })}</p>
           )}
           <EffortChips value={rpe} scale={scale} onChange={setRpe} />
-          <SetTypeChips value={kind} disabled={warmup} onChange={setSetType} />
+          <SetTypeChips value={kind} disabled={warmup} onChange={pickType} />
         </div>
       )}
       {bodyweightLoad && weight < 0 && (

@@ -115,6 +115,10 @@ export default {
     step: 'Progression step',
     bwFactor: 'Bodyweight share',
     bwFactorHint: 'Share of your bodyweight this move lifts (pull-up 100%, push-up about 64%). It sets the load of this move in every workout logged with bodyweight load; points already earned stay.',
+    trainingMax: 'Training max',
+    trainingMaxHint: 'Percentage programs (5/3/1, nSuns) work from this weight. 0 = not set.',
+    /** Fills the training max with 90 % of the best working e1RM logged (snapped to 2.5 kg). */
+    useDerived: 'Use 90 % of best ({kg} kg)',
   },
   pending: {
     newWeight: 'new weight',
@@ -171,6 +175,13 @@ export default {
     shareError: 'Could not create the image.',
     creating: 'Creating image…',
     share: 'Share card',
+    /** What the program changed for this exercise after this workout (TemplateItem.progress). */
+    outcome: {
+      up: '+{kg} kg next time',
+      repeat: 'Repeat',
+      deload: 'Deload',
+      tmUp: 'TM +{kg} kg',
+    },
   },
   history: {
     title: 'Past workouts',

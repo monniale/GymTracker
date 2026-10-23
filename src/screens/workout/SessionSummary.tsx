@@ -16,9 +16,13 @@ import { sessionCardModel, renderSessionCard, shareImage, cardFileName, loadCard
 import { isCardioSet, cardioSessionTotals, cardioMinutes, fmtCardioSet } from '../../lib/cardio'
 import { haptic } from '../../native/haptics'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
-import { effectiveLoad } from '../../lib/load'
+import { effectiveLoad, usesBodyweightLoad } from '../../lib/load'
+import { applyOutcome, currentWeek } from '../../lib/prescription'
+import { programForTemplate } from '../../lib/programs'
+import { suggestNext } from '../../lib/progression'
+import { sessionItems } from '../../lib/sessionItems'
 import { t, tp, fmtNum } from '../../i18n'
-import type { Exercise, Id, ScoreEvent, Session, SetRow } from '../../types'
+import type { Exercise, Id, Program, ScoreEvent, Session, SetRow, WorkoutTemplate } from '../../types'
 
 export default function SessionSummary() {
   const { id } = useParams()
@@ -45,6 +49,15 @@ export default function SessionSummary() {
   const cardioIds = [...new Set(sets.filter(isCardioSet).map(s => String(s.exerciseId)))]
   // The session's exercises: cardio names, and the bodyweight factor of bodyweight sets for the volume.
   const exMap = useLiveQuery(() => exercisesOf(sets), [[...new Set(sets.map(s => String(s.exerciseId)))].join('|')])
+  // The program outcome of each template line this workout progressed (TemplateItem.progress).
+  const template = useLiveQuery(
+    async () => (session?.templateId != null ? (await db.templates.get(session.templateId)) ?? null : null),
+    [session?.templateId],
+  )
+  const program = useLiveQuery(
+    async () => (session?.templateId != null ? (await programForTemplate(session.templateId)) ?? null : null),
+    [session?.templateId],
+  )
   const cardioNames = new Map(cardioIds.map(id => {
     const ex = exMap?.get(sets.find(s => String(s.exerciseId) === id)!.exerciseId)
     return [id, ex ? exerciseDisplayName(ex.name) : t('workout.summary.cardio')]
@@ -79,6 +92,7 @@ export default function SessionSummary() {
   const duration = session.endedAt ? session.endedAt - session.startedAt : 0
 
   const hasPr = event.breakdown.some(b => b.e1rmPr || b.volumePr)
+  const outcomes = template && exMap ? outcomeChips(session, template, program ?? undefined, sets, exMap) : new Map<string, string>()
 
   return (
     <div className="pt-6 text-center">
@@ -178,7 +192,15 @@ export default function SessionSummary() {
 
         {event.breakdown.map(b => (
           <div key={b.exerciseId} className="flex items-center gap-2 rounded-xl bg-card px-4 py-2.5">
-            <span className="min-w-0 flex-1 truncate font-medium">{exerciseDisplayName(b.exerciseName)}</span>
+            {/* The outcome sits under the name, so the row never gets wider at 320 px. */}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{exerciseDisplayName(b.exerciseName)}</span>
+              {outcomes.has(String(b.exerciseId)) && (
+                <span className="num mt-0.5 inline-block max-w-full truncate whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs font-semibold text-sub">
+                  {outcomes.get(String(b.exerciseId))}
+                </span>
+              )}
+            </span>
             {b.e1rmPr && (
               <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
                 <Award size={12} /> {t('workout.summary.e1rmPr')}
@@ -286,6 +308,69 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
       <span className="shrink-0">{value}</span>
     </div>
   )
+}
+
+/**
+ * Outcome chip per exercise (String(exerciseId) → label) for the template lines whose
+ * `progress.lastSessionId` is this session: "+2.5 kg next time", "Repeat", "Deload", "TM +5 kg".
+ * Read-only: the progression itself was applied once by finishSession.
+ * - linear: the stored outcome; a pass shows the step to `progress.nextWeightKg`;
+ * - percent: the training-max bump this workout earned (the engine's own rule, replayed on the
+ *   item without its stored progress); nothing when the TM stays;
+ * - double: a pass shows the weight step the next session suggests.
+ */
+function outcomeChips(
+  session: Session,
+  template: WorkoutTemplate,
+  program: Program | undefined,
+  sets: SetRow[],
+  exMap: Map<Id, Exercise>,
+): Map<string, string> {
+  const out = new Map<string, string>()
+  // Template lines after this session's swaps: the progress lives on the line, the sets on the
+  // exercise that stood in it (index-aligned with template.items).
+  const lines = sessionItems(template, { extraExerciseIds: [], swaps: session.swaps }, exMap)
+  const week = program ? currentWeek(program, localDateStr(new Date(session.startedAt))) : 1
+  template.items.forEach((item, i) => {
+    const progress = item.progress
+    const exId = lines[i]?.exerciseId ?? item.exerciseId
+    const ex = exMap.get(exId)
+    const key = String(exId)
+    if (!progress || !ex || out.has(key) || String(progress.lastSessionId) !== String(session.id)) return
+    const logged = sets.filter(s => String(s.exerciseId) === key)
+    const work = logged.filter(s => !s.isWarmup && !isCardioSet(s) && s.reps > 0)
+    if (work.length === 0) return
+    const straight = work.filter(s => s.setType !== 'drop')
+    const top = Math.max(...(straight.length > 0 ? straight : work).map(s => s.weightKg))
+    const up = (kg: number) => t('workout.summary.outcome.up', { kg: fmtNum(Math.round(kg * 100) / 100) })
+    const kind = item.scheme?.kind ?? 'double'
+
+    if (kind === 'linear') {
+      if (progress.lastOutcome === 'deload') out.set(key, t('workout.summary.outcome.deload'))
+      else if (progress.lastOutcome === 'fail') out.set(key, t('workout.summary.outcome.repeat'))
+      else if (progress.lastOutcome === 'pass' && progress.nextWeightKg !== undefined && progress.nextWeightKg > top) {
+        out.set(key, up(progress.nextWeightKg - top))
+      }
+      return
+    }
+    if (kind === 'percent') {
+      const tm = ex.trainingMaxKg
+      if (tm === undefined || tm <= 0) return
+      const replay = applyOutcome({ ...item, progress: undefined }, ex, logged, {
+        week, cycleWeeks: program?.cycleWeeks, sessionId: session.id!,
+      })
+      const bump = replay.trainingMaxKg !== undefined ? replay.trainingMaxKg - tm : 0
+      if (bump > 0) out.set(key, t('workout.summary.outcome.tmUp', { kg: fmtNum(Math.round(bump * 100) / 100) }))
+      return
+    }
+    if (progress.lastOutcome !== 'pass') return
+    const next = suggestNext(work, item.targetReps, ex.progressionStepKg ?? 2.5, {
+      bodyweight: usesBodyweightLoad(ex, session),
+      targetRepsMax: item.targetRepsMax,
+    })
+    if (next?.reason === 'weight-up' && next.weightKg > top) out.set(key, up(next.weightKg - top))
+  })
+  return out
 }
 
 /** The exercises of a session's sets, by id. */

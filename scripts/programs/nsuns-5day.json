@@ -1,0 +1,628 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "nsuns-5day",
+  "name": {
+    "en": "nSuns 5-day",
+    "it": "nSuns 5 giorni"
+  },
+  "description": {
+    "en": "A high-volume percentage program on a training max (TM): every day pairs a heavy main lift (T1, nine sets) with a secondary lift (T2, eight sets). The 95 % set marked 1+ of each T1 lift is for max reps and sets the weekly TM change: 0–1 reps no change, 2–3 reps +2.5 kg, 4 or more +5 kg (bench moves on Day 5: the Day 1 bench ends with an 8+ set that does not change it). T2 lifts use their own training max and add 2.5 kg a week (sumo deadlift and front squat 5 kg) when every set is done; the Day 1 overhead press follows the Day 3 press. Add two or three accessories of your choice. Set each training max before the first session.",
+    "it": "Un programma a percentuali ad alto volume su un massimale di allenamento (TM): ogni giorno abbina un'alzata principale pesante (T1, nove serie) a una secondaria (T2, otto serie). La serie al 95 % segnata 1+ di ogni alzata T1 va al massimo delle ripetizioni e decide la variazione settimanale del TM: 0–1 ripetizioni nessuna, 2–3 ripetizioni +2,5 kg, 4 o più +5 kg (la panca cambia il giorno 5: la panca del giorno 1 finisce con una serie 8+ che non lo cambia). Le alzate T2 usano il proprio massimale e aggiungono 2,5 kg a settimana (stacco sumo e front squat 5 kg) se completi tutte le serie; il lento avanti del giorno 1 segue quello del giorno 3. Aggiungi due o tre complementari a scelta. Imposta ogni massimale di allenamento prima della prima seduta."
+  },
+  "level": "advanced",
+  "daysPerWeek": 5,
+  "cycleWeeks": 1,
+  "templates": [
+    {
+      "name": {
+        "en": "Day 1 · Bench / OHP",
+        "it": "Giorno 1 · Panca / Lento"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 9,
+          "targetReps": 4,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 0
+          },
+          "sets": [
+            {
+              "pct": 0.65,
+              "reps": 8
+            },
+            {
+              "pct": 0.75,
+              "reps": 6
+            },
+            {
+              "pct": 0.85,
+              "reps": 4
+            },
+            {
+              "pct": 0.85,
+              "reps": 4
+            },
+            {
+              "pct": 0.85,
+              "reps": 4
+            },
+            {
+              "pct": 0.8,
+              "reps": 5
+            },
+            {
+              "pct": 0.75,
+              "reps": 6
+            },
+            {
+              "pct": 0.7,
+              "reps": 7
+            },
+            {
+              "pct": 0.65,
+              "reps": 8,
+              "amrap": true
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 0
+          },
+          "sets": [
+            {
+              "pct": 0.5,
+              "reps": 6
+            },
+            {
+              "pct": 0.6,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 3
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 7
+            },
+            {
+              "pct": 0.7,
+              "reps": 4
+            },
+            {
+              "pct": 0.7,
+              "reps": 6
+            },
+            {
+              "pct": 0.7,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Day 2 · Squat / Sumo",
+        "it": "Giorno 2 · Squat / Sumo"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 9,
+          "targetReps": 1,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 0,
+            "tmBumpByReps": [
+              {
+                "minReps": 0,
+                "kg": 0
+              },
+              {
+                "minReps": 2,
+                "kg": 2.5
+              },
+              {
+                "minReps": 4,
+                "kg": 5
+              }
+            ]
+          },
+          "sets": [
+            {
+              "pct": 0.75,
+              "reps": 5
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.95,
+              "reps": 1,
+              "amrap": true
+            },
+            {
+              "pct": 0.9,
+              "reps": 3
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.8,
+              "reps": 3
+            },
+            {
+              "pct": 0.75,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.65,
+              "reps": 5
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Sumo Deadlift",
+            "libraryId": "0117",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 5
+          },
+          "sets": [
+            {
+              "pct": 0.5,
+              "reps": 6
+            },
+            {
+              "pct": 0.6,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 3
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 7
+            },
+            {
+              "pct": 0.7,
+              "reps": 4
+            },
+            {
+              "pct": 0.7,
+              "reps": 6
+            },
+            {
+              "pct": 0.7,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Day 3 · OHP / Incline",
+        "it": "Giorno 3 · Lento / Inclinata"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 9,
+          "targetReps": 1,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 0,
+            "tmBumpByReps": [
+              {
+                "minReps": 0,
+                "kg": 0
+              },
+              {
+                "minReps": 2,
+                "kg": 2.5
+              },
+              {
+                "minReps": 4,
+                "kg": 5
+              }
+            ]
+          },
+          "sets": [
+            {
+              "pct": 0.75,
+              "reps": 5
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.95,
+              "reps": 1,
+              "amrap": true
+            },
+            {
+              "pct": 0.9,
+              "reps": 3
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.8,
+              "reps": 3
+            },
+            {
+              "pct": 0.75,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.65,
+              "reps": 5
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Incline Bench Press",
+            "libraryId": "0047",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 2.5
+          },
+          "sets": [
+            {
+              "pct": 0.5,
+              "reps": 6
+            },
+            {
+              "pct": 0.6,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 3
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 7
+            },
+            {
+              "pct": 0.7,
+              "reps": 4
+            },
+            {
+              "pct": 0.7,
+              "reps": 6
+            },
+            {
+              "pct": 0.7,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Day 4 · Deadlift / Front squat",
+        "it": "Giorno 4 · Stacco / Front squat"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 9,
+          "targetReps": 1,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 0,
+            "tmBumpByReps": [
+              {
+                "minReps": 0,
+                "kg": 0
+              },
+              {
+                "minReps": 2,
+                "kg": 2.5
+              },
+              {
+                "minReps": 4,
+                "kg": 5
+              }
+            ]
+          },
+          "sets": [
+            {
+              "pct": 0.75,
+              "reps": 5
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.95,
+              "reps": 1,
+              "amrap": true
+            },
+            {
+              "pct": 0.9,
+              "reps": 3
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.8,
+              "reps": 3
+            },
+            {
+              "pct": 0.75,
+              "reps": 3
+            },
+            {
+              "pct": 0.7,
+              "reps": 3
+            },
+            {
+              "pct": 0.65,
+              "reps": 3
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Front Squat",
+            "libraryId": "0042",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 5
+          },
+          "sets": [
+            {
+              "pct": 0.5,
+              "reps": 6
+            },
+            {
+              "pct": 0.6,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 3
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 7
+            },
+            {
+              "pct": 0.7,
+              "reps": 4
+            },
+            {
+              "pct": 0.7,
+              "reps": 6
+            },
+            {
+              "pct": 0.7,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Day 5 · Bench / Close grip",
+        "it": "Giorno 5 · Panca / Presa stretta"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 9,
+          "targetReps": 1,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 0,
+            "tmBumpByReps": [
+              {
+                "minReps": 0,
+                "kg": 0
+              },
+              {
+                "minReps": 2,
+                "kg": 2.5
+              },
+              {
+                "minReps": 4,
+                "kg": 5
+              }
+            ]
+          },
+          "sets": [
+            {
+              "pct": 0.75,
+              "reps": 5
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.95,
+              "reps": 1,
+              "amrap": true
+            },
+            {
+              "pct": 0.9,
+              "reps": 3
+            },
+            {
+              "pct": 0.85,
+              "reps": 3
+            },
+            {
+              "pct": 0.8,
+              "reps": 3
+            },
+            {
+              "pct": 0.75,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.65,
+              "reps": 5
+            }
+          ]
+        },
+        {
+          "exercise": {
+            "name": "Close-Grip Bench Press",
+            "libraryId": "0030",
+            "muscleGroup": "triceps",
+            "equipment": "barbell"
+          },
+          "targetSets": 8,
+          "targetReps": 3,
+          "scheme": {
+            "kind": "percent",
+            "basis": "tm",
+            "tmStepKg": 2.5
+          },
+          "sets": [
+            {
+              "pct": 0.5,
+              "reps": 6
+            },
+            {
+              "pct": 0.6,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 3
+            },
+            {
+              "pct": 0.7,
+              "reps": 5
+            },
+            {
+              "pct": 0.7,
+              "reps": 7
+            },
+            {
+              "pct": 0.7,
+              "reps": 4
+            },
+            {
+              "pct": 0.7,
+              "reps": 6
+            },
+            {
+              "pct": 0.7,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
