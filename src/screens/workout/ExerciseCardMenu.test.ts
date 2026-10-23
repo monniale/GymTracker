@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db } from '../../db/db'
 import { sessionItems } from '../../lib/sessionItems'
-import { swapCandidates, swapSessionExercise } from './ExerciseCardMenu'
+import { swapCandidates, swapSessionExercise, SwapTemplateConflict } from './ExerciseCardMenu'
 import type { ExerciseLibrary, LibraryExercise } from '../../lib/exerciseLibrary'
 import type { Equipment, Exercise, Id, MuscleGroup, Session, WorkoutTemplate } from '../../types'
 
@@ -106,6 +106,22 @@ describe('swapSessionExercise', () => {
     expect(session.extraExerciseIds).toEqual([3])
     expect(session.swaps).toBeUndefined()
     expect(template.items.map(i => i.exerciseId)).toEqual([1, 2])
+  })
+
+  it('refuses to also put the exercise of another template line on this one', async () => {
+    // Line 1 swapped from 1 to 3 for today only; line 2 then swapped to 1 with "also update the template".
+    const first = { ...SESSION, swaps: [{ from: 1, to: 3 }] }
+    await db.sessions.put(first)
+    await expect(
+      swapSessionExercise(first, { exerciseId: 2 }, 1, { fromTemplate: true, hasLogged: false, template: TPL, updateTemplate: true }),
+    ).rejects.toBeInstanceOf(SwapTemplateConflict)
+    const { session, template } = await load()
+    expect(template.items.map(i => i.exerciseId)).toEqual([1, 2])
+    expect(session.swaps).toEqual([{ from: 1, to: 3 }])
+    // For this workout only it still works, and line 1 keeps its swap.
+    await swapSessionExercise(first, { exerciseId: 2 }, 1, { fromTemplate: true, hasLogged: false, template: TPL })
+    const after = await load()
+    expect(sessionItems(after.template, after.session, exMap).map(i => i.exerciseId)).toEqual([3, 1])
   })
 })
 

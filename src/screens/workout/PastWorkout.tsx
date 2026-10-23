@@ -14,7 +14,7 @@ import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet 
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { normalizeRpe, setKind } from '../../lib/setTypes'
 import { useUiStore } from '../../lib/uiStore'
-import { EffortChips, SetBadges, SetTypeChips, type ExtraSetType } from './PendingRow'
+import { EffortChips, NoBreakParts, SetBadges, SetTypeChips, type ExtraSetType } from './PendingRow'
 import { t } from '../../i18n'
 import type { Equipment, Exercise, Id, Session, SetRow } from '../../types'
 
@@ -155,7 +155,7 @@ export default function PastWorkout() {
                 >
                   <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                   <span className="num flex-1 font-display text-lg font-semibold">
-                    {isCardioSet(s) ? fmtCardioSet(s) : fmtSetLoad(s, usesBodyweightLoad(exercise, session))}
+                    {isCardioSet(s) ? fmtCardioSet(s) : <NoBreakParts text={fmtSetLoad(s, usesBodyweightLoad(exercise, session))} />}
                     {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                     {!isCardioSet(s) && <SetBadges set={s} scale={effortScale} />}
                   </span>

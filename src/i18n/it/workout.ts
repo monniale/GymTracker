@@ -88,6 +88,7 @@ const workout: Dict['workout'] = {
     pickNamed: 'Usa {name}',
     failed: 'Impossibile sostituire l’esercizio.',
     alreadyInSession: 'Già in questo allenamento.',
+    alreadyInTemplate: 'Già nella scheda. Disattiva “Aggiorna anche la scheda” per sostituirlo solo in questo allenamento.',
     swappedFrom: 'Al posto di {name}',
     swappedOut: 'Sostituito',
   },

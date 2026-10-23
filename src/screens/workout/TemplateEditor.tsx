@@ -8,7 +8,7 @@ import NumberStepper from '../../components/NumberStepper'
 import { defaultTemplateItem, isCardioExercise } from '../../lib/cardio'
 import ExercisePicker from './ExercisePicker'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
-import { WEEKDAY_LABELS } from '../../lib/dates'
+import { WEEKDAY_FULL_NAMES, WEEKDAY_LABELS } from '../../lib/dates'
 import { t } from '../../i18n'
 import type { Exercise, TemplateItem } from '../../types'
 
@@ -86,6 +86,7 @@ export default function TemplateEditor() {
                 key={d}
                 type="button"
                 aria-pressed={active}
+                aria-label={WEEKDAY_FULL_NAMES[i]}
                 onClick={() => toggleWeekday(d)}
                 className={`h-9 min-w-0 truncate rounded-lg text-sm font-semibold ${
                   active ? 'bg-primary/15 text-primary' : 'bg-card text-sub'

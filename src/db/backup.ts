@@ -4,6 +4,7 @@ import { isNative } from '../native/platform'
 import { t } from '../i18n'
 import { useUiStore } from '../lib/uiStore'
 import { clearDemoLeftovers } from '../lib/demoData'
+import { healStampedE1rm } from '../lib/finishSession'
 
 export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
@@ -60,6 +61,9 @@ export async function applyTables(tables: Partial<TableDump>): Promise<boolean> 
           await db.table(name).bulkPut(rows)
         }
       }
+      // Stored e1rm of stamped bodyweight rows is derived: re-derive it from the merged or
+      // imported exercises and sessions (rows from another device or an older build).
+      await healStampedE1rm()
     }),
   )
   emitDataReplaced()

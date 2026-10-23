@@ -95,6 +95,7 @@ export default {
     pickNamed: 'Swap to {name}',
     failed: 'Could not swap the exercise.',
     alreadyInSession: 'Already in this workout.',
+    alreadyInTemplate: 'Already in this template. Turn off “Also update the template” to swap for this workout only.',
     swappedFrom: 'Swapped from {name}',
     swappedOut: 'Swapped out',
   },

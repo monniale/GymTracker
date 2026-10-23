@@ -28,7 +28,7 @@ describe('gatherWidgetState', () => {
     expect(s).toEqual({
       points: 2450, tier: 'Gold III', tierColor: '#E8B93B', streakWeeks: 3,
       weekDone: 1, weekTarget: 4, nextWorkout: 'Pull', nextWorkoutUntil: T(2026, 10, 16), nextWorkoutTomorrow: 'Pull',
-      weekEndsAt: T(2026, 10, 19), updatedAt: T(2026, 10, 15, 12),
+      nextWorkoutByDay: Array(7).fill('Pull'), weekEndsAt: T(2026, 10, 19), updatedAt: T(2026, 10, 15, 12),
     })
   })
 
@@ -43,6 +43,8 @@ describe('gatherWidgetState', () => {
     // Wed 14 Oct: no schedule, rotation; after midnight (Thursday) the widget switches to Legs.
     expect(await gatherWidgetState(T(2026, 10, 14, 12))).toMatchObject({
       nextWorkout: 'Pull', nextWorkoutUntil: T(2026, 10, 15), nextWorkoutTomorrow: 'Legs',
+      // With the app closed for days: Legs on Thursday (getDay 4), the rotation (Pull) on the others.
+      nextWorkoutByDay: ['Pull', 'Pull', 'Pull', 'Pull', 'Legs', 'Pull', 'Pull'],
     })
 
     await db.sessions.add({ name: 'Legs', templateId: legs, startedAt: T(2026, 10, 15, 8), endedAt: T(2026, 10, 15, 9), bodyweightKg: 80, extraExerciseIds: [] })

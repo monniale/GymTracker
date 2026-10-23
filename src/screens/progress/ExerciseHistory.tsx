@@ -13,7 +13,7 @@ import { libraryIdOf, useExerciseLibrary } from '../../lib/exerciseLibrary'
 import { hasInvolvement, involvement } from '../../lib/muscleMap'
 import { useUiStore } from '../../lib/uiStore'
 import { InvolvementFigure } from '../../components/library/BodyFigure'
-import { SetBadges } from '../workout/PendingRow'
+import { NoBreakParts, SetBadges } from '../workout/PendingRow'
 import { t, tp, fmtNum } from '../../i18n'
 import type { Exercise, Id, Session } from '../../types'
 
@@ -183,7 +183,7 @@ function SessionCard({
           <span key={s.id} className="flex items-center gap-2 py-0.5">
             <span className="num w-6 shrink-0 text-sm font-semibold text-sub">{s.setNumber}</span>
             <span className="num min-w-0 flex-1 font-semibold">
-              {isCardioSet(s) ? fmtCardioSet(s) : fmtSetLoad(s, bw)}
+              {isCardioSet(s) ? fmtCardioSet(s) : <NoBreakParts text={fmtSetLoad(s, bw)} />}
               {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
               {!isCardioSet(s) && <SetBadges set={s} scale={scale} />}
             </span>

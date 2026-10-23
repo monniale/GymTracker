@@ -18,7 +18,7 @@ import { haptic } from '../../native/haptics'
 import ExercisePicker from './ExercisePicker'
 import { NoteSheet } from './NoteSheet'
 import { CardMenuSheet, SwapSheet } from './ExerciseCardMenu'
-import { PendingRow, CardioPendingRow, SetBadges, type LogExtra } from './PendingRow'
+import { PendingRow, CardioPendingRow, NoBreakParts, SetBadges, type LogExtra } from './PendingRow'
 import { normalizeRpe } from '../../lib/setTypes'
 import { useUiStore } from '../../lib/uiStore'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
@@ -489,7 +489,7 @@ function ExerciseCard({
               >
                 <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                 <span className="num flex-1 font-display text-lg font-semibold">
-                  {isCardioSet(s) ? fmtCardioSet(s) : loadLabel(s)}
+                  {isCardioSet(s) ? fmtCardioSet(s) : <NoBreakParts text={loadLabel(s)} />}
                   {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                   {!isCardioSet(s) && <SetBadges set={s} scale={effortScale} />}
                 </span>

@@ -23,6 +23,14 @@ import type { Equipment, Exercise, Id, MuscleGroup, Session, WorkoutTemplate } f
 /** Most swap candidates listed (my exercises first, then the library). */
 const MAX_CANDIDATES = 30
 
+/** "Also update the template" would put `toId` on a second line of the template (nothing written). */
+export class SwapTemplateConflict extends Error {
+  constructor() {
+    super('swap target is already another line of the template')
+    this.name = 'SwapTemplateConflict'
+  }
+}
+
 /**
  * Swap the exercise of a live-session card for `toId`, for this session only.
  * - An added exercise (not a template line) is replaced in `Session.extraExerciseIds`, keeping
@@ -35,7 +43,10 @@ const MAX_CANDIDATES = 30
  *   `toId` too (items mapped, `updatedAt` stamped like TemplateEditor). The session then gets a
  *   swap entry only when `from` already has logged sets (to keep them on a swapped-out card), and
  *   one more when an earlier swap would move the rewritten line away from `toId` (swapping back
- *   to the original): that entry brings the line back to `toId`.
+ *   to the original): that entry brings the line back to `toId`. It throws `SwapTemplateConflict`
+ *   (and writes nothing) when `toId` is already another line of the template, e.g. a line that
+ *   was swapped away for this session: two lines would name it and the extra swap entry would
+ *   undo that other line's swap.
  */
 export async function swapSessionExercise(
   session: Pick<Session, 'id' | 'extraExerciseIds' | 'swaps'>,
@@ -55,6 +66,10 @@ export async function swapSessionExercise(
   const sid = session.id!
   const tpl = opts.template
   const rewriteTemplate = !!opts.updateTemplate && opts.fromTemplate && tpl?.id !== undefined
+  const origin = item.swappedFrom ?? from
+  if (rewriteTemplate && tpl!.items.some(it => it.exerciseId !== origin && it.exerciseId === toId)) {
+    throw new SwapTemplateConflict()
+  }
   const swaps = session.swaps ?? []
   const addSwap = { swaps: [...swaps, { from, to: toId }] }
   await db.transaction('rw', db.sessions, db.templates, async () => {
@@ -77,7 +92,6 @@ export async function swapSessionExercise(
       if (next.length !== swaps.length) await db.sessions.update(sid, { swaps: next })
     }
     if (rewriteTemplate && tpl?.id !== undefined) {
-      const origin = item.swappedFrom ?? from
       await db.templates.update(tpl.id, {
         items: tpl.items.map(it => (it.exerciseId === origin ? { ...it, exerciseId: toId } : it)),
         updatedAt: Date.now(),
@@ -249,8 +263,9 @@ export function SwapSheet({ onClose, session, template, item, exercise, fromTemp
         fromTemplate, hasLogged, template, updateTemplate: canUpdateTemplate && updateTemplate,
       })
       onClose()
-    } catch {
-      setError(t('workout.swap.failed'))
+    } catch (e) {
+      setPickerOpen(false)
+      setError(t(e instanceof SwapTemplateConflict ? 'workout.swap.alreadyInTemplate' : 'workout.swap.failed'))
     } finally {
       setBusy(false)
     }

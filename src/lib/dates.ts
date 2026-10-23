@@ -53,6 +53,9 @@ export const MONTH_NAMES: string[] = MONTH_KEYS.map(k => t(`lib.dates.monthShort
 /** Weekday headers for a Monday-first month grid (matches `mondayOf`), in the UI language. */
 export const WEEKDAY_LABELS: string[] = WEEKDAY_KEYS.map(k => t(`lib.dates.weekdayHeader.${k}`))
 
+/** Full weekday names, Monday first like `WEEKDAY_LABELS` ("Monday" / "lunedì"), in the UI language. */
+export const WEEKDAY_FULL_NAMES: string[] = WEEKDAY_KEYS.map(k => t(`lib.dates.weekdayFull.${k}`))
+
 /** First day of the month containing `s` (YYYY-MM-01). */
 export function startOfMonth(s: string): string {
   const d = parseLocalDate(s)

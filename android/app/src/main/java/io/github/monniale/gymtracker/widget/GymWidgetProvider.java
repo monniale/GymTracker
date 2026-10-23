@@ -15,6 +15,9 @@ import io.github.monniale.gymtracker.MainActivity;
 import io.github.monniale.gymtracker.R;
 import io.github.monniale.gymtracker.resttimer.RestTimerController;
 import java.text.NumberFormat;
+import java.util.Calendar;
+import org.json.JSONArray;
+import org.json.JSONException;
 
 /**
  * Home-screen widget: rank tier, points, streak, this week's sessions vs target and the next
@@ -36,6 +39,8 @@ public class GymWidgetProvider extends AppWidgetProvider {
     static final String K_WEEK_ENDS_AT = "weekEndsAt";
     static final String K_NEXT_UNTIL = "nextWorkoutUntil";
     static final String K_NEXT_TOMORROW = "nextWorkoutTomorrow";
+    /** JSON array of 7 names indexed by weekday (0 = Sunday): the pick of each later day. */
+    static final String K_NEXT_BY_DAY = "nextWorkoutByDay";
 
     /** PendingIntent request code of the widget tap (ROUTEMAP invariant 16). */
     private static final int RC_OPEN = 4301;
@@ -87,10 +92,11 @@ public class GymWidgetProvider extends AppWidgetProvider {
             long weekEndsAt = p.getLong(K_WEEK_ENDS_AT, 0L);
             int done = weekEndsAt > 0 && System.currentTimeMillis() >= weekEndsAt ? 0 : p.getInt(K_WEEK_DONE, 0);
             int target = Math.max(1, p.getInt(K_WEEK_TARGET, 3));
-            // The day changed since the last push: tomorrow's pick (the weekday schedule moves it).
+            // The day changed since the last push: the current weekday's pick (the weekday
+            // schedule moves it; nothing was finished meanwhile, so it repeats every week).
             long nextUntil = p.getLong(K_NEXT_UNTIL, 0L);
             String next = nextUntil > 0 && System.currentTimeMillis() >= nextUntil
-                ? p.getString(K_NEXT_TOMORROW, "")
+                ? laterPick(p)
                 : p.getString(K_NEXT, "");
 
             v.setTextViewText(R.id.widget_tier, p.getString(K_TIER, ""));
@@ -112,6 +118,20 @@ public class GymWidgetProvider extends AppWidgetProvider {
             // bad stored values: keep whatever the layout already shows
         }
         return v;
+    }
+
+    /** Today's entry of `K_NEXT_BY_DAY`, else (missing or bad) the stored tomorrow pick. */
+    private static String laterPick(@NonNull SharedPreferences p) {
+        String fallback = p.getString(K_NEXT_TOMORROW, "");
+        String json = p.getString(K_NEXT_BY_DAY, null);
+        if (json == null) return fallback;
+        try {
+            JSONArray days = new JSONArray(json);
+            int idx = Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY;
+            return days.length() == 7 ? days.optString(idx, fallback) : fallback;
+        } catch (JSONException e) {
+            return fallback;
+        }
     }
 
     private static int parseColor(String hex) {

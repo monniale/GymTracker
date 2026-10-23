@@ -5,6 +5,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -32,6 +33,9 @@ public class WidgetPlugin extends Plugin {
             e.putInt(GymWidgetProvider.K_WEEK_TARGET, call.getInt("weekTarget", 3));
             e.putString(GymWidgetProvider.K_NEXT, call.getString("nextWorkout", ""));
             e.putString(GymWidgetProvider.K_NEXT_TOMORROW, call.getString("nextWorkoutTomorrow", ""));
+            JSArray byDay = call.getArray("nextWorkoutByDay");
+            if (byDay != null) e.putString(GymWidgetProvider.K_NEXT_BY_DAY, byDay.toString());
+            else e.remove(GymWidgetProvider.K_NEXT_BY_DAY);
             Long nextUntil = call.getLong("nextWorkoutUntil");
             e.putLong(GymWidgetProvider.K_NEXT_UNTIL, nextUntil != null ? nextUntil : 0L);
             Long weekEndsAt = call.getLong("weekEndsAt");
