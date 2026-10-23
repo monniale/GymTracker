@@ -40,13 +40,17 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(T(2026, 10, 15, 12))
   vi.stubGlobal('localStorage', memoryStorage())
+  await freshDb()
+})
+
+async function freshDb() {
   db.close()
   await Dexie.delete('gymtracker')
   await db.open()
   await ensureSeeded()
   await db.rankState.update(1, { seasonStart: '2026-10-01', points: 500, streakWeeks: 2, lastStreakWeek: '2026-10-05' })
   await db.bodyLog.put({ date: '2026-09-01', weightKg: 82 })
-})
+}
 
 afterEach(() => {
   vi.useRealTimers()
@@ -158,6 +162,47 @@ describe('importing bodyweight sets', () => {
     expect(ev.prBonus).toBe(0)
     await rescoreSession(s.id!)
     expect((await db.scoreEvents.where('sessionId').equals(s.id!).first())!.total).toBe(ev.total)
+  })
+})
+
+describe('importing RPE and set types', () => {
+  const HEAD = 'Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE'
+  const rows = (tagged: boolean) => [
+    HEAD,
+    `2026-09-20 18:00:00,Push,1h,Bench Press (Barbell),1,100,5,0,0,,,${tagged ? '8' : ''}`,
+    `2026-10-05 18:00:00,Push,1h,Bench Press (Barbell),W,40,10,0,0,,,${tagged ? '5' : ''}`,
+    `2026-10-05 18:00:00,Push,1h,Bench Press (Barbell),1,105,5,0,0,,,${tagged ? '8.5' : ''}`,
+    `2026-10-05 18:00:00,Push,1h,Bench Press (Barbell),${tagged ? 'D' : '2'},80,8,0,0,,,${tagged ? 'junk' : ''}`,
+    `2026-10-05 18:00:00,Push,1h,Bench Press (Barbell),${tagged ? 'F' : '3'},70,12,0,0,,,${tagged ? '10' : ''}`,
+  ].join('\n')
+
+  it('stores RPE and drop/failure types; a working set stores neither key', async () => {
+    await applyImport(parseHistoryCsv(rows(true)))
+    const s = (await db.sessions.orderBy('startedAt').toArray())[1]
+    const sets = await db.sets.where('sessionId').equals(s.id!).sortBy('completedAt')
+    expect(sets.map(x => [x.isWarmup, x.setType, x.rpe])).toEqual([
+      // RPE 5 clamps to the scale's floor of 6.
+      [true, undefined, 6],
+      [false, undefined, 8.5],
+      [false, 'drop', undefined],
+      [false, 'failure', 10],
+    ])
+    expect('setType' in sets[1]).toBe(false)
+    expect('rpe' in sets[2]).toBe(false)
+  })
+
+  it('scores the same as the untagged file: set type and RPE are metadata only', async () => {
+    const tagged = await applyImport(parseHistoryCsv(rows(true)))
+    const taggedEvents = (await db.scoreEvents.orderBy('date').toArray()).map(e => [e.date, e.total, e.prBonus, e.basePoints])
+    const taggedRank = (await db.rankState.get(1))!.points
+    await freshDb()
+    const plain = await applyImport(parseHistoryCsv(rows(false)))
+    const plainEvents = (await db.scoreEvents.orderBy('date').toArray()).map(e => [e.date, e.total, e.prBonus, e.basePoints])
+    expect(tagged.pointsAdded).toBe(plain.pointsAdded)
+    expect(tagged.pointsAdded).toBeGreaterThan(0)
+    expect(taggedEvents).toEqual(plainEvents)
+    expect(taggedRank).toBe((await db.rankState.get(1))!.points)
+    expect((await db.sets.toArray()).some(x => 'rpe' in x || 'setType' in x)).toBe(false)
   })
 })
 

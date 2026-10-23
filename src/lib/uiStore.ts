@@ -31,7 +31,12 @@ export interface UiStore {
    */
   demoLoaded: boolean
   setDemoLoaded: (v: boolean) => void
+  /** How set effort is shown and entered: RPE ("@8") or reps in reserve ("RIR 2"). Sets always store RPE. */
+  effortScale: EffortScale
+  setEffortScale: (scale: EffortScale) => void
 }
+
+export type EffortScale = 'rpe' | 'rir'
 
 const UI_KEY = 'gymtracker-ui'
 
@@ -44,6 +49,8 @@ export const useUiStore = create<UiStore>()(
       setShowExerciseMedia: showExerciseMedia => set({ showExerciseMedia }),
       demoLoaded: false,
       setDemoLoaded: demoLoaded => set({ demoLoaded }),
+      effortScale: 'rpe',
+      setEffortScale: effortScale => set({ effortScale }),
     }),
     {
       name: UI_KEY,
@@ -51,6 +58,7 @@ export const useUiStore = create<UiStore>()(
         language: s.language,
         showExerciseMedia: s.showExerciseMedia,
         demoLoaded: s.demoLoaded,
+        effortScale: s.effortScale,
       }),
       merge: (persisted, current) => {
         const p = persisted as Partial<UiStore> | undefined
@@ -60,6 +68,7 @@ export const useUiStore = create<UiStore>()(
           language: lang === 'en' || lang === 'it' ? lang : current.language,
           showExerciseMedia: p?.showExerciseMedia === true,
           demoLoaded: p?.demoLoaded === true,
+          effortScale: p?.effortScale === 'rir' ? 'rir' : 'rpe',
         }
       },
     },

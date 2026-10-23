@@ -1,11 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, Sparkles } from 'lucide-react'
 import { SCORING } from '../../lib/scoring'
 import type { ProgressionSuggestion } from '../../lib/progression'
 import { fmtCardioSet, type CardioDraft } from '../../lib/cardio'
 import { fmtSetLoad } from '../../lib/load'
+import { SET_TYPES, fmtEffort, rirOf, setKind, setTypeBadge, setTypeLabel, type SetKind } from '../../lib/setTypes'
+import { useUiStore } from '../../lib/uiStore'
+import type { SetRow } from '../../types'
 import NumberStepper from '../../components/NumberStepper'
 import { t, fmtNum } from '../../i18n'
+
+/** A set type other than warm-up (`isWarmup`) and working (stored as no `setType`). */
+export type ExtraSetType = Exclude<SetKind, 'warmup' | 'working'>
+
+/** Effort and set type logged with a set; both absent means a plain working set. */
+export interface LogExtra {
+  rpe?: number
+  setType?: ExtraSetType
+}
 
 export interface PendingProps {
   setNumber: number
@@ -20,7 +32,7 @@ export interface PendingProps {
   /** This row's opening values came from the AI plan (F2). */
   aiFilled?: boolean
   platesFor: (w: number) => string | null
-  onLog: (weightKg: number, reps: number, isWarmup: boolean) => void
+  onLog: (weightKg: number, reps: number, isWarmup: boolean, extra: LogExtra) => void
 }
 
 export function PendingRow({
@@ -31,6 +43,10 @@ export function PendingRow({
   const [expanded, setExpanded] = useState(false)
   const [warmup, setWarmup] = useState(false)
   const [confirmHeavy, setConfirmHeavy] = useState(false)
+  // Effort and type start empty on every row (no carry-over): the row remounts after each log.
+  const [rpe, setRpe] = useState<number | undefined>(undefined)
+  const [setType, setSetType] = useState<ExtraSetType | undefined>(undefined)
+  const scale = useUiStore(s => s.effortScale)
 
   // Once the user edits a field, async-arriving prefill/AI values must not clobber
   // it — so we only re-seed fields the user hasn't touched (F2 "auto-fill untouched").
@@ -42,8 +58,9 @@ export function PendingRow({
   useEffect(() => { if (!touchedR.current) setReps(initReps) }, [initReps])
 
   const tooHeavy = (loadOf ? loadOf(weight) : weight) > bodyweightKg * SCORING.maxWeightBwMult
+  // A 'hold' suggestion is advice (last time was near max effort), so it shows even when the row already matches.
   const showSuggestion =
-    suggestion !== null && (suggestion.weightKg !== weight || suggestion.reps !== reps)
+    suggestion !== null && (suggestion.reason === 'hold' || suggestion.weightKg !== weight || suggestion.reps !== reps)
   // No plates on a bodyweight exercise; an assisted set (machine/band) can go down to -bodyweight.
   const plateHint = expanded && !bodyweightLoad ? platesFor(weight) : null
   const minWeight = bodyweightLoad ? -Math.floor(bodyweightKg) : 0
@@ -54,8 +71,9 @@ export function PendingRow({
       setConfirmHeavy(true)
       return
     }
-    onLog(weight, reps, warmup)
+    onLog(weight, reps, warmup, { rpe, setType: warmup ? undefined : setType })
   }
+  const kind = setKind({ isWarmup: warmup, setType })
 
   return (
     <div className="rounded-xl border border-primary/40 bg-surface px-3 py-2">
@@ -65,11 +83,16 @@ export function PendingRow({
             editWeight(suggestion.weightKg)
             editReps(suggestion.reps)
           }}
-          className="num mb-1.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary active:bg-primary/30"
+          className="num mb-1.5 flex flex-wrap items-center gap-x-1 rounded-xl bg-primary/15 px-2.5 py-1 text-left text-xs font-bold text-primary active:bg-primary/30"
         >
-          ↑ {bodyweightLoad ? fmtSetLoad(suggestion, true) : `${fmtNum(suggestion.weightKg)} kg × ${suggestion.reps}`}
-          <span className="font-medium opacity-70">
-            {suggestion.reason === 'weight-up' ? t('workout.pending.newWeight') : t('workout.pending.oneMoreRep')}
+          {/* Load and reason each stay whole; at 320 px the reason drops to its own line. */}
+          <span className="whitespace-nowrap">
+            {suggestion.reason === 'hold' ? '=' : '↑'} {bodyweightLoad ? fmtSetLoad(suggestion, true) : `${fmtNum(suggestion.weightKg)} kg × ${suggestion.reps}`}
+          </span>
+          <span className="whitespace-nowrap font-medium opacity-70">
+            {suggestion.reason === 'weight-up'
+              ? t('workout.pending.newWeight')
+              : suggestion.reason === 'hold' ? t('workout.pending.hold') : t('workout.pending.oneMoreRep')}
           </span>
         </button>
       )}
@@ -88,9 +111,14 @@ export function PendingRow({
           {bodyweightLoad
             ? <NoBreakParts text={fmtSetLoad({ weightKg: weight, reps }, true)} />
             : `${weight > 0 ? `${fmtNum(weight)} kg` : '— kg'} × ${reps}`}
+          <SetBadges set={{ isWarmup: warmup, setType, rpe }} scale={scale} />
         </button>
         <button
-          onClick={() => setWarmup(w => !w)}
+          onClick={() => {
+            // Warm-up is its own kind: turning it on drops a chosen drop/failure/AMRAP type.
+            if (!warmup) setSetType(undefined)
+            setWarmup(w => !w)
+          }}
           aria-label={t('workout.pending.toggleWarmup')}
           aria-pressed={warmup}
           className={`flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold ${
@@ -116,6 +144,8 @@ export function PendingRow({
           {plateHint && (
             <p className="num mt-1.5 text-center text-xs text-sub">{t('workout.pending.plates', { plates: plateHint })}</p>
           )}
+          <EffortChips value={rpe} scale={scale} onChange={setRpe} />
+          <SetTypeChips value={kind} disabled={warmup} onChange={setSetType} />
         </div>
       )}
       {bodyweightLoad && weight < 0 && (
@@ -205,6 +235,116 @@ function NoBreakParts({ text }: { text: string }) {
     <>
       <span className="whitespace-nowrap">{text.slice(0, i)}</span>{' '}
       <span className="whitespace-nowrap">{text.slice(i + 1)}</span>
+    </>
+  )
+}
+
+/** RPE 6–10 in 0.5 steps, the values the effort chips offer (shown as RIR 4–0 on the RIR scale). */
+const RPE_CHOICES = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
+
+/** Effort chips: "—" (none) then RPE 6…10 or RIR 4…0. Tapping the selected chip clears it. Wraps at 320 px. */
+export function EffortChips({
+  value, scale, onChange,
+}: {
+  value: number | undefined
+  scale: 'rpe' | 'rir'
+  onChange: (rpe: number | undefined) => void
+}) {
+  const label = scale === 'rir' ? t('workout.pending.rir') : t('workout.pending.rpe')
+  return (
+    <div className="mt-2">
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-sub">{label}</p>
+      <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+        <Chip active={value === undefined} onClick={() => onChange(undefined)} ariaLabel={t('workout.pending.effortNoneLabel')}>
+          {t('workout.pending.effortNone')}
+        </Chip>
+        {RPE_CHOICES.map(v => (
+          <Chip key={v} active={value === v} onClick={() => onChange(value === v ? undefined : v)}>
+            {fmtNum(scale === 'rir' ? rirOf(v) : v)}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Set-type chips (Working, Drop, Failure, AMRAP). Disabled while the set is a warm-up. */
+export function SetTypeChips({
+  value, disabled, onChange,
+}: {
+  value: SetKind
+  disabled: boolean
+  onChange: (type: ExtraSetType | undefined) => void
+}) {
+  const label = t('workout.pending.setType')
+  return (
+    <div className="mt-2">
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-sub">{label}</p>
+      <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+        {SET_TYPES.map(kind => (
+          <Chip
+            key={kind}
+            active={!disabled && value === kind}
+            disabled={disabled}
+            onClick={() => onChange(kind === 'working' || value === kind ? undefined : kind)}
+          >
+            {setTypeLabel(kind)}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Chip({
+  active, disabled, onClick, ariaLabel, children,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  ariaLabel?: string
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      aria-label={ariaLabel}
+      className={`num min-h-[36px] min-w-[36px] shrink-0 whitespace-nowrap rounded-lg px-2.5 text-sm font-semibold disabled:opacity-40 ${
+        active ? 'bg-primary/15 text-primary' : 'bg-muted/30 text-sub active:bg-muted/50'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** The effort ("@8" / "RIR 2") and type badge (D / F / A) shown after a set's load; nothing for a plain set. */
+export function SetBadges({
+  set, scale,
+}: {
+  set: Pick<SetRow, 'isWarmup' | 'setType' | 'rpe'>
+  scale: 'rpe' | 'rir'
+}) {
+  const effort = fmtEffort(set.rpe, scale)
+  const kind = setKind(set)
+  const badge = setTypeBadge(kind)
+  if (!effort && !badge) return null
+  return (
+    <>
+      {effort && <span className="num ml-2 whitespace-nowrap text-sm font-semibold text-sub">{effort}</span>}
+      {badge && (
+        <span
+          title={setTypeLabel(kind)}
+          className="ml-1.5 inline-block whitespace-nowrap rounded-md bg-primary/15 px-1.5 align-middle text-xs font-bold text-primary"
+        >
+          {/* A plain span cannot carry an aria-label: screen readers get the full name, not the letter. */}
+          <span aria-hidden="true">{badge}</span>
+          <span className="sr-only">{setTypeLabel(kind)}</span>
+        </span>
+      )}
     </>
   )
 }

@@ -12,6 +12,9 @@ import NumberStepper from '../../components/NumberStepper'
 import { EQUIPMENT_LABEL } from '../../lib/equipment'
 import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet } from '../../lib/cardio'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { normalizeRpe, setKind } from '../../lib/setTypes'
+import { useUiStore } from '../../lib/uiStore'
+import { EffortChips, SetBadges, SetTypeChips, type ExtraSetType } from './PendingRow'
 import { t } from '../../i18n'
 import type { Equipment, Exercise, Id, Session, SetRow } from '../../types'
 
@@ -33,6 +36,7 @@ export default function PastWorkout() {
   const [editSet, setEditSet] = useState<SetRow | null>(null)
   const [editDetails, setEditDetails] = useState(false)
   const [busy, setBusy] = useState(false)
+  const effortScale = useUiStore(s => s.effortScale)
 
   // Group by exercise in first-logged order; sets sorted by setNumber.
   const groups = useMemo(() => {
@@ -153,6 +157,7 @@ export default function PastWorkout() {
                   <span className="num flex-1 font-display text-lg font-semibold">
                     {isCardioSet(s) ? fmtCardioSet(s) : fmtSetLoad(s, usesBodyweightLoad(exercise, session))}
                     {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
+                    {!isCardioSet(s) && <SetBadges set={s} scale={effortScale} />}
                   </span>
                   <Pencil size={15} className="shrink-0 text-sub" />
                 </button>
@@ -221,6 +226,13 @@ function SetSheet({
   const [weight, setWeight] = useState(set.weightKg)
   const [reps, setReps] = useState(set.reps)
   const [warmup, setWarmup] = useState(set.isWarmup)
+  const [rpe, setRpe] = useState<number | undefined>(normalizeRpe(set.rpe))
+  // A stored 'working' (never written, but tolerated) reads as no type.
+  const initialKind = setKind({ isWarmup: false, setType: set.setType })
+  const [setType, setSetType] = useState<ExtraSetType | undefined>(
+    initialKind === 'working' || initialKind === 'warmup' ? undefined : initialKind,
+  )
+  const effortScale = useUiStore(s => s.effortScale)
   const [busy, setBusy] = useState(false)
   const cardio = isCardioSet(set)
   const [min, setMin] = useState(Math.floor((set.durationSec ?? 0) / 60))
@@ -237,7 +249,12 @@ function SetSheet({
     try {
       await db.sets.update(set.id!, cardio
         ? cardioFields({ durationSec: min * 60 + sec, distanceM: Math.round(km * 1000) })
-        : { weightKg: weight, reps, isWarmup: warmup, e1rm: setE1rm({ weightKg: weight, reps }, exercise, session) })
+        : {
+            weightKg: weight, reps, isWarmup: warmup, e1rm: setE1rm({ weightKg: weight, reps }, exercise, session),
+            // undefined removes the field (Dexie update): a cleared effort or a working/warm-up set stores none.
+            rpe,
+            setType: warmup ? undefined : setType,
+          })
       await onRescore()
       onClose()
     } finally {
@@ -300,6 +317,16 @@ function SetSheet({
           >
             {warmup ? t('workout.past.warmupSet') : t('workout.past.workingSet')}
           </button>
+        )}
+        {!cardio && (
+          <div>
+            <EffortChips value={rpe} scale={effortScale} onChange={setRpe} />
+            <SetTypeChips
+              value={setKind({ isWarmup: warmup, setType })}
+              disabled={warmup}
+              onChange={setSetType}
+            />
+          </div>
         )}
         <button
           onClick={() => void save()}
