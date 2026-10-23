@@ -1,27 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles, BookOpen } from 'lucide-react'
+import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { useNow, useWakeLock } from '../../lib/hooks'
-import { epley, SCORING } from '../../lib/scoring'
-import { suggestNext, type ProgressionSuggestion } from '../../lib/progression'
+import { epley } from '../../lib/scoring'
+import { suggestNext } from '../../lib/progression'
 import { platesPerSide, formatPlates, warmupRamp, DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
 import { useWorkoutPlan } from '../../lib/workoutSuggest'
 import { finishSession } from '../../lib/finishSession'
 import { fmtDuration } from '../../lib/dates'
 import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet, type CardioDraft } from '../../lib/cardio'
-import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
+import { EQUIPMENT_LABEL } from '../../lib/equipment'
+import { sessionItems, type SessionItem } from '../../lib/sessionItems'
 import { haptic } from '../../native/haptics'
-import NumberStepper from '../../components/NumberStepper'
-import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
-import ExerciseDetailSheet from '../../components/library/ExerciseDetailSheet'
-import { libraryIdOf, useExerciseLibrary } from '../../lib/exerciseLibrary'
+import { NoteSheet } from './NoteSheet'
+import { PendingRow, CardioPendingRow } from './PendingRow'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t, tp, fmtNum } from '../../i18n'
-import type { Equipment, Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
+import type { Exercise, Id, PlannedSet, SetRow } from '../../types'
 
 const WARMUP_REST_SEC = 30
 
@@ -64,24 +63,14 @@ export default function ActiveSession() {
   if (!activeSessionId) return finishing ? null : <Navigate to="/workout" replace />
   if (!session || (session.templateId !== undefined && !template)) return null
 
-  // Template exercises first, then anything added mid-session.
-  const items: TemplateItem[] = [...(template?.items ?? [])]
+  // Template exercises first, then anything added mid-session (cardio adds: one 20-minute set).
+  const items = sessionItems(template, session, exMap)
   const itemIds = new Set(items.map(i => i.exerciseId))
-  for (const exId of session.extraExerciseIds) {
-    if (!itemIds.has(exId)) {
-      const ex = exMap.get(exId)
-      // Cardio added mid-session: one 20-minute set (targetReps = minutes; mirrors coachBriefing).
-      items.push(isCardioExercise(ex)
-        ? { exerciseId: exId, targetSets: 1, targetReps: 20, restSec: ex?.defaultRestSec }
-        : { exerciseId: exId, targetSets: 3, targetReps: 8, restSec: ex?.defaultRestSec })
-      itemIds.add(exId)
-    }
-  }
 
   // Work sets done per exercise: drives the rest-timer "what's next" label (Android lock screen).
   const workDone = new Map<Id, number>()
   for (const s of sets) if (!s.isWarmup) workDone.set(s.exerciseId, (workDone.get(s.exerciseId) ?? 0) + 1)
-  const hasSetsLeft = (it: TemplateItem) => (workDone.get(it.exerciseId) ?? 0) < it.targetSets
+  const hasSetsLeft = (it: SessionItem) => (workDone.get(it.exerciseId) ?? 0) < it.targetSets
   const shownName = (id: Id) => {
     const ex = exMap.get(id)
     return ex ? exerciseDisplayName(ex.name) : '…'
@@ -194,7 +183,7 @@ export default function ActiveSession() {
 }
 
 interface CardProps {
-  item: TemplateItem
+  item: SessionItem
   exercise?: Exercise
   sessionId: Id
   sessionSets: SetRow[]
@@ -512,286 +501,6 @@ function ExerciseCard({
 
       {exercise && (
         <NoteSheet open={noteOpen} onClose={() => setNoteOpen(false)} exercise={exercise} />
-      )}
-    </div>
-  )
-}
-
-function NoteSheet({ open, onClose, exercise }: {
-  open: boolean
-  onClose: () => void
-  exercise: Exercise
-}) {
-  const [text, setText] = useState(exercise.notes ?? '')
-  const [step, setStep] = useState(exercise.progressionStepKg ?? 2.5)
-  const [equip, setEquip] = useState<Equipment>(exercise.equipment ?? 'other')
-  const [logAs, setLogAs] = useState<'strength' | 'cardio'>(isCardioExercise(exercise) ? 'cardio' : 'strength')
-
-  async function save() {
-    const byGroup = exercise.muscleGroup === 'cardio' ? 'cardio' : 'strength'
-    await db.exercises.update(exercise.id!, {
-      notes: text.trim() || undefined,
-      progressionStepKg: step,
-      equipment: equip,
-      // Only store an override; matching the muscle-group default clears it.
-      kind: logAs === byGroup ? undefined : logAs,
-    })
-    onClose()
-  }
-
-  return (
-    <Sheet open={open} onClose={onClose} title={exerciseDisplayName(exercise.name)}>
-      {libraryIdOf(exercise) && <HowTo exercise={exercise} libId={libraryIdOf(exercise)!} />}
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">
-        {t('workout.notes.label')}
-      </label>
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        rows={3}
-        className="w-full rounded-xl bg-card p-3 text-base"
-        placeholder={t('workout.notes.placeholder')}
-      />
-      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.shared.equipment')}</p>
-      <div className="flex flex-wrap gap-2">
-        {EQUIPMENTS.map(eq => (
-          <button
-            key={eq}
-            onClick={() => setEquip(eq)}
-            className={`min-h-[40px] whitespace-nowrap rounded-full px-3 text-sm font-medium ${
-              equip === eq ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
-            }`}
-          >
-            {EQUIPMENT_LABEL[eq]}
-          </button>
-        ))}
-      </div>
-      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.notes.logAs')}</p>
-      <div className="flex gap-2" role="group" aria-label={t('workout.notes.logAs')}>
-        {(['strength', 'cardio'] as const).map(k => (
-          <button
-            key={k}
-            onClick={() => setLogAs(k)}
-            aria-pressed={logAs === k}
-            className={`min-h-[40px] flex-1 whitespace-nowrap rounded-full px-3 text-sm font-medium ${
-              logAs === k ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
-            }`}
-          >
-            {k === 'strength' ? t('workout.notes.strength') : t('workout.notes.cardio')}
-          </button>
-        ))}
-      </div>
-      <div className={`mt-3 items-center justify-between ${logAs === 'cardio' ? 'hidden' : 'flex'}`}>
-        <NumberStepper
-          label={t('workout.notes.step')}
-          value={step}
-          onChange={setStep}
-          step={1.25}
-          min={1.25}
-          max={10}
-          unit="kg"
-        />
-      </div>
-      <button
-        onClick={save}
-        className="mt-4 w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
-      >
-        {t('common.save')}
-      </button>
-    </Sheet>
-  )
-}
-
-/** "How to" for an exercise linked to the library: opens its instructions (and animation, if on). */
-function HowTo({ exercise, libId }: { exercise: Exercise; libId: string }) {
-  const { library } = useExerciseLibrary()
-  const [open, setOpen] = useState(false)
-  const lib = library?.byId.get(libId)
-  if (!lib) return null
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="mb-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-muted/40 font-semibold text-ink active:bg-muted"
-      >
-        <BookOpen size={18} /> {t('library.howTo')}
-      </button>
-      <ExerciseDetailSheet open={open} onClose={() => setOpen(false)} library={library} lib={lib} exercise={exercise} />
-    </>
-  )
-}
-
-interface PendingProps {
-  setNumber: number
-  initWeight: number
-  initReps: number
-  bodyweightKg: number
-  suggestion: ProgressionSuggestion | null
-  /** This row's opening values came from the AI plan (F2). */
-  aiFilled?: boolean
-  platesFor: (w: number) => string | null
-  onLog: (weightKg: number, reps: number, isWarmup: boolean) => void
-}
-
-function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion, aiFilled, platesFor, onLog }: PendingProps) {
-  const [weight, setWeight] = useState(initWeight)
-  const [reps, setReps] = useState(initReps)
-  const [expanded, setExpanded] = useState(false)
-  const [warmup, setWarmup] = useState(false)
-  const [confirmHeavy, setConfirmHeavy] = useState(false)
-
-  // Once the user edits a field, async-arriving prefill/AI values must not clobber
-  // it — so we only re-seed fields the user hasn't touched (F2 "auto-fill untouched").
-  const touchedW = useRef(false)
-  const touchedR = useRef(false)
-  const editWeight = (v: number) => { touchedW.current = true; setWeight(v) }
-  const editReps = (v: number) => { touchedR.current = true; setReps(v) }
-  useEffect(() => { if (!touchedW.current) setWeight(initWeight) }, [initWeight])
-  useEffect(() => { if (!touchedR.current) setReps(initReps) }, [initReps])
-
-  const tooHeavy = weight > bodyweightKg * SCORING.maxWeightBwMult
-  const showSuggestion =
-    suggestion !== null && (suggestion.weightKg !== weight || suggestion.reps !== reps)
-  const plateHint = expanded ? platesFor(weight) : null
-
-  function submit() {
-    if (reps <= 0) return
-    if (tooHeavy && !confirmHeavy) {
-      setConfirmHeavy(true)
-      return
-    }
-    onLog(weight, reps, warmup)
-  }
-
-  return (
-    <div className="rounded-xl border border-primary/40 bg-surface px-3 py-2">
-      {showSuggestion && (
-        <button
-          onClick={() => {
-            editWeight(suggestion.weightKg)
-            editReps(suggestion.reps)
-          }}
-          className="num mb-1.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary active:bg-primary/30"
-        >
-          ↑ {fmtNum(suggestion.weightKg)} kg × {suggestion.reps}
-          <span className="font-medium opacity-70">
-            {suggestion.reason === 'weight-up' ? t('workout.pending.newWeight') : t('workout.pending.oneMoreRep')}
-          </span>
-        </button>
-      )}
-      {aiFilled && !showSuggestion && (
-        <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary">
-          <Sparkles size={12} /> {t('workout.pending.aiSuggested')}
-        </p>
-      )}
-      <div className="flex items-center gap-2">
-        <span className="num w-6 text-sm font-semibold text-primary">{setNumber}</span>
-        <button
-          onClick={() => setExpanded(x => !x)}
-          className="num flex-1 py-1 text-left font-display text-xl font-bold active:opacity-70"
-          aria-label={t('workout.pending.adjust')}
-        >
-          {weight > 0 ? `${fmtNum(weight)} kg` : '— kg'} × {reps}
-        </button>
-        <button
-          onClick={() => setWarmup(w => !w)}
-          aria-label={t('workout.pending.toggleWarmup')}
-          aria-pressed={warmup}
-          className={`flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold ${
-            warmup ? 'bg-muted text-ink' : 'bg-muted/30 text-sub'
-          }`}
-        >
-          W
-        </button>
-        <button
-          onClick={submit}
-          aria-label={t('workout.pending.logSet')}
-          className="flex h-12 w-14 items-center justify-center rounded-xl bg-primary text-bg active:opacity-90"
-        >
-          <Check size={26} strokeWidth={3} />
-        </button>
-      </div>
-      {expanded && (
-        <div className="mt-2 border-t border-edge/50 pt-2">
-          <div className="flex flex-wrap justify-around gap-2">
-            <NumberStepper label="kg" value={weight} onChange={editWeight} step={2.5} min={0} max={600} compact="narrow" />
-            <NumberStepper label={t('workout.shared.reps')} value={reps} onChange={editReps} step={1} min={1} max={100} compact="narrow" />
-          </div>
-          {plateHint && (
-            <p className="num mt-1.5 text-center text-xs text-sub">{t('workout.pending.plates', { plates: plateHint })}</p>
-          )}
-        </div>
-      )}
-      {tooHeavy && (
-        <p className="mt-1 text-xs font-medium text-danger">
-          {t('workout.pending.tooHeavy', { mult: SCORING.maxWeightBwMult })}
-        </p>
-      )}
-    </div>
-  )
-}
-
-
-/** The next cardio row: minutes, seconds and an optional distance. Logging needs some time. */
-function CardioPendingRow({ setNumber, init, onLog }: {
-  setNumber: number
-  init: CardioDraft
-  onLog: (d: CardioDraft) => void
-}) {
-  const [min, setMin] = useState(Math.floor(init.durationSec / 60))
-  const [sec, setSec] = useState(init.durationSec % 60)
-  const [km, setKm] = useState(init.distanceM / 1000)
-  const [expanded, setExpanded] = useState(false)
-
-  // Like PendingRow: late prefill never overwrites what the user already changed.
-  const touched = useRef(false)
-  const edit = <T,>(set: (v: T) => void) => (v: T) => { touched.current = true; set(v) }
-  useEffect(() => {
-    if (touched.current) return
-    setMin(Math.floor(init.durationSec / 60))
-    setSec(init.durationSec % 60)
-    setKm(init.distanceM / 1000)
-  }, [init.durationSec, init.distanceM])
-
-  const durationSec = min * 60 + sec
-  const distanceM = Math.round(km * 1000)
-
-  function submit() {
-    if (durationSec <= 0) {
-      setExpanded(true)
-      return
-    }
-    onLog({ durationSec, distanceM })
-  }
-
-  return (
-    <div className="rounded-xl border border-primary/40 bg-surface px-3 py-2">
-      <div className="flex items-center gap-2">
-        <span className="num w-6 text-sm font-semibold text-primary">{setNumber}</span>
-        <button
-          onClick={() => setExpanded(x => !x)}
-          className="num min-w-0 flex-1 truncate py-1 text-left font-display text-xl font-bold active:opacity-70"
-          aria-label={t('workout.pending.adjustCardio')}
-        >
-          {fmtCardioSet({ durationSec, distanceM })}
-        </button>
-        <button
-          onClick={submit}
-          aria-label={t('workout.pending.logCardio')}
-          className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-primary text-bg active:opacity-90"
-        >
-          <Check size={26} strokeWidth={3} />
-        </button>
-      </div>
-      {expanded && (
-        <div className="mt-2 border-t border-edge/50 pt-2">
-          <div className="flex flex-wrap justify-around gap-2">
-            <NumberStepper label="min" value={min} onChange={edit(setMin)} step={1} min={0} max={600} compact />
-            <NumberStepper label="sec" value={sec} onChange={edit(setSec)} step={15} min={0} max={59} compact />
-            <NumberStepper label="km" value={km} onChange={edit(setKm)} step={0.1} min={0} max={300} compact />
-          </div>
-          {durationSec <= 0 && <p className="mt-1 text-xs font-medium text-danger">{t('workout.pending.needTime')}</p>}
-        </div>
       )}
     </div>
   )
