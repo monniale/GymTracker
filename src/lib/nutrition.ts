@@ -30,7 +30,7 @@ export function dayTargets(s: Settings, training: boolean): DayTargets {
   }
 }
 
-export function macrosFor(food: Food, grams: number): MacroTotals {
+export function macrosFor(food: MacroSet, grams: number): MacroTotals {
   const f = grams / 100
   return {
     kcal: food.kcal100 * f,
