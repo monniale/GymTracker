@@ -3,7 +3,7 @@
 ## Status (2026-10-23)
 - Round 1 is done: the nine features of the first plan (training heatmap, rep-range PRs, share card, meal plan, weekly AI coach review, cardio sets, Strong/Hevy import, Android widget, Italian) plus the exercise library (PR #12) and the AI meal estimate (PR #13) are merged into `main`.
 - Round 2 (this file) is approved by the owner. Delivery: one PR per feature, stacked (`feat/NN-<name>` off the previous feature's branch), merged in order. Branch names and order are in **Build order** below.
-- Built so far: 1 (open-source hygiene, `feat/12-oss-hygiene`).
+- Built so far: 1 (open-source hygiene, `feat/12-oss-hygiene`), 2 (releases + update check, `feat/13-releases-update-check`).
 
 ## Context
 Round 1 (docs/FEATURE_PLAN.md, nine features) is built; PR #13 (AI meal estimate, `feat/11-meal-estimate`) is the last one still open. The owner now asks for the next feature round, aimed at making GymTracker the best open-source gym app. "Best" has two axes that the current repo covers unevenly:
