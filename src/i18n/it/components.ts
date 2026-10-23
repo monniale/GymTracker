@@ -1,6 +1,12 @@
 import type { Dict } from '../en'
 
 const components: Dict['components'] = {
+  demo: {
+    banner: 'Dati demo caricati',
+    clear: 'Cancella',
+    confirm: 'Cancellare tutti i dati demo e ripartire con l’app vuota?',
+    error: 'Dati demo: {error}',
+  },
   tabBar: {
     workout: 'Workout',
     diet: 'Dieta',

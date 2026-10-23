@@ -24,6 +24,9 @@ export default {
     start: 'Start',
     newTemplate: 'New workout',
     startEmpty: 'Start an empty session',
+    tryDemo: 'Try with demo data',
+    tryDemoHint: 'See the app with 16 weeks of made-up workouts and meals. You can clear it in Settings.',
+    tryDemoLoading: 'Loading demo data…',
   },
   stopwatch: {
     reset: 'Reset stopwatch',

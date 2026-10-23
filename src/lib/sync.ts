@@ -17,6 +17,7 @@ import {
   GhError, type GhConfig,
 } from './githubApi'
 import { t } from '../i18n'
+import { demoLoadedAnyTab } from './uiStore'
 
 export const DATA_PATH = 'data/current.json'
 
@@ -114,6 +115,13 @@ async function applyRemote(payload: SyncPayload): Promise<void> {
 
 export type SyncOutcome =
   | 'disconnected' | 'busy' | 'up-to-date' | 'pushed' | 'pulled' | 'merged' | 'error'
+  /** Demo data is loaded (uiStore.demoLoaded): nothing was sent or fetched. */
+  | 'demo'
+
+/** Demo data must never reach a sync repo (lib/demoData.ts), whichever tab loaded it. */
+function demoLoaded(): boolean {
+  return demoLoadedAnyTab()
+}
 
 let syncChain: Promise<SyncOutcome> = Promise.resolve('up-to-date')
 
@@ -136,6 +144,7 @@ export function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function doSync(reason: string): Promise<SyncOutcome> {
+  if (demoLoaded()) return 'demo'
   const config = cfg()
   if (!config) return 'disconnected'
   const store = useSyncStore
@@ -241,6 +250,7 @@ export interface ConnectPreview {
 /** Validates token+repo and reports what exists on both sides, so the UI can
  * ask the bootstrap question (use cloud / merge / overwrite) when needed. */
 export async function previewConnection(token: string, repoName: string): Promise<ConnectPreview> {
+  if (demoLoaded()) throw new Error(t('data.sync.demoLoaded'))
   const owner = await getAuthedUser(token)
   const config: GhConfig = { token, owner, repo: repoName }
   if (!(await repoExists(config))) {
@@ -278,6 +288,7 @@ export async function connect(
   repoName: string,
   choice: BootstrapChoice,
 ): Promise<SyncOutcome> {
+  if (demoLoaded()) throw new Error(t('data.sync.demoLoaded'))
   const owner = await getAuthedUser(token)
   useSyncStore.getState().setConnection({ token, owner, repo: repoName })
   const config: GhConfig = { token, owner, repo: repoName }
@@ -317,13 +328,13 @@ export function installSyncTriggers(): void {
 
   let debounce: ReturnType<typeof setTimeout> | undefined
   onSyncDirty(() => {
-    if (!isConnected() || document.visibilityState !== 'visible') return
+    if (demoLoaded() || !isConnected() || document.visibilityState !== 'visible') return
     clearTimeout(debounce)
     debounce = setTimeout(() => void syncNow('write'), 8000)
   })
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && isConnected()) {
+    if (document.visibilityState === 'visible' && isConnected() && !demoLoaded()) {
       void syncNow('foreground')
     }
   })
