@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronLeft, Plus, Pencil, Trash2 } from 'lucide-react'
 import { db, tombstoneKeys } from '../../db/db'
 import { parseRouteId } from '../../lib/ids'
-import { epley } from '../../lib/scoring'
+import { fmtSetLoad, setE1rm, usesBodyweightLoad } from '../../lib/load'
 import { rescoreSession } from '../../lib/finishSession'
 import { fmtDate, fmtDateTime, localDateStr, parseLocalDate } from '../../lib/dates'
 import Sheet from '../../components/Sheet'
@@ -12,8 +12,8 @@ import NumberStepper from '../../components/NumberStepper'
 import { EQUIPMENT_LABEL } from '../../lib/equipment'
 import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet } from '../../lib/cardio'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
-import { t, fmtNum } from '../../i18n'
-import type { Equipment, Exercise, SetRow } from '../../types'
+import { t } from '../../i18n'
+import type { Equipment, Exercise, Id, Session, SetRow } from '../../types'
 
 /** View & edit a finished workout: per-set weight/reps, add/remove sets, and
  * session details. Every change re-scores the session (points/PRs + rank delta). */
@@ -77,7 +77,7 @@ export default function PastWorkout() {
         reps,
         isWarmup: false,
         completedAt: (last?.completedAt ?? Date.now()) + 1,
-        e1rm: epley(weightKg, reps),
+        e1rm: setE1rm({ weightKg, reps }, exMap.get(exId as never), session),
       })
       await rescoreSession(sid!)
     } finally {
@@ -151,7 +151,7 @@ export default function PastWorkout() {
                 >
                   <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                   <span className="num flex-1 font-display text-lg font-semibold">
-                    {isCardioSet(s) ? fmtCardioSet(s) : `${fmtNum(s.weightKg)} kg × ${s.reps}`}
+                    {isCardioSet(s) ? fmtCardioSet(s) : fmtSetLoad(s, usesBodyweightLoad(exercise, session))}
                     {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                   </span>
                   <Pencil size={15} className="shrink-0 text-sub" />
@@ -184,6 +184,7 @@ export default function PastWorkout() {
           key={String(editSet.id)}
           set={editSet}
           exercise={exMap.get(editSet.exerciseId)}
+          session={session}
           onClose={() => setEditSet(null)}
           onRescore={() => rescoreSession(sid!)}
         />
@@ -191,6 +192,7 @@ export default function PastWorkout() {
       {editDetails && (
         <DetailsSheet
           session={session}
+          exMap={exMap}
           onClose={() => setEditDetails(false)}
           onRescore={() => rescoreSession(sid!)}
         />
@@ -208,10 +210,11 @@ function EquipmentBadge({ equipment }: { equipment: Equipment }) {
 }
 
 function SetSheet({
-  set, exercise, onClose, onRescore,
+  set, exercise, session, onClose, onRescore,
 }: {
   set: SetRow
   exercise?: Exercise
+  session: Session
   onClose: () => void
   onRescore: () => Promise<unknown>
 }) {
@@ -224,6 +227,8 @@ function SetSheet({
   const [sec, setSec] = useState((set.durationSec ?? 0) % 60)
   // Exact metres: an imported 3,250 m stays 3,250 m unless the distance is edited.
   const [km, setKm] = useState((set.distanceM ?? 0) / 1000)
+  // Bodyweight exercise on a stamped session: weight is ADDED kg, negative = assisted.
+  const minWeight = usesBodyweightLoad(exercise, session) ? -Math.floor(session.bodyweightKg) : 0
 
   async function save() {
     if (busy) return
@@ -232,7 +237,7 @@ function SetSheet({
     try {
       await db.sets.update(set.id!, cardio
         ? cardioFields({ durationSec: min * 60 + sec, distanceM: Math.round(km * 1000) })
-        : { weightKg: weight, reps, isWarmup: warmup, e1rm: epley(weight, reps) })
+        : { weightKg: weight, reps, isWarmup: warmup, e1rm: setE1rm({ weightKg: weight, reps }, exercise, session) })
       await onRescore()
       onClose()
     } finally {
@@ -281,7 +286,7 @@ function SetSheet({
           </div>
         ) : (
           <div className="flex flex-wrap justify-around gap-2">
-            <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={0} max={600} compact="narrow" />
+            <NumberStepper label="kg" value={weight} onChange={setWeight} step={2.5} min={minWeight} max={600} compact="narrow" />
             <NumberStepper label={t('workout.shared.reps')} value={reps} onChange={setReps} step={1} min={0} max={100} compact="narrow" />
           </div>
         )}
@@ -316,9 +321,10 @@ function SetSheet({
 }
 
 function DetailsSheet({
-  session, onClose, onRescore,
+  session, exMap, onClose, onRescore,
 }: {
-  session: { id?: SetRow['sessionId']; name: string; startedAt: number; endedAt?: number; bodyweightKg: number }
+  session: Session
+  exMap: Map<Id, Exercise>
   onClose: () => void
   onRescore: () => Promise<unknown>
 }) {
@@ -338,6 +344,9 @@ function DetailsSheet({
       target.setHours(orig.getHours(), orig.getMinutes(), orig.getSeconds(), 0)
       const newStart = target.getTime()
       const delta = newStart - session.startedAt
+      // A stamped session scores bodyweight exercises with its bodyweight: their e1rm follows it.
+      const bwRescore = session.bwScoring === true && bw !== session.bodyweightKg
+      const next = { ...session, bodyweightKg: bw }
       await db.transaction('rw', db.sessions, db.sets, async () => {
         await db.sessions.update(session.id!, {
           name: name.trim() || session.name,
@@ -347,9 +356,18 @@ function DetailsSheet({
         })
         // Keep each set's completedAt aligned with the new date, so muscle-volume,
         // progress charts and season PR queries (all keyed on completedAt) move too.
-        if (delta !== 0) {
+        if (delta !== 0 || bwRescore) {
           const rows = await db.sets.where('sessionId').equals(session.id!).toArray()
-          for (const r of rows) await db.sets.update(r.id!, { completedAt: r.completedAt + delta })
+          for (const r of rows) {
+            const changes: Partial<SetRow> = {}
+            if (delta !== 0) changes.completedAt = r.completedAt + delta
+            const ex = exMap.get(r.exerciseId)
+            if (bwRescore && usesBodyweightLoad(ex, next)) {
+              const e1rm = setE1rm(r, ex, next)
+              if (e1rm !== r.e1rm) changes.e1rm = e1rm
+            }
+            if (Object.keys(changes).length > 0) await db.sets.update(r.id!, changes)
+          }
         }
       })
       await onRescore()

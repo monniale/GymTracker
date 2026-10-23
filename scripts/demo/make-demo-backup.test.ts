@@ -27,12 +27,12 @@ import { evaluateQuests } from '../../src/lib/quests'
 import { logFood, totalsForLogs, dayTargets } from '../../src/lib/nutrition'
 import { planFood } from '../../src/lib/mealPlan'
 import { saveJudgement } from '../../src/lib/coachHistory'
-import { epley } from '../../src/lib/scoring'
+import { setE1rm } from '../../src/lib/load'
 import { warmupRamp } from '../../src/lib/plates'
 import { cardioFields } from '../../src/lib/cardio'
 import { localDateStr, addDays, parseLocalDate } from '../../src/lib/dates'
 import { rankForPoints, rankLabelEn, SEASON_CARRYOVER } from '../../src/lib/ranks'
-import type { CoachNote, Id, MealType, TemplateItem, WorkoutTemplate } from '../../src/types'
+import type { CoachNote, Exercise, Id, MealType, Session, TemplateItem, WorkoutTemplate } from '../../src/types'
 
 /* ---------- determinism ---------- */
 
@@ -94,7 +94,7 @@ const WEEKS = 16
 /* ---------- catalog exercises (src/db/seed.ts deterministic ids) ---------- */
 
 const EX = {
-  bench: 1, inclineDbPress: 4, deadlift: 11, latPulldown: 14, cableRow: 17,
+  bench: 1, inclineDbPress: 4, deadlift: 11, pullUp: 12, latPulldown: 14, cableRow: 17,
   ohp: 21, lateralRaise: 24, facePull: 28, pushdown: 39,
   squat: 42, legPress: 45, rdl: 47, legCurl: 50, rowingMachine: 65,
 } as const
@@ -109,6 +109,8 @@ const prog = new Map<Id, Prog>([
   [EX.lateralRaise, { w: 10, reps: [12, 12, 12], lo: 12, hi: 15, step: 2 }],
   [EX.pushdown, { w: 25, reps: [10, 10, 10], lo: 10, hi: 12, step: 2.5 }],
   [EX.deadlift, { w: 130, reps: [5, 5, 4], lo: 4, hi: 6, step: 5 }],
+  // Bodyweight: w is the ADDED kg (0 = bodyweight only), scored as bodyweight + w (src/lib/load.ts).
+  [EX.pullUp, { w: 0, reps: [6, 6, 6], lo: 6, hi: 8, step: 1.25 }],
   [EX.latPulldown, { w: 60, reps: [8, 8, 8], lo: 8, hi: 10, step: 2.5 }],
   [EX.cableRow, { w: 57.5, reps: [8, 8, 8], lo: 8, hi: 10, step: 2.5 }],
   [EX.facePull, { w: 20, reps: [12, 12, 12], lo: 12, hi: 15, step: 2.5 }],
@@ -134,6 +136,7 @@ const TEMPLATE_DEFS: Omit<WorkoutTemplate, 'id' | 'updatedAt'>[] = [
   {
     name: 'Pull', position: 1, items: [
       item(EX.deadlift, 3, 6, { restSec: 180 }),
+      item(EX.pullUp, 3, 8),
       item(EX.latPulldown, 3, 10),
       item(EX.cableRow, 3, 10),
       item(EX.facePull, 3, 15),
@@ -239,9 +242,13 @@ async function logMeal(date: string, meal: MealType, plate: Plate): Promise<void
 
 /* ---------- workouts ---------- */
 
-async function logSet(sessionId: Id, exerciseId: Id, setNumber: number, weightKg: number, reps: number, isWarmup: boolean, t: number) {
+/** The session being logged: its row (bodyweight + `bwScoring` stamp) and its exercises, for `setE1rm`. */
+interface LogCtx { session: Session; exercises: Map<Id, Exercise> }
+
+async function logSet(ctx: LogCtx, exerciseId: Id, setNumber: number, weightKg: number, reps: number, isWarmup: boolean, t: number) {
   at(t)
-  await db.sets.add({ sessionId, exerciseId, setNumber, weightKg, reps, isWarmup, completedAt: Date.now(), e1rm: epley(weightKg, reps) })
+  const e1rm = setE1rm({ weightKg, reps }, ctx.exercises.get(exerciseId), ctx.session)
+  await db.sets.add({ sessionId: ctx.session.id!, exerciseId, setNumber, weightKg, reps, isWarmup, completedAt: Date.now(), e1rm })
 }
 
 /** Reps actually done this session: the planned reps, the last set sometimes one short. */
@@ -279,12 +286,16 @@ async function runWorkout(tpl: WorkoutTemplate, startMs: number, weekIdx: number
     startedAt: Date.now(),
     bodyweightKg: settings?.bodyweightKg ?? 75,
     extraExerciseIds: [],
+    // WorkoutHome startWorkout stamps every new session (bodyweight load, src/lib/load.ts).
+    bwScoring: true,
   })
+  const session = (await db.sessions.get(sessionId))!
   const barKg = settings?.barWeightKg ?? 20
   let clock = startMs + int(3, 7) * MIN
 
   const exercises = new Map((await db.exercises.bulkGet(tpl.items.map(i => i.exerciseId))).map((e, i) => [tpl.items[i].exerciseId, e!]))
   const done = new Map<Id, number[]>()
+  const ctx: LogCtx = { session, exercises }
 
   for (let i = 0; i < tpl.items.length; i++) {
     const it = tpl.items[i]
@@ -312,9 +323,9 @@ async function runWorkout(tpl: WorkoutTemplate, startMs: number, weekIdx: number
       const rb = repsToday(pb)
       for (let s = 0; s < ra.length; s++) {
         clock += 45_000
-        await logSet(sessionId, it.exerciseId, s + 1, pa.w, ra[s], false, clock)
+        await logSet(ctx, it.exerciseId, s + 1, pa.w, ra[s], false, clock)
         clock += 50_000
-        await logSet(sessionId, other.exerciseId, s + 1, pb.w, rb[s], false, clock)
+        await logSet(ctx, other.exerciseId, s + 1, pb.w, rb[s], false, clock)
         clock += 90_000 + int(-10, 25) * 1000
       }
       done.set(it.exerciseId, ra)
@@ -332,7 +343,7 @@ async function runWorkout(tpl: WorkoutTemplate, startMs: number, weekIdx: number
       const t0 = Date.now()
       await db.sets.bulkAdd(steps.map((st, k) => ({
         sessionId, exerciseId: it.exerciseId, setNumber: k + 1, weightKg: st.weightKg, reps: st.reps,
-        isWarmup: true, completedAt: t0 + k, e1rm: epley(st.weightKg, st.reps),
+        isWarmup: true, completedAt: t0 + k, e1rm: setE1rm(st, ex, session),
       })))
       setNumber = steps.length
       clock += steps.length * 100_000
@@ -341,7 +352,7 @@ async function runWorkout(tpl: WorkoutTemplate, startMs: number, weekIdx: number
     for (let s = 0; s < reps.length; s++) {
       clock += 40_000
       setNumber++
-      await logSet(sessionId, it.exerciseId, setNumber, p.w, reps[s], false, clock)
+      await logSet(ctx, it.exerciseId, setNumber, p.w, reps[s], false, clock)
       if (s < reps.length - 1) clock += rest + int(-15, 35) * 1000
     }
     done.set(it.exerciseId, reps)

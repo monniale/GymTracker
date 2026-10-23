@@ -15,12 +15,17 @@ import { generateWeightPlan } from './gemini'
 import { SCORING } from './scoring'
 import type { ExercisePlan, Id, PlannedSet } from '../types'
 
-/** Snap an AI weight to a loadable increment and clamp to a sane ceiling. */
-export function snapWeight(w: number, stepKg: number, maxKg: number): number {
-  if (!(w > 0)) return 0
+/**
+ * Snap an AI weight to a loadable increment and clamp it to [minKg, maxKg].
+ * `minKg` is 0 for loaded exercises; a bodyweight move passes −bodyweight so an
+ * assisted set (negative added kg) keeps its sign.
+ */
+export function snapWeight(w: number, stepKg: number, maxKg: number, minKg = 0): number {
+  if (!Number.isFinite(w) || (minKg >= 0 && !(w > 0))) return 0
   const step = stepKg > 0 ? stepKg : 2.5
   const snapped = Math.round((Math.round(w / step) * step) * 100) / 100
-  return Math.min(snapped, maxKg)
+  // `+ 0` turns a -0 into 0.
+  return Math.max(minKg, Math.min(snapped, maxKg)) + 0
 }
 
 function clampReps(r: number): number {
@@ -44,7 +49,7 @@ export async function generateAndCacheWorkoutPlan(sessionId: Id): Promise<void> 
       const ex = byRef.get(entry.ref)
       if (!ex) continue // ignore refs the model invented
       const sets = entry.sets.map(s => ({
-        weightKg: snapWeight(s.weightKg, ex.stepKg, maxKg),
+        weightKg: snapWeight(s.weightKg, ex.stepKg, maxKg, ex.bodyweightLoad ? -Math.floor(briefing.bodyweightKg) : 0),
         reps: clampReps(s.reps),
       }))
       if (sets.length > 0) plan.push({ exerciseId: ex.exerciseId, sets, note: entry.note })

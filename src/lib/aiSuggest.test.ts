@@ -37,6 +37,11 @@ describe('parseWeightPlan', () => {
     expect(plan).toEqual([])
   })
 
+  it('keeps a negative weight (assisted bodyweight move; snapWeight clamps it per exercise)', () => {
+    const { plan } = parseWeightPlan(JSON.stringify({ plan: [{ ref: '4', sets: [{ weightKg: -20, reps: 8 }] }] }))
+    expect(plan[0].sets[0]).toEqual({ weightKg: -20, reps: 8 })
+  })
+
   it('allows a zero weight (unknown starting load)', () => {
     const { plan } = parseWeightPlan(JSON.stringify({ plan: [{ ref: '2', sets: [{ weightKg: 0, reps: 8 }] }] }))
     expect(plan[0].sets[0]).toEqual({ weightKg: 0, reps: 8 })
@@ -104,6 +109,13 @@ describe('snapWeight', () => {
   })
   it('defaults a non-positive step to 2.5', () => {
     expect(snapWeight(83, 0, 600)).toBe(82.5)
+  })
+  it('keeps an assisted (negative) weight down to the given floor', () => {
+    expect(snapWeight(-20, 2.5, 600, -80)).toBe(-20)
+    expect(snapWeight(-18.7, 1.25, 600, -80)).toBe(-18.75)
+    expect(snapWeight(-200, 2.5, 600, -80)).toBe(-80)
+    expect(Object.is(snapWeight(-0.4, 2.5, 600, -80), 0)).toBe(true)
+    expect(snapWeight(Number.NaN, 2.5, 600, -80)).toBe(0)
   })
 })
 

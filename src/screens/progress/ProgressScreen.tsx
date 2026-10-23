@@ -21,8 +21,9 @@ import ExercisePicker from '../workout/ExercisePicker'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { fmtSetLoad, usesBodyweightLoad, withLoads } from '../../lib/load'
 import { t, tp, fmtNum, type PluralMessageKey } from '../../i18n'
-import type { Exercise, Id } from '../../types'
+import type { Exercise, Id, Session } from '../../types'
 
 const ORANGE = '#F97316'
 const GREEN = '#22C55E'
@@ -113,11 +114,18 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
       .filter(s => !s.isWarmup && !isCardioSet(s))
       .toArray()
     if (sets.length === 0) return { e1rm: [], volume: [] }
+    // Effective load (bodyweight sets of stamped sessions count the bodyweight moved).
+    const ex = await db.exercises.get(exerciseId)
+    const sessionIds = [...new Set(sets.map(s => s.sessionId))]
+    const sessions = await db.sessions.bulkGet(sessionIds)
+    const sessionsById = new Map<Id, Session>()
+    sessions.forEach((row, i) => { if (row) sessionsById.set(sessionIds[i], row) })
+    const loaded = withLoads(sets, new Map<Id, Exercise>(ex ? [[exerciseId, ex]] : []), sessionsById)
     const bySession = new Map<Id, { best: number; volume: number; t: number }>()
-    for (const s of sets) {
+    for (const s of loaded) {
       const cur = bySession.get(s.sessionId) ?? { best: 0, volume: 0, t: s.completedAt }
       cur.best = Math.max(cur.best, s.e1rm)
-      cur.volume += s.weightKg * s.reps
+      cur.volume += s.loadKg * s.reps
       cur.t = Math.min(cur.t, s.completedAt)
       bySession.set(s.sessionId, cur)
     }
@@ -200,7 +208,7 @@ function RepMaxCell({ rec, highlight }: { rec?: RepMax; highlight?: boolean }) {
   return (
     <span className="num min-w-0 flex-1 leading-tight">
       <span className={`block truncate text-sm font-semibold ${highlight ? 'text-primary' : ''}`}>
-        {fmtNum(rec.weightKg)} kg ×{rec.reps}
+        {fmtSetLoad(rec, rec.bodyweightLoad)}
       </span>
       <span className="block truncate text-[11px] text-sub">{dayMonth(rec.completedAt)}</span>
     </span>
@@ -438,17 +446,19 @@ function TrainingHeatmapTile() {
 function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
   const settings = useLiveQuery(() => db.settings.get(1))
   const prs = useLiveQuery(async () => {
-    const sets = await db.sets.filter(s => !s.isWarmup && s.weightKg > 0).toArray()
-    const byEx = new Map<Id, { e1rm: number; weight: number; reps: number; date: number }>()
+    // e1RM > 0, not weight > 0: a plain bodyweight set of a stamped session logs 0 kg but has a load.
+    const sets = await db.sets.filter(s => !s.isWarmup && s.e1rm > 0).toArray()
+    const byEx = new Map<Id, { e1rm: number; weight: number; reps: number; date: number; sessionId: Id }>()
     for (const s of sets) {
       const cur = byEx.get(s.exerciseId)
       if (!cur || s.e1rm > cur.e1rm) {
-        byEx.set(s.exerciseId, { e1rm: s.e1rm, weight: s.weightKg, reps: s.reps, date: s.completedAt })
+        byEx.set(s.exerciseId, { e1rm: s.e1rm, weight: s.weightKg, reps: s.reps, date: s.completedAt, sessionId: s.sessionId })
       }
     }
-    return [...byEx.entries()]
-      .sort((a, b) => b[1].e1rm - a[1].e1rm)
-      .slice(0, 12)
+    const top = [...byEx.entries()].sort((a, b) => b[1].e1rm - a[1].e1rm).slice(0, 12)
+    // Only the shown records' sessions, to tell added kg on bodyweight from a plain weight.
+    const sessions = await db.sessions.bulkGet(top.map(([, pr]) => pr.sessionId))
+    return top.map(([exId, pr], i) => [exId, { ...pr, session: sessions[i] }] as const)
   }, [])
 
   if (!prs || prs.length === 0) return null
@@ -461,7 +471,9 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
         {prs.map(([exId, pr]) => {
           const ex = exMap.get(exId)
           const std = ex ? standardFor(ex.nameLower) : null
-          const level = std && settings ? levelFor(pr.e1rm, settings.bodyweightKg, std) : null
+          // The pull-up standard rates the bodyweight load: not an unstamped row's added kg.
+          const rated = std && (std.key !== 'pullup' || usesBodyweightLoad(ex, pr.session))
+          const level = std && rated && settings ? levelFor(pr.e1rm, settings.bodyweightKg, std) : null
           return (
             <div key={exId} className="rounded-xl border border-edge bg-card p-3">
               <p className="truncate text-sm font-medium">{ex ? exerciseDisplayName(ex.name) : '…'}</p>
@@ -470,7 +482,7 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
                 <span className="text-sm font-medium text-sub"> e1RM</span>
               </p>
               <p className="num text-xs text-sub">
-                {fmtNum(pr.weight)} kg × {pr.reps} · {shortDate(pr.date)}
+                {fmtSetLoad({ weightKg: pr.weight, reps: pr.reps }, usesBodyweightLoad(ex, pr.session))} · {shortDate(pr.date)}
               </p>
               {level && (
                 <div className="mt-1.5">
