@@ -1,9 +1,9 @@
-# Handoff: open the nine stacked PRs
+# Handoff: Merge AI meal estimate PR
 
-**Goal**: Get the nine finished feature branches (`feat/01-training-heatmap` … `feat/09-italian`) reviewed as stacked PRs and merged into `main` in order.
+**Goal**: Ship the Add food › AI meal estimate (PR #13, branch `feat/11-meal-estimate`) for takeaway food with no label.
 
-**Done**: All nine features from `docs/FEATURE_PLAN.md` built, tested (468 tests, 360/320 px layouts, emulator smoke 46/46 + Italian 18/18), code-reviewed with fixes merged up the stack, pushed to `origin`, README screenshots added, PR descriptions drafted in `~/.claude/projects/-mnt-hdd-GymTracker/pr-drafts/` (`01.md`…`09.md`, `index.txt`, `create-prs.sh`)
+**Done**: Features 08+09 merged to main (PR #11), exercise library + body map + muscle heatmap merged and deployed (PR #12), AI meal estimate built and tested with a stubbed Gemini (505 tests, 360/320 px EN/IT), PR #13 opened
 
-**Next**: Once the owner has run `sudo apt install gh && gh auth login`, run `~/.claude/projects/-mnt-hdd-GymTracker/pr-drafts/create-prs.sh` (each PR targets the previous branch; branch 1 targets `main`).
+**Next**: When the owner says "merge", run `gh pr merge 13 --repo monniale/GymTracker --merge` and confirm the Pages deploy for the merge commit.
 
-**Watch out**: Merging into `main` deploys the website, so merge in order 1 → 9 only when the owner asks; afterwards a signed APK (`scripts/android/release.sh`) is needed because features 3, 8 and 9 change native code.
+**Watch out**: Merging into `main` deploys the website; the Android app needs a new signed APK (`scripts/android/release.sh`) for everything since PR #11, and the estimate hasn't been tried against real Gemini yet.
