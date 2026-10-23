@@ -184,6 +184,19 @@ export interface Settings {
   barWeightKg?: number
   platesAvailable?: number[]
   waterTargetMl?: number
+  // Profile for the TDEE / macro calculator (all optional: unset until the user runs it).
+  /** Sex used by the Mifflin-St Jeor BMR formula. */
+  sex?: 'm' | 'f'
+  /** Year of birth; the age is derived from it on the day the calculator runs. */
+  birthYear?: number
+  /** Height in centimetres. */
+  heightCm?: number
+  /** Activity level, mapped to a TDEE multiplier in `src/lib/tdee.ts`. */
+  activity?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very'
+  /** Goal bodyweight in kg (shown as a reference line on the bodyweight chart). */
+  goalWeightKg?: number
+  /** Planned rate in % of bodyweight per week: negative = lose, positive = gain, 0 = maintain. */
+  goalRatePctPerWeek?: number
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
