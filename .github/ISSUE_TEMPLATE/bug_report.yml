@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in GymTracker does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search the existing issues first.
+        Do not report security problems here. Use **Security › Report a vulnerability** (https://github.com/monniale/GymTracker/security/advisories/new) instead.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where do you use GymTracker?
+      options:
+        - Web/PWA
+        - Android app
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser or Android version
+      description: For example "Galaxy S25, Chrome 141" or "Pixel 8, Android 16".
+      placeholder: Galaxy S25, Chrome 141
+    validations:
+      required: true
+
+  - type: input
+    id: build
+    attributes:
+      label: Build stamp
+      description: >-
+        Settings › bottom: version, build and schema. Copy the lines at the very bottom of the
+        Settings screen: "GymTracker v…", "Build … · …" and "Database schema v…"
+        (in Italian: "Schema database v…"; on Android, also the "Android …" line).
+      placeholder: GymTracker v1.0.0 · Build abc1234 · 2026-10-23 14:05 · Database schema v9
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: App language
+      options:
+        - English
+        - Italian
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact steps that lead to the bug.
+      placeholder: |
+        1. Go to …
+        2. Tap …
+        3. See …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected and actual behavior
+      description: What did you expect to happen, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: >-
+        Drag images here if they help. For layout problems, a screenshot at 360 px wide
+        (a typical phone) is the most useful.
+    validations:
+      required: false

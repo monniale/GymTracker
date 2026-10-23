@@ -4,7 +4,7 @@ Purpose: a compact map of the codebase so a fresh chat can **load only the files
 
 **Stack:** React + TypeScript + Vite + Tailwind, Dexie/IndexedDB, `HashRouter`. Ships as a **static PWA on GitHub Pages — no backend.** Cross-device sync is a snapshot pushed to a **private GitHub repo via the user's PAT**. AI is **Gemini free-tier with a device-local BYO key**. Deploy = `git push origin main` → Actions → Pages. The same codebase is also a **sideloaded Android app (Capacitor 8)**: `android/` + `src/native/`, runbook in `ANDROID.md`.
 
-Build/verify: `npm run build` (= `tsc --noEmit && vite build`) + `node scripts/check-pwa-dist.mjs` · `npm test` (vitest, `TZ=Europe/Rome`, English locale pinned) · Node 18 floor / CI Node 22 · Android: `npm run android:debug` / `scripts/android/release.sh` / `scripts/android/smoke.sh` (Node ≥ 22, JDK 21, SDK 36) — see ANDROID.md.
+Build/verify: `npm run build` (= `tsc --noEmit && vite build`) + `node scripts/check-pwa-dist.mjs` · CI: `.github/workflows/ci.yml` runs both tsc configs, `npm test`, the Pages build + `check-pwa-dist` and `vite build --mode android` on every PR and feature-branch push; `deploy.yml` runs `npm test` + `check-pwa-dist` before deploying · `npm test` (vitest, `TZ=Europe/Rome`, English locale pinned) · Node 18 floor / CI Node 22 · Android: `npm run android:debug` / `scripts/android/release.sh` / `scripts/android/smoke.sh` (Node ≥ 22, JDK 21, SDK 36) — see ANDROID.md.
 
 ---
 
@@ -41,7 +41,8 @@ Build/verify: `npm run build` (= `tsc --noEmit && vite build`) + `node scripts/c
 | **Android build / sign / release / smoke** | `android/app/build.gradle`, `AndroidManifest.xml`, `capacitor.config.ts`, `vite.config.ts`, `scripts/android/*`, `scripts/check-pwa-dist.mjs`, `ANDROID.md` |
 | **Rank emblems / particle effects** | `src/components/RankBadge.tsx`, `RankParticles.tsx`, `src/assets/ranks/*.svg`, `src/lib/ranks.ts`, `src/screens/rank/RankScreen.tsx` |
 | **Translations (English / Italian)** | `src/i18n/index.ts` (`t`, `tp`, `useT`, `bindT`, `fmtNum`), `src/i18n/en/<ns>.ts` + `src/i18n/it/<ns>.ts`, `src/lib/uiStore.ts` (language), `src/i18n/stringGuard.test.ts` |
-| **Planned features (roadmap)** | `docs/FEATURE_PLAN.md` — 9 features, build order, file-level design, verification |
+| **Project hygiene / CI / translations** | `LICENSE` (MIT), `THIRD_PARTY_NOTICES.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `docs/TRANSLATING.md` (add a language), `.github/workflows/ci.yml` + `deploy.yml`, `.github/dependabot.yml` (Capacitor pins ignored, invariant 12), `.github/ISSUE_TEMPLATE/*`, `.github/PULL_REQUEST_TEMPLATE.md` |
+| **Planned features (roadmap)** | `docs/FEATURE_PLAN.md` — round 2: 9 features (OSS hygiene, releases, demo data, TDEE, AI providers, bodyweight/RPE, history/schedule/swap, programs, onboarding), build order, file-level design, verification |
 
 Cross-cutting rules live in **Invariants** at the bottom — read those before any schema/sync/scoring change.
 

@@ -1,0 +1,42 @@
+name: CI
+
+# Checks every pull request and every push to a feature branch.
+# Pushes to main are covered by deploy.yml, which runs the same tests before it deploys.
+# Dependabot branches are checked only through their pull requests.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main, "dependabot/**"]
+
+permissions:
+  contents: read
+
+# One group per branch. A push to a branch with an open pull request starts a push run and
+# a pull_request run. They share this group, so the newer run cancels the older one.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Type checks: the app (tsconfig.json) and the Vite config (tsconfig.node.json).
+      - run: npx tsc --noEmit
+      - run: npx tsc -p tsconfig.node.json --noEmit
+      # The "test" script sets TZ and the locale itself.
+      - run: npm test
+      # Pages build. No VITE_USDA_KEY here: the app falls back to DEMO_KEY, and
+      # pull requests must not receive repository secrets.
+      - run: npm run build
+      # The Pages bundle must keep its service worker and must not contain native plugins (invariant 14).
+      - run: node scripts/check-pwa-dist.mjs
+      # Android web bundle (dist-android/). This needs only Vite, not the Gradle toolchain.
+      - run: npx vite build --mode android

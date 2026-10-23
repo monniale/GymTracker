@@ -12,6 +12,8 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 <a href="ANDROID.md"><img alt="Android app" src="https://img.shields.io/badge/Android_app-3DDC84?style=for-the-badge&logo=android&logoColor=white" /></a>
 
 [![Deploy to GitHub Pages](https://github.com/monniale/GymTracker/actions/workflows/deploy.yml/badge.svg)](https://github.com/monniale/GymTracker/actions/workflows/deploy.yml)
+[![CI](https://github.com/monniale/GymTracker/actions/workflows/ci.yml/badge.svg)](https://github.com/monniale/GymTracker/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-F97316?style=flat-square)](LICENSE)
 ![React](https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=flat-square&logo=vite&logoColor=white)
@@ -20,7 +22,7 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 ![PWA](https://img.shields.io/badge/PWA-offline_ready-5A0FC8?style=flat-square&logo=pwa&logoColor=white)
 ![No backend](https://img.shields.io/badge/backend-none-0B0F14?style=flat-square)
 
-[Features](#-features) · [Screenshots](#-screenshots) · [Get started](#-get-started) · [Your data](#-where-your-data-lives) · [Develop](#-develop)
+[Features](#-features) · [Screenshots](#-screenshots) · [Get started](#-get-started) · [Your data](#-where-your-data-lives) · [Develop](#-develop) · [Contribute](#-contributing)
 
 </div>
 
@@ -220,12 +222,27 @@ New here? **[ROUTEMAP.md](ROUTEMAP.md)** maps every module and the rules the cod
 Without CI: run `npm run deploy` (uses the `gh-pages` branch), or build with `BASE_PATH=/ npm run build` and drag `dist/` onto [Netlify Drop](https://app.netlify.com/drop).
 </details>
 
+## 🤝 Contributing
+
+Bug reports, translations and pull requests are welcome.
+
+- Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first: setup, the rules the code relies on, and the PR checklist.
+- Want GymTracker in your language? **[docs/TRANSLATING.md](docs/TRANSLATING.md)** explains how to add one.
+- Found a bug? Open an issue with the form. It asks for the build stamp shown at the bottom of Settings.
+- Everyone taking part follows the **[Code of Conduct](CODE_OF_CONDUCT.md)**.
+- The plan for the next features is in **[docs/FEATURE_PLAN.md](docs/FEATURE_PLAN.md)**.
+
 ## 🙏 Credits
 
 - Exercise data (names, muscles, instructions) from **[exercises-dataset](https://github.com/hasaneyldrm/exercises-dataset)** by Hasan Emir Yıldırım (MIT; the license text ships in `public/exercise-library.json`). The optional animations are © **[Gym visual](https://gymvisual.com/)**; they are not part of this repo and load from the dataset's repo only when you turn them on.
 - Food data from **[Open Food Facts](https://world.openfoodfacts.org)** and **[USDA FoodData Central](https://fdc.nal.usda.gov)**
 - AI by **[Google Gemini](https://ai.google.dev)**
 - Icons by **[Lucide](https://lucide.dev)** · barcode reading by **[zxing-wasm](https://github.com/Sec-ant/zxing-wasm)** and **Google ML Kit**
+- The licenses of every bundled library are listed in **[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)**.
+
+## 📄 License
+
+GymTracker is free software under the **[MIT License](LICENSE)**. Copyright (c) 2025-2026 monniale.
 
 <div align="center">
 <br/>

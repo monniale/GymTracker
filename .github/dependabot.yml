@@ -1,0 +1,61 @@
+# Dependabot version updates.
+#
+# Capacitor packages (@capacitor/*, @capacitor-community/*, @capacitor-mlkit/*) are ignored
+# completely. They are pinned to exact versions in package.json, and the committed android/
+# project must match those versions (ROUTEMAP invariant 12). Upgrade them by hand, together
+# with android/, and test the APK on a device.
+#
+# Major versions of the core build and UI stack are ignored too. Each one needs a planned
+# migration, not an automatic pull request.
+#
+# package.json "overrides" pins workbox-build to 7.1.1 (invariant 12). Dependabot does not
+# change that override. Minor updates of vite-plugin-pwa are ignored too (see below).
+# Update vite-plugin-pwa by hand, change the override in the same commit, and check the
+# PWA build with `npm run build && node scripts/check-pwa-dist.mjs`.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "@capacitor/*"
+      - dependency-name: "@capacitor-community/*"
+      - dependency-name: "@capacitor-mlkit/*"
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vite
+        update-types: ["version-update:semver-major"]
+      # vite-plugin-pwa is still on 0.x, where each minor release (0.20 to 0.21) can break.
+      # Dependabot calls that a minor update, so minor updates are ignored as well.
+      # 0.21.x needs workbox-build ^7.3.0, which conflicts with the 7.1.1 override.
+      # Change the override together with any vite-plugin-pwa bump.
+      - dependency-name: vite-plugin-pwa
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-router-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: zustand
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
