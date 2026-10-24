@@ -39,6 +39,9 @@ const RestTimerNativeSettings = isNative
 const WidgetSection = isNative
   ? lazy(() => import("../../native/ui/WidgetSection"))
   : null;
+const UpdateSection = isNative
+  ? lazy(() => import("../../native/ui/UpdateSection"))
+  : null;
 
 export default function SettingsScreen() {
   const settings = useLiveQuery(() => db.settings.get(1));
@@ -424,6 +427,12 @@ export default function SettingsScreen() {
           <AlertTriangle size={18} className="shrink-0" /> {t("settings.danger.endSeason")}
         </button>
       </Section>
+
+      {UpdateSection && (
+        <Suspense fallback={null}>
+          <UpdateSection />
+        </Suspense>
+      )}
 
       <VersionFooter />
     </div>

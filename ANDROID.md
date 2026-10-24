@@ -73,6 +73,15 @@ The app starts empty: its storage (origin `https://localhost`) is separate from 
 
 Commit → `scripts/android/release.sh` → `adb install -r <apk>`. This needs the same key and a versionCode ≥ the installed one. **Never uninstall** the app (it deletes all data).
 
+### Publishing a release
+
+`scripts/android/release.sh --publish` does the same build, then creates a GitHub Release on `monniale/GymTracker` with the [GitHub CLI](https://cli.github.com) (`gh auth login` once). The APK is signed on this machine; the key never goes to GitHub or CI.
+
+- **Before the build** it checks that the tree is clean, `gh` is logged in, the tag does not exist locally or on `origin`, and HEAD is pushed to a branch on `origin` (the release targets that commit). Push first.
+- **Naming contract** (the in-app check relies on it): tag `v<versionName>+<versionCode>` (e.g. `v1.0.0+131`), title `GymTracker <versionName> (<versionCode>)`, assets `gymtracker-<ver>-<code>-release.apk`, `gymtracker-<ver>-<code>-release.apk.idsig` and `SHA256SUMS`. The client reads the version from the APK asset name and falls back to the tag.
+- **Install from the phone**: open the release page and download the APK, or add the repo URL `https://github.com/monniale/GymTracker` in [Obtainium](https://github.com/ImranR98/Obtainium) with the APK filter `release\.apk$`. Install over the current app; **never uninstall** it.
+- **In-app check**: Settings › Updates asks GitHub for the latest release and compares the **versionCode only** (debug builds add `-debug` to the versionName).
+
 ## 7. Emulator and smoke test
 
 - **Debug builds must never connect to the real sync repo (`gymtracker-data`).** A debug build is a separate app, but it pushes test data to whatever repo it is connected to. Use a throwaway repo with its own PAT. `smoke.sh` aborts when the debug app is connected to `gymtracker-data`.

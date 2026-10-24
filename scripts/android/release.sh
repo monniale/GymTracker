@@ -4,6 +4,7 @@
 #
 #   scripts/android/release.sh                 # clean tree → test → build → sign → verify
 #   GT_VERSION_CODE=42 scripts/android/release.sh
+#   scripts/android/release.sh --publish        # same, then a GitHub Release with the APK (needs gh)
 #   scripts/android/release.sh --verify APK    # only the checks below, on an existing APK
 #
 # Guards:
@@ -14,7 +15,13 @@
 #   - the synced capacitor.config.json has no `server` block (live reload) and no inspectable
 #     WebView (android/app/build.gradle checks the same);
 #   - the APK is v2+v3 signed with the release key, zipaligned for 16 KiB pages, has the
-#     permanent appId (ROUTEMAP invariant 15), the expected versionCode, and is not debuggable.
+#     permanent appId (ROUTEMAP invariant 15), the expected versionCode, and is not debuggable;
+#   - with --publish, before the build: gh is installed and logged in, the tag v<version>+<code>
+#     exists neither locally nor on origin, and HEAD is on a branch of origin (the release
+#     targets that commit). The APK is signed here; the key never leaves this machine.
+# --publish naming contract (ANDROID.md › Updates, src/lib/updateCheck.ts): tag
+#   v<versionName>+<versionCode>, title "GymTracker <versionName> (<versionCode>)", assets
+#   gymtracker-<ver>-<code>-release.apk, gymtracker-<ver>-<code>-release.apk.idsig, SHA256SUMS.
 # Env: KEYSTORE_PROPERTIES (default ~/.android-keys/gymtracker/keystore.properties),
 #      GT_VERSION_CODE, GRADLE_LOCK (optional flock file to serialize Gradle runs).
 # Never prints the keystore passwords.
@@ -61,6 +68,11 @@ if [ "${1:-}" = --verify ]; then
   verify "$2" "${3:-}"
   exit 0
 fi
+PUBLISH=0
+if [ "${1:-}" = --publish ]; then
+  PUBLISH=1
+  shift
+fi
 [ $# -eq 0 ] || die "unknown argument: $1 (see the header of this script)"
 
 [ -f "$PROPS" ] || die "missing $PROPS — the release keystore properties (ANDROID.md › Signing key)"
@@ -77,6 +89,26 @@ LAST=$(cat "$LAST_FILE" 2>/dev/null || echo 0)
 [ "$CODE" -ge "$LAST" ] ||
   die "versionCode $CODE < last built $LAST — Android refuses downgrades. Use GT_VERSION_CODE=$LAST (or higher)."
 VERSION=$(node -p 'require("./package.json").version')
+TAG="v$VERSION+$CODE"
+REPO=monniale/GymTracker
+
+# --publish pre-flight: fail before the long build, not after it.
+if [ "$PUBLISH" = 1 ]; then
+  # The in-app check (src/lib/updateCheck.ts) only parses X.Y.Z names: a prerelease-style
+  # version would publish a release every installed app silently reports as "none".
+  [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "--publish needs a plain X.Y.Z version in package.json (got '$VERSION')"
+  command -v gh >/dev/null || die "--publish needs the GitHub CLI (gh) on PATH"
+  gh auth status >/dev/null 2>&1 || die "gh is not logged in — run: gh auth login"
+  [ -z "$(git tag -l "$TAG")" ] || die "tag $TAG already exists locally — bump the version or the versionCode"
+  remote_tag=$(git ls-remote --tags origin "refs/tags/$TAG") || die "cannot reach origin to check tag $TAG"
+  [ -z "$remote_tag" ] || die "tag $TAG already exists on origin — bump the version or the versionCode"
+  # --prune: a branch deleted on GitHub must not keep a stale origin/* ref that still "contains" HEAD.
+  git fetch -q --prune origin || die "git fetch origin failed"
+  [ -n "$(git branch -r --contains HEAD)" ] ||
+    die "HEAD $(git rev-parse --short HEAD) is not on origin — push it first (the release targets this commit)"
+  echo "== will publish $TAG to $REPO"
+fi
+
 echo "== GymTracker $VERSION ($CODE) from $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
 
 npm test
@@ -108,3 +140,31 @@ echo "$CODE" >"$LAST_FILE"
 echo
 echo "Release APK: $APK"
 echo "Install: adb install -r $APK   (never uninstall the app — it deletes all data)"
+
+[ "$PUBLISH" = 1 ] || exit 0
+
+# publish — GitHub Release with the APK, its v4 signature and their checksums.
+IDSIG=$APK.idsig
+[ -f "$IDSIG" ] || die "missing $IDSIG — Gradle v4 signing did not write it (android/app/build.gradle signingConfigs)"
+APK_DIR=$(dirname "$APK")
+APK_NAME=$(basename "$APK")
+SHA_FILE=$APK_DIR/SHA256SUMS
+(cd "$APK_DIR" && sha256sum "$APK_NAME" "$APK_NAME.idsig") >"$SHA_FILE"
+APK_SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+
+NOTES=$(mktemp)
+trap 'rm -f "$NOTES"' EXIT
+cat >"$NOTES" <<EOF_NOTES
+## Install
+
+- Install over the existing app with \`adb install -r\` or by opening the APK; never uninstall (it deletes all data).
+- SHA-256 of the APK: \`$APK_SHA\` (all assets: \`SHA256SUMS\`).
+- Obtainium: add https://github.com/$REPO
+EOF_NOTES
+
+echo
+echo "== publish $TAG"
+URL=$(gh release create "$TAG" --repo "$REPO" --target "$(git rev-parse HEAD)" \
+  --title "GymTracker $VERSION ($CODE)" --generate-notes --notes-file "$NOTES" \
+  "$APK" "$IDSIG" "$SHA_FILE")
+echo "Release: $URL"
