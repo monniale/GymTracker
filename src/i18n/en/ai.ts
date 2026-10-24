@@ -10,6 +10,17 @@ export default {
     empty: 'Gemini returned an empty response — try again.',
     noKey: 'Add a Gemini key in Settings first.',
   },
+  /** Errors shared by every AI provider (lib/ai/*, lib/aiStore.ts). */
+  provider: {
+    network: 'Network unreachable — check your connection.',
+    auth: 'The AI key was rejected — check it in Settings.',
+    badKey: 'That AI key is not valid — check it in Settings.',
+    rateLimit: 'Rate limit reached — try again later.',
+    blocked: 'The model could not generate a response — try again.',
+    empty: 'The model returned an empty response — try again.',
+    http: 'AI request failed ({status})',
+    noKey: 'Connect an AI model in Settings first.',
+  },
   /** Fallbacks when a coach note (workout, diet day, week) comes back incomplete. */
   note: {
     defaultHeadline: 'Session reviewed',

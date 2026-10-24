@@ -121,7 +121,7 @@ const progress: Dict['progress'] = {
     filterWeeks: 'Settimane',
     emptyDiet: 'Ancora nessun report della dieta. Generane uno dalla sezione Dieta.',
     emptyWeek: 'Ancora nessun bilancio settimanale. Apri Progressi › Bilancio settimanale per averne uno.',
-    emptyAll: 'Ancora nessun verdetto. Con una chiave Gemini collegata, qui trovi ogni nota del coach.',
+    emptyAll: 'Ancora nessun verdetto. Con un modello AI collegato, qui trovi ogni nota del coach.',
     workout: 'Allenamento',
     dietDay: 'Giornata dieta',
     deleteConfirm: 'Eliminare questo verdetto? Viene rimosso da tutti i dispositivi sincronizzati.',

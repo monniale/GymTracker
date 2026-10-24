@@ -5,7 +5,9 @@
 //  - dist/sw.js, dist/registerSW.js or dist/manifest.webmanifest is missing,
 //  - dist/index.html does not reference the Pages base (/GymTracker/, or $BASE_PATH),
 //  - any dist/assets/*.js registers a Capacitor plugin, i.e. a native chunk leaked into the PWA
-//    (native code must sit behind `isNative` from src/native/platform.ts so Rollup drops it).
+//    (native code must sit behind `isNative` from src/native/platform.ts so Rollup drops it),
+//  - a precached chunk (or index.html) loads a chunk left out of the precache at startup — a static
+//    import or a modulepreload — so the app could not boot offline (e.g. the Claude SDK chunk).
 // Prints the service-worker precache entry count and byte total next to the pre-Android baseline.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -48,6 +50,20 @@ if (existsSync(join(DIST, 'sw.js'))) {
     }
   }
   if (!urls.length) errors.push(`${DIST}/sw.js has no precache entries`)
+  // Startup must never need a chunk outside the precache: static imports (`from"./x.js"`,
+  // `import"./x.js"`; never `import("./x.js")`) of precached chunks, and index.html's scripts/preloads.
+  const precached = new Set(urls)
+  for (const u of urls.filter(x => x.startsWith('assets/') && x.endsWith('.js'))) {
+    let js = ''
+    try { js = readFileSync(join(DIST, u), 'utf8') } catch { continue }
+    for (const m of js.matchAll(/(?:\bfrom|\bimport)\s*["']\.\/([\w.-]+\.js)["']/g))
+      if (!precached.has(`assets/${m[1]}`)) errors.push(`precached ${u} statically imports assets/${m[1]}, which is not precached`)
+  }
+  if (existsSync(join(DIST, 'index.html'))) {
+    const html = readFileSync(join(DIST, 'index.html'), 'utf8')
+    for (const m of html.matchAll(/(?:src|href)="[^"]*?\/(assets\/[\w.-]+\.js)"/g))
+      if (!precached.has(m[1])) errors.push(`${DIST}/index.html loads ${m[1]}, which is not precached`)
+  }
   const kib = n => `${(n / 1024).toFixed(1)} KiB`
   console.log(
     `precache: ${urls.length} entries, ${kib(bytes)} ` +
