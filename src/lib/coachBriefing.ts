@@ -6,7 +6,8 @@ import { suggestNext, type ProgressionSuggestion } from './progression'
 import { DEFAULT_BAR_KG } from './plates'
 import { localDateStr, mondayOf, parseLocalDate } from './dates'
 import { isCardioExercise, isCardioSet, cardioSessionTotals, cardioMinutes, fmtDistance, paceSecPerKm, fmtPace } from './cardio'
-import type { Id, TemplateItem } from '../types'
+import { sessionItems } from './sessionItems'
+import type { Id } from '../types'
 
 /**
  * A compact, pre-computed summary of one finished workout. This is what the AI
@@ -60,6 +61,8 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
   ])
 
   const exMap = new Map(allExercises.map(e => [e.id!, e]))
+  // Template lines only, deliberately not `sessionItems`: an exercise added mid-session falls back
+  // to 8 reps below, even a cardio one (whose session line would say 20 minutes).
   const targetRepsById = new Map<Id, number>()
   for (const item of template?.items ?? []) targetRepsById.set(item.exerciseId, item.targetReps)
 
@@ -237,16 +240,10 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
   ])
   const exMap = new Map(allExercises.map(e => [e.id!, e]))
 
-  // Template exercises first, then anything added mid-session (mirror ActiveSession).
-  const items: TemplateItem[] = [...(template?.items ?? [])]
-  const itemIds = new Set(items.map(i => i.exerciseId))
-  for (const exId of session.extraExerciseIds) {
-    if (!itemIds.has(exId)) {
-      const ex = exMap.get(exId)
-      items.push({ exerciseId: exId, targetSets: 3, targetReps: 8, restSec: ex?.defaultRestSec })
-      itemIds.add(exId)
-    }
-  }
+  // Template exercises first, then anything added mid-session (the same lines ActiveSession shows).
+  // An added cardio exercise gets its 1 × 20 min default there, but every cardio item is dropped
+  // just below with the same `isCardioExercise` test, so the plan is unchanged by it.
+  const items = sessionItems(template, session, exMap)
   // Cardio has no weights to plan.
   const strengthItems = items.filter(it => !isCardioExercise(exMap.get(it.exerciseId)))
   if (strengthItems.length === 0) return null
