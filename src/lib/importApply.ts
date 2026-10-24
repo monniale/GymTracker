@@ -1,5 +1,7 @@
 import { db } from '../db/db'
 import { withSyncLock } from './sync'
+import { demoLoadedAnyTab } from './uiStore'
+import { t } from '../i18n'
 import { checkAchievements } from './achievements'
 import { isCardioSet } from './cardio'
 import { localDateStr } from './dates'
@@ -84,7 +86,12 @@ function bodyweightLookup(log: BodyLogEntry[], fallback: number): (date: string)
   }
 }
 
+/**
+ * Refused while the demo is loaded: `clearDemoData` wipes every table, so imported workouts would
+ * be deleted with the demo (and the demo flag keeps them from ever syncing).
+ */
 export async function applyImport(parsed: ParsedHistory): Promise<ImportResult> {
+  if (demoLoadedAnyTab()) throw new Error(t('settings.importHistory.demoLoaded'))
   const result = await withSyncLock(() =>
     db.transaction(
       'rw',

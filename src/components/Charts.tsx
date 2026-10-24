@@ -24,10 +24,53 @@ function niceRange(values: number[]): [number, number] {
   return [Math.max(0, min - pad), max + pad]
 }
 
+/** A refLine within this share of the data's span beyond its min/max is drawn; a farther one is not. */
+const REF_REACH = 0.15
+
+/**
+ * Whether a reference line at `y` belongs on a chart of `values`: inside the
+ * data range extended by 15 % of that range on each side. A farther line (a goal
+ * 20 kg away) is not drawn at all, so it never squashes the data into a flat band.
+ */
+export function refLineInReach(values: number[], y: number): boolean {
+  if (values.length === 0 || !Number.isFinite(y)) return false
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  // A flat series has no span: allow the same 15 % of a nominal 1 unit.
+  const reach = (max - min || 1) * REF_REACH
+  return y >= min - reach && y <= max + reach
+}
+
+/** The card background, used as the halo behind text drawn over the series. */
+const CARD = '#1B2431'
+
+/**
+ * Where the reference line's label goes: just above or just below the line at
+ * the right end (the side away from the latest point first), unless that spot
+ * overlaps the latest point or its value label (drawn above the point, from
+ * about 17 px above to 6 px below its centre); then at the left end instead.
+ * `ly` and `lastY` are viewBox y values; the label is 10 px text (baseline - 8 to + 2).
+ */
+export function refLabelPlace(
+  ly: number,
+  lastY: number,
+  P: { l: number; r: number; t: number; b: number },
+  W: number,
+  height: number,
+): { x: number; y: number; anchor: 'start' | 'end' } {
+  const clampY = (y: number) => Math.min(Math.max(y, P.t + 8), height - P.b - 2)
+  const above = clampY(ly - 4)
+  const under = clampY(ly + 12)
+  const sides = lastY < ly ? [under, above] : [above, under]
+  const clear = (y: number) => y + 2 < lastY - 18 || y - 8 > lastY + 7
+  const y = sides.find(clear)
+  return y === undefined ? { x: P.l + 4, y: sides[0], anchor: 'start' } : { x: W - P.r, y, anchor: 'end' }
+}
+
 /** Above this many points the line drops its per-point markers (taps still pick the nearest point). */
 const DENSE = 40
 
-export function LineChart({ points, color, height = 160, yFmt = (v: number) => String(Math.round(v)), trend, trendColor = SUB, xFmt }: {
+export function LineChart({ points, color, height = 160, yFmt = (v: number) => String(Math.round(v)), trend, trendColor = SUB, xFmt, refLine }: {
   points: ChartPoint[]
   color: string
   height?: number
@@ -37,12 +80,22 @@ export function LineChart({ points, color, height = 160, yFmt = (v: number) => S
   trendColor?: string
   /** When set, the first and last x values are labelled under the plot. */
   xFmt?: (x: number) => string
+  /**
+   * Optional horizontal reference (e.g. a goal weight), drawn dashed across the
+   * plot with a small label at its right end (left end when the latest point is
+   * too close, `refLabelPlace`). It joins the y range only when it
+   * lies within the data range extended by 15 % of that range (`refLineInReach`);
+   * otherwise it is not drawn, so a far-off target never flattens the series.
+   */
+  refLine?: { y: number; color?: string; label?: string }
 }) {
   const [sel, setSel] = useState<number | null>(null)
   const W = 340
   const P = { l: 34, r: 12, t: 14, b: xFmt ? 22 : 8 }
   if (points.length === 0) return null
-  const [y0, y1] = niceRange([...points, ...(trend ?? [])].map(p => p.y))
+  const values = [...points, ...(trend ?? [])].map(p => p.y)
+  const ref = refLine && refLineInReach(values, refLine.y) ? refLine : null
+  const [y0, y1] = niceRange(ref ? [...values, ref.y] : values)
   const x0 = points[0].x
   const x1 = points[points.length - 1].x || x0 + 1
   const px = (x: number) =>
@@ -53,6 +106,7 @@ export function LineChart({ points, color, height = 160, yFmt = (v: number) => S
   const last = points[points.length - 1]
   const selected = sel !== null ? points[sel] : null
   const dense = points.length > DENSE
+  const refLabel = ref?.label ? refLabelPlace(py(ref.y), py(last.y), P, W, height) : null
 
   // Tap anywhere on the plot: select the point nearest in x (dots are too small to hit on a phone).
   function pick(e: React.MouseEvent<SVGSVGElement>) {
@@ -82,6 +136,9 @@ export function LineChart({ points, color, height = 160, yFmt = (v: number) => S
           )}
         </>
       )}
+      {ref && (
+        <line x1={P.l} x2={W - P.r} y1={py(ref.y)} y2={py(ref.y)} stroke={ref.color ?? SUB} strokeWidth="1.5" strokeDasharray="6 4" opacity="0.9" />
+      )}
       {trend && trend.length > 1 && (
         <path d={line(trend)} fill="none" stroke={trendColor} strokeWidth="2" strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" />
       )}
@@ -98,6 +155,12 @@ export function LineChart({ points, color, height = 160, yFmt = (v: number) => S
             strokeWidth="2"
           />
         ),
+      )}
+      {refLabel && (
+        // Drawn over the series, with a card-colored halo, so a line or dot never hides it.
+        <text x={refLabel.x} y={refLabel.y} fontSize="10" fill={SUB} textAnchor={refLabel.anchor} className="num" stroke={CARD} strokeWidth="3" strokeLinejoin="round" paintOrder="stroke">
+          {ref?.label}
+        </text>
       )}
       {!selected && (
         <text x={Math.min(px(last.x), W - P.r - 4)} y={py(last.y) - 8} fontSize="11" fontWeight="600" fill={INK} textAnchor="end" className="num">

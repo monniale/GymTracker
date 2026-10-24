@@ -4,7 +4,7 @@ const components: Dict['components'] = {
   demo: {
     banner: 'Dati demo caricati',
     clear: 'Cancella',
-    confirm: 'Cancellare tutti i dati demo e ripartire con l’app vuota?',
+    confirm: 'Cancellare tutto su questo dispositivo, compreso ciò che hai aggiunto dopo aver caricato la demo, e ripartire con l’app vuota?',
     error: 'Dati demo: {error}',
   },
   tabBar: {

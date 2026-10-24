@@ -11,6 +11,7 @@ import {
   Film,
   ImageOff,
   FlaskConical,
+  Calculator,
 } from "lucide-react";
 import { db } from "../../db/db";
 import { exportBackup, importBackup } from "../../db/backup";
@@ -22,6 +23,7 @@ import NumberStepper from "../../components/NumberStepper";
 import SyncSection from "./SyncSection";
 import AiSection from "./AiSection";
 import ImportHistorySheet from "./ImportHistorySheet";
+import TargetsCalculatorSheet from "./TargetsCalculator";
 import { isNative } from "../../native/platform";
 import { useUiStore, type Lang } from "../../lib/uiStore";
 import { clearDemoData } from "../../lib/demoData";
@@ -51,6 +53,7 @@ export default function SettingsScreen() {
   const csvRef = useRef<HTMLInputElement>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [historyCsv, setHistoryCsv] = useState<string | null>(null);
+  const [calcOpen, setCalcOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   // Android's first-run card links here with `state.focus` ("sync" | "data").
@@ -178,6 +181,21 @@ export default function SettingsScreen() {
             max={400}
           />
         </div>
+        <div className="mt-4 flex justify-center border-t border-edge/50 pt-3">
+          <button
+            type="button"
+            onClick={() => setCalcOpen(true)}
+            className="flex min-h-[44px] items-center gap-2 whitespace-nowrap rounded-xl bg-muted/40 px-4 font-semibold active:bg-muted"
+          >
+            <Calculator size={18} className="shrink-0" />
+            {t("settings.calc.button")}
+          </button>
+        </div>
+        <TargetsCalculatorSheet
+          open={calcOpen}
+          onClose={() => setCalcOpen(false)}
+          settings={settings}
+        />
       </Section>
 
       <Section title={t("settings.targets.rest")}>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { demoLoadedAnyTab, useUiStore } from './uiStore'
+import { crossTabUiAction, demoLoadedAnyTab, useUiStore } from './uiStore'
 
 /** Node has no localStorage; zustand persist reads and writes 'gymtracker-ui' there. Installed before
  * the store is imported. */
@@ -54,5 +54,22 @@ describe('uiStore demoLoaded (the flag that blocks sync while the demo is loaded
     expect(demoLoadedAnyTab()).toBe(false)
     localStorage.setItem(KEY, '{not json')
     expect(demoLoadedAnyTab()).toBe(false)
+  })
+})
+
+describe('crossTabUiAction (another tab saved gymtracker-ui)', () => {
+  const raw = (state: Record<string, unknown>) => JSON.stringify({ state, version: 0 })
+
+  it('reloads when the other tab picked another language, as the tab that changed it does', () => {
+    expect(crossTabUiAction(raw({ language: 'it', demoLoaded: false }), 'en')).toBe('reload')
+    expect(crossTabUiAction(raw({ language: 'en' }), 'it')).toBe('reload')
+  })
+
+  it('rehydrates in place for anything else', () => {
+    expect(crossTabUiAction(raw({ language: 'en', demoLoaded: true }), 'en')).toBe('rehydrate')
+    expect(crossTabUiAction(raw({ language: 'fr' }), 'en')).toBe('rehydrate')
+    expect(crossTabUiAction(raw({ demoLoaded: true }), 'en')).toBe('rehydrate')
+    expect(crossTabUiAction(null, 'en')).toBe('rehydrate')
+    expect(crossTabUiAction('{not json', 'en')).toBe('rehydrate')
   })
 })

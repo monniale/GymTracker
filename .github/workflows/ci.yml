@@ -11,10 +11,12 @@ on:
 permissions:
   contents: read
 
-# One group per branch. A push to a branch with an open pull request starts a push run and
-# a pull_request run. They share this group, so the newer run cancels the older one.
+# One group per pull request (keyed by number, so forks with the same branch name never share
+# one) and one per pushed branch. A newer run cancels the older one in its own group only: the push
+# run and the pull_request run of the same commit both finish, so a pull request never shows a
+# cancelled check it did not cause.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref_name }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

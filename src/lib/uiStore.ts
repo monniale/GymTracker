@@ -67,13 +67,31 @@ export const useUiStore = create<UiStore>()(
 )
 
 /**
+ * Pure: what this tab does when another tab saved `gymtracker-ui` (`raw`, the new value). A new
+ * language reloads, as it does in the tab that changed it: module-level constants are built with
+ * `t()` at load (src/i18n/index.ts), so switching in place would mix two languages. Anything else
+ * is rehydrated.
+ */
+export function crossTabUiAction(raw: string | null, current: Lang): 'reload' | 'rehydrate' {
+  try {
+    const lang = (JSON.parse(raw ?? 'null') as { state?: { language?: unknown } } | null)?.state?.language
+    return (lang === 'en' || lang === 'it') && lang !== current ? 'reload' : 'rehydrate'
+  } catch {
+    return 'rehydrate'
+  }
+}
+
+/**
  * Another tab of the app shares the same IndexedDB but keeps its own in-memory store: pick up the
  * flags that tab saved (above all `demoLoaded`, which guards sync), so this tab's UI and sync
- * guards follow the demo being loaded or cleared there.
+ * guards follow the demo being loaded or cleared there. A language change reloads this tab
+ * (`crossTabUiAction`).
  */
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('storage', e => {
-    if (e.key === UI_KEY) void useUiStore.persist.rehydrate()
+    if (e.key !== UI_KEY) return
+    if (crossTabUiAction(e.newValue, useUiStore.getState().language) === 'reload') window.location.reload()
+    else void useUiStore.persist.rehydrate()
   })
 }
 
