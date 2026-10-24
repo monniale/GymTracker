@@ -320,4 +320,50 @@ describe('gatherWorkoutBriefing with bodyweight load', () => {
     // 10 of 12 reps: add a rep (the line's target), not 'weight-up' against the 8-rep fallback.
     expect((await gatherWorkoutBriefing('sw'))!.exercises[0].nextSuggestion).toBe('11 reps at 20 kg')
   })
+
+  it('a rep range moves the target to its top: reps climb before the weight', async () => {
+    const incline = (await db.exercises.where('nameLower').equals('incline dumbbell press').first())!
+    const tpl = await db.templates.add({
+      name: 'Push', position: 0, updatedAt: 1,
+      items: [{ exerciseId: incline.id!, targetSets: 3, targetReps: 8, targetRepsMax: 12 }],
+    })
+    const session: Session = { id: 'rr', name: 'Push', templateId: tpl, startedAt: T(15), bodyweightKg: 80, extraExerciseIds: [], bwScoring: true }
+    await db.sessions.put(session)
+    await db.sets.bulkPut([0, 1, 2].map(i => ({
+      id: `rr-${i}`, sessionId: 'rr', exerciseId: incline.id!, setNumber: i + 1, weightKg: 20, reps: 10, isWarmup: false,
+      completedAt: T(15) + i * 60_000, e1rm: setE1rm({ weightKg: 20, reps: 10 }, incline, session),
+    })))
+    await finishSession('rr')
+    // 10 reps passes 8 but not the top of 8-12: one more rep, no weight step yet.
+    expect((await gatherWorkoutBriefing('rr'))!.exercises[0].nextSuggestion).toBe('11 reps at 20 kg')
+
+    await db.sessions.put({ id: 'rr2', name: 'Push', templateId: tpl, startedAt: T(15, 18), bodyweightKg: 80, extraExerciseIds: [], bwScoring: true })
+    const plan = (await gatherWorkoutPlanBriefing('rr2'))!
+    expect(plan.exercises[0].targetRepsMax).toBe(12)
+    expect(plan.exercises[0].baseline).toEqual({ weightKg: 20, reps: 11, reason: 'reps-up' })
+    expect(formatWorkoutPlanBriefing(plan)).toContain('target 3×8-12 reps')
+  })
+
+  it('the plan briefing leaves lines with a fixed prescription to the program', async () => {
+    const bench = (await db.exercises.where('nameLower').equals('bench press').first())!
+    const incline = (await db.exercises.where('nameLower').equals('incline dumbbell press').first())!
+    const linear = { kind: 'linear' as const, stepKg: 2.5, failsToDeload: 3, deloadPct: 0.1 }
+    const tpl = await db.templates.add({
+      name: 'Push', position: 0, updatedAt: 1,
+      items: [
+        { exerciseId: bench.id!, targetSets: 5, targetReps: 5, scheme: linear },
+        { exerciseId: incline.id!, targetSets: 3, targetReps: 8, targetRepsMax: 12 },
+      ],
+    })
+    await db.sessions.put({ id: 'fx', name: 'Push', templateId: tpl, startedAt: T(15), bodyweightKg: 80, extraExerciseIds: [], bwScoring: true })
+    const plan = (await gatherWorkoutPlanBriefing('fx'))!
+    expect(plan.exercises.map(e => e.exerciseId)).toEqual([incline.id])
+
+    // Only fixed lines: no AI plan at all.
+    const only = await db.templates.add({
+      name: 'Bench', position: 1, updatedAt: 1, items: [{ exerciseId: bench.id!, targetSets: 5, targetReps: 5, scheme: linear }],
+    })
+    await db.sessions.put({ id: 'fx2', name: 'Bench', templateId: only, startedAt: T(15), bodyweightKg: 80, extraExerciseIds: [], bwScoring: true })
+    expect(await gatherWorkoutPlanBriefing('fx2')).toBeNull()
+  })
 })

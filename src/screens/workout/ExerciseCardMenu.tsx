@@ -92,8 +92,14 @@ export async function swapSessionExercise(
       if (next.length !== swaps.length) await db.sessions.update(sid, { swaps: next })
     }
     if (rewriteTemplate && tpl?.id !== undefined) {
+      // The line's progression state belonged to the old exercise (invariant 21): the new one
+      // starts from its own history.
       await db.templates.update(tpl.id, {
-        items: tpl.items.map(it => (it.exerciseId === origin ? { ...it, exerciseId: toId } : it)),
+        items: tpl.items.map(it => {
+          if (it.exerciseId !== origin) return it
+          const { progress: _old, ...rest } = it
+          return { ...rest, exerciseId: toId }
+        }),
         updatedAt: Date.now(),
       })
     }

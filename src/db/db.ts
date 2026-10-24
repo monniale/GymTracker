@@ -3,7 +3,7 @@ import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
   PlannedFood, SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
   BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone,
-  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Id,
+  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Program, Id,
 } from '../types'
 
 /** Tables with '++id' primary keys: new rows get UUID string ids so inserts
@@ -11,7 +11,7 @@ import type {
 const UUID_TABLES = new Set([
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'scoreEvents', 'seasons', 'waterLogs', 'tombstones', 'coachHistory',
-  'plannedFoods',
+  'plannedFoods', 'programs',
 ])
 
 /* ---------- sync tracking (dirty flag + suspension during imports) ---------- */
@@ -112,6 +112,8 @@ export class GymDB extends Dexie {
   coachHistory!: Table<CoachJudgement, Id>
   /** Planned meals (not eaten yet). Synced user data; invisible to totals/quests/reports. */
   plannedFoods!: Table<PlannedFood, Id>
+  /** Training programs (a cycle over templates, src/lib/programs.ts). Synced user data. */
+  programs!: Table<Program, Id>
 
   constructor() {
     super('gymtracker')
@@ -164,6 +166,10 @@ export class GymDB extends Dexie {
     // Meal plan (e.g. tomorrow's menu). UUID ids, synced and backed up (a late table).
     this.version(9).stores({
       plannedFoods: '++id, date, [date+meal], foodId',
+    })
+    // Training programs (presets or shared): UUID ids, synced and backed up (a late table).
+    this.version(10).stores({
+      programs: '++id, presetId',
     })
 
     // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking.

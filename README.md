@@ -74,6 +74,8 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - Equipment variants (barbell, dumbbell, machine, cable…), per-exercise notes, and exercises added mid-session.
 - **Exercise history**: one screen per exercise with its best e1RM, heaviest set and every workout that had it, newest first, with all-time rep maxes starred. Open it from Progress, the exercise library or a live workout.
 - **Weekday schedule**: give a template its days (say Legs on Monday and Thursday) and that day it shows as "Today" on the Workout tab, on the Android widget and in the training reminder. Templates without days keep the usual rotation.
+- **Programs**: install a ready-made plan (Starting Strength, StrongLifts 5×5, GZCLP, 5/3/1 Boring But Big, nSuns, Reddit PPL, PHUL, Upper/Lower, Full body 3×) and its workouts pre-fill themselves: linear steps with deloads, GZCLP stages, 5/3/1 weeks on your training max with the last set for max reps (AMRAP), or rep ranges like 8–12. Any template can use these progression schemes.
+- **Share a workout or a program** as a link or a file. The other person sees which exercises they already have before importing.
 - **Swap an exercise mid-workout**: rack taken? Swap Bench Press for a similar exercise (same muscle, other equipment first) for this session only, or also update the template.
 - **History calendar**: open any past workout and fix a typo. Its score is recalculated.
 - **Cardio sets** with time and distance. They count for your streak and weekly target, but not for rank points.

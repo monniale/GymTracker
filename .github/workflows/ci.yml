@@ -35,6 +35,8 @@ jobs:
       - run: npx tsc -p tsconfig.node.json --noEmit
       # The "test" script sets TZ and the locale itself.
       - run: npm test
+      # Program presets: scripts/programs/*.json valid and public/programs.json rebuilt from them.
+      - run: node scripts/build-programs.mjs --check
       # Pages build. No VITE_USDA_KEY here: the app falls back to DEMO_KEY, and
       # pull requests must not receive repository secrets.
       - run: npm run build

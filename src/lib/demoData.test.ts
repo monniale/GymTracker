@@ -113,6 +113,7 @@ function fixture(): BackupFile {
       { id: 'tb2', table: 'sets', rowId: 'set-gone', deletedAt: T(2026, 10, 7, 9) },
     ],
     coachHistory, plannedFoods,
+    programs: [{ id: 'pr1', name: 'Push cycle', templateIds: ['t1'], cycleWeeks: 4, cycleStartDate: '2026-10-12', updatedAt: T(2026, 10, 12, 9) }],
   }
   return { app: 'gymtracker', version: 2, exportedAt: T(2026, 10, 14, 20), tables }
 }
@@ -599,6 +600,7 @@ describe('canOfferDemo / hasUserData', () => {
     ['savedMeals', () => db.savedMeals.put({ id: 'm', name: 'Bowl', items: [], lastUsedAt: 0 })],
     ['plannedFoods', () => db.plannedFoods.put({ id: 'p', date: '2026-10-24', meal: 'lunch', foodId: 'f', grams: 100, plannedAt: 1 })],
     ['dayTypes', () => db.dayTypes.put({ date: '2026-10-20', type: 'rest' })],
+    ['a lone program row', () => db.programs.put({ id: 'pr', name: 'Starting Strength', templateIds: [], cycleStartDate: '2026-10-19' })],
     ['a custom exercise', () => db.exercises.add({ name: 'My lift', nameLower: 'my lift', muscleGroup: 'back', defaultRestSec: 90, isCustom: true })],
     ['an edited catalog exercise', () => db.exercises.update(1, { notes: 'elbows in' })],
     ['edited settings', () => db.settings.update(1, { bodyweightKg: 81 })],

@@ -1,0 +1,250 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "full-body-3x",
+  "name": {
+    "en": "Full body 3×",
+    "it": "Total body 3×"
+  },
+  "description": {
+    "en": "Three full-body workouts a week (A, B, C), each with a squat or hinge, a push, a pull and a couple of accessories. A good general plan for beginners and anyone short on time. Double progression throughout: add weight once every set reaches the top of the rep range.",
+    "it": "Tre allenamenti total body a settimana (A, B, C), ognuno con uno squat o uno stacco, una spinta, una trazione e un paio di complementari. Un buon piano generale per principianti e per chi ha poco tempo. Doppia progressione su tutto: aumenta il peso quando ogni serie arriva al massimo dell'intervallo di ripetizioni."
+  },
+  "level": "beginner",
+  "daysPerWeek": 3,
+  "templates": [
+    {
+      "name": {
+        "en": "Full body A",
+        "it": "Total body A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Barbell Row",
+            "libraryId": "0027",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lateral Raise",
+            "libraryId": "0334",
+            "muscleGroup": "shoulders",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 12,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Cable Crunch",
+            "libraryId": "0175",
+            "muscleGroup": "core",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Full body B",
+        "it": "Total body B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "targetRepsMax": 8,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lat Pulldown",
+            "libraryId": "0150",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Curl",
+            "libraryId": "0586",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Curl",
+            "libraryId": "0294",
+            "muscleGroup": "biceps",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Full body C",
+        "it": "Total body C"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Leg Press",
+            "libraryId": "0739",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Incline Dumbbell Press",
+            "libraryId": "0314",
+            "muscleGroup": "chest",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Seated Cable Row",
+            "libraryId": "0861",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Hip Thrust",
+            "libraryId": "1409",
+            "muscleGroup": "glutes",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Triceps Pushdown",
+            "libraryId": "0241",
+            "muscleGroup": "triceps",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    }
+  ]
+}

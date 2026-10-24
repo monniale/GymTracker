@@ -1,0 +1,128 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "stronglifts-5x5",
+  "name": {
+    "en": "StrongLifts 5×5",
+    "it": "StrongLifts 5×5"
+  },
+  "description": {
+    "en": "Five sets of five on the big barbell lifts, two alternating workouts three times a week. Add 2.5 kg after every session where all sets hit five reps (5 kg on the deadlift); after three failed sessions in a row, deload by 10 % and build back up.",
+    "it": "Cinque serie da cinque sulle grandi alzate con il bilanciere, due allenamenti alternati tre volte a settimana. Aggiungi 2,5 kg dopo ogni seduta in cui tutte le serie arrivano a cinque ripetizioni (5 kg sullo stacco); dopo tre sedute fallite di fila scarica del 10 % e risali."
+  },
+  "level": "beginner",
+  "daysPerWeek": 3,
+  "templates": [
+    {
+      "name": {
+        "en": "Workout A",
+        "it": "Allenamento A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Barbell Row",
+            "libraryId": "0027",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Workout B",
+        "it": "Allenamento B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 5,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 2.5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        },
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 1,
+          "targetReps": 5,
+          "scheme": {
+            "kind": "linear",
+            "stepKg": 5,
+            "failsToDeload": 3,
+            "deloadPct": 0.1
+          }
+        }
+      ]
+    }
+  ]
+}
