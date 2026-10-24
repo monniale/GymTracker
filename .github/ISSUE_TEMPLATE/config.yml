@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: README
+    url: https://github.com/monniale/GymTracker#readme
+    about: What GymTracker does, how to install it and how to build it.
+  - name: ROUTEMAP (code map)
+    url: https://github.com/monniale/GymTracker/blob/main/ROUTEMAP.md
+    about: Find the files behind a feature and the rules a change must follow.
