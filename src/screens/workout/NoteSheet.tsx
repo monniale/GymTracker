@@ -3,6 +3,8 @@ import { BookOpen } from 'lucide-react'
 import { db } from '../../db/db'
 import { isCardioExercise } from '../../lib/cardio'
 import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
+import { bwFactorOf, defaultBwFactor } from '../../lib/load'
+import { refreshStampedE1rm } from '../../lib/finishSession'
 import NumberStepper from '../../components/NumberStepper'
 import Sheet from '../../components/Sheet'
 import ExerciseDetailSheet from '../../components/library/ExerciseDetailSheet'
@@ -20,15 +22,32 @@ export function NoteSheet({ open, onClose, exercise }: {
   const [step, setStep] = useState(exercise.progressionStepKg ?? 2.5)
   const [equip, setEquip] = useState<Equipment>(exercise.equipment ?? 'other')
   const [logAs, setLogAs] = useState<'strength' | 'cardio'>(isCardioExercise(exercise) ? 'cardio' : 'strength')
+  // Fraction of bodyweight the exercise moves, edited as a whole percent: NumberStepper shows
+  // one decimal, so a 0.05 step on the raw fraction would display 0.64 as "0.6".
+  const [bwPct, setBwPct] = useState(Math.round(bwFactorOf({ ...exercise, equipment: 'bodyweight' }) * 100))
 
   async function save() {
     const byGroup = exercise.muscleGroup === 'cardio' ? 'cardio' : 'strength'
-    await db.exercises.update(exercise.id!, {
+    const changes: Partial<Exercise> = {
       notes: text.trim() || undefined,
       progressionStepKg: step,
       equipment: equip,
       // Only store an override; matching the muscle-group default clears it.
       kind: logAs === byGroup ? undefined : logAs,
+    }
+    if (equip === 'bodyweight') {
+      // Same rule: store the factor only when it differs from the default for this name.
+      const factor = bwPct / 100
+      const byName = defaultBwFactor({ nameLower: exercise.nameLower, equipment: equip })
+      changes.bwFactor = Math.abs(factor - byName) < 1e-9 ? undefined : factor
+    }
+    const next: Exercise = { ...exercise, ...changes }
+    await db.transaction('rw', db.exercises, db.sets, db.sessions, async () => {
+      await db.exercises.update(exercise.id!, changes)
+      // Factor/equipment/kind are properties of the exercise: they set the load of its sets in
+      // every stamped workout, finished ones included, so the stored e1rm follows. Points already
+      // earned stay until that workout is edited (rescoreSession then scores the new load).
+      await refreshStampedE1rm(next)
     })
     onClose()
   }
@@ -86,6 +105,20 @@ export function NoteSheet({ open, onClose, exercise }: {
           unit="kg"
         />
       </div>
+      {equip === 'bodyweight' && logAs !== 'cardio' && (
+        <div className="mt-3 flex flex-col items-start">
+          <NumberStepper
+            label={t('workout.notes.bwFactor')}
+            value={bwPct}
+            onChange={setBwPct}
+            step={5}
+            min={20}
+            max={150}
+            unit="%"
+          />
+          <p className="mt-1 text-xs text-sub">{t('workout.notes.bwFactorHint')}</p>
+        </div>
+      )}
       <button
         onClick={save}
         className="mt-4 w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"

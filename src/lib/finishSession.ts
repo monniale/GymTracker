@@ -3,7 +3,9 @@ import { scoreSession, SCORING } from './scoring'
 import { registerSessionForStreak } from './season'
 import { localDateStr } from './dates'
 import { parseLocalDate } from './dates'
-import type { Id, SetRow } from '../types'
+import { effectiveLoad, setE1rm, toScoreSets } from './load'
+import { isCardioExercise } from './cardio'
+import type { Exercise, Id, Session, SetRow } from '../types'
 
 export interface SeasonPriorBests {
   /** Best e1RM per exercise this season, before the given session. */
@@ -16,6 +18,28 @@ export interface SeasonPriorBests {
  * Season-scoped prior bests per exercise, computed from all non-warmup sets in
  * the current season that belong to a session other than `sessionId`. Shared by
  * scoring (finishSession) and the AI coach briefing so both use identical logic.
+ *
+ * For a stamped session (`Session.bwScoring`) only rows with an e1RM above 0
+ * count, for both maps: an unweighted row (an old 0-kg bodyweight set, a cardio
+ * row, a 0-kg machine set) is no best to beat, so a first weighted or first
+ * bodyweight-load session never fires a fake e1RM or volume PR. An unstamped
+ * (older) session keeps the old rule (every working row counts, a 0-kg row as a
+ * best of 0), so re-scoring it reproduces exactly the PRs it earned when it was
+ * first scored.
+ *
+ * One basis for prior and current values: a row of a stamped session is read
+ * live (`setE1rm` / `effectiveLoad` with the exercise as it is now and that
+ * row's own session), the same way the session being scored is read
+ * (`toScoreSets`). So a bodyweight-share or equipment change applies to both
+ * sides at once and cannot fire a fake PR. Rows of unstamped sessions keep
+ * their stored e1rm (load = `weightKg`), exactly as before this feature.
+ *
+ * Bodyweight exercises (equipment 'bodyweight'): a stamped session's load is
+ * bodyweight × factor + added kg while an older session's is the added kg
+ * only, so the two units never mix: only prior rows from sessions with the same
+ * stamp as `sessionId` count. Older unstamped bodyweight rows (0 kg or added
+ * kg) therefore add nothing to a stamped session's prior e1RM or volume, and
+ * the first stamped session just sets the season's first best.
  */
 export async function gatherSeasonPriorBests(
   sessionId: Id,
@@ -27,22 +51,88 @@ export async function gatherSeasonPriorBests(
   const exerciseIds = [...new Set(sets.map(s => s.exerciseId))]
   const e1rm = new Map<Id, number>()
   const volume = new Map<Id, number>()
+  const session = await db.sessions.get(sessionId)
+  const stamped = session?.bwScoring === true
+  const exercises = await db.exercises.bulkGet(exerciseIds)
+  const sessionsById = new Map<Id, Session>()
 
-  for (const exId of exerciseIds) {
-    const prior = await db.sets
+  for (const [i, exId] of exerciseIds.entries()) {
+    const ex = exercises[i]
+    let prior = await db.sets
       .where('[exerciseId+completedAt]')
       .between([exId, seasonStartMs], [exId, Infinity])
       .filter(s => s.sessionId !== sessionId && !s.isWarmup)
       .toArray()
     if (prior.length === 0) continue
-    e1rm.set(exId, Math.max(...prior.map(s => s.e1rm)))
+
+    const missing = [...new Set(prior.map(s => s.sessionId))].filter(id => !sessionsById.has(id))
+    if (missing.length > 0) {
+      const rows = await db.sessions.bulkGet(missing)
+      rows.forEach((row, j) => { if (row) sessionsById.set(missing[j], row) })
+    }
+    if (ex?.equipment === 'bodyweight' && !isCardioExercise(ex)) {
+      prior = prior.filter(s => (sessionsById.get(s.sessionId)?.bwScoring === true) === stamped)
+    }
+
+    const rows = prior
+      .map(s => {
+        const own = sessionsById.get(s.sessionId)
+        const live = own?.bwScoring === true
+        return { s, own, e1rm: live ? setE1rm(s, ex, own) : s.e1rm }
+      })
+      .filter(r => !stamped || r.e1rm > 0)
+    if (rows.length === 0) continue
+
+    e1rm.set(exId, Math.max(...rows.map(r => r.e1rm)))
     const volBySession = new Map<Id, number>()
-    for (const s of prior) {
-      volBySession.set(s.sessionId, (volBySession.get(s.sessionId) ?? 0) + s.weightKg * s.reps)
+    for (const { s, own } of rows) {
+      const load = effectiveLoad(s, ex, own)
+      volBySession.set(s.sessionId, (volBySession.get(s.sessionId) ?? 0) + load * s.reps)
     }
     volume.set(exId, Math.max(...volBySession.values()))
   }
   return { e1rm, volume }
+}
+
+/**
+ * Re-computes the stored e1rm of every set of `exercise` that belongs to a
+ * stamped session, after its bodyweight share, equipment or kind changed
+ * (NoteSheet). The e1rm then matches the live load that every reader computes
+ * (PR wall, prior bests, rep maxes), on finished workouts too. Points already
+ * earned are not re-scored here; an edited workout re-scores at the new load.
+ * Unstamped sessions are left alone (their load is `weightKg` whatever the
+ * exercise says). Call it inside a transaction over `db.sets` + `db.sessions`.
+ * Returns how many rows changed.
+ */
+export async function refreshStampedE1rm(exercise: Exercise): Promise<number> {
+  const rows = await db.sets.where('exerciseId').equals(exercise.id!).toArray()
+  const ids = [...new Set(rows.map(r => r.sessionId))]
+  const sessions = await db.sessions.bulkGet(ids)
+  const byId = new Map<Id, Session>()
+  sessions.forEach((row, i) => { if (row) byId.set(ids[i], row) })
+  let changed = 0
+  for (const r of rows) {
+    const own = byId.get(r.sessionId)
+    if (own?.bwScoring !== true) continue
+    const e1rm = setE1rm(r, exercise, own)
+    if (e1rm !== r.e1rm) {
+      await db.sets.update(r.id!, { e1rm })
+      changed++
+    }
+  }
+  return changed
+}
+
+/** Exercises by id (for the set loads) and their stored English names (for the breakdown). */
+function exerciseMaps(ids: Id[], rows: (Exercise | undefined)[]) {
+  const exMap = new Map<Id, Exercise>()
+  const exerciseNames = new Map<Id, string>()
+  ids.forEach((id, i) => {
+    const ex = rows[i]
+    if (ex) exMap.set(id, ex)
+    exerciseNames.set(id, ex?.name ?? 'Exercise')
+  })
+  return { exMap, exerciseNames }
 }
 
 /**
@@ -76,11 +166,10 @@ export async function finishSession(sessionId: Id): Promise<number | null> {
   const streakWeeks = await registerSessionForStreak(now)
 
   const exercises = await db.exercises.bulkGet(exerciseIds)
-  const exerciseNames = new Map<Id, string>()
-  exerciseIds.forEach((id, i) => exerciseNames.set(id, exercises[i]?.name ?? 'Exercise'))
+  const { exMap, exerciseNames } = exerciseMaps(exerciseIds, exercises)
 
   const result = scoreSession({
-    sets,
+    sets: toScoreSets(sets, exMap, session),
     bodyweightKg: session.bodyweightKg,
     priorBestE1rm,
     priorBestVolume,
@@ -144,8 +233,7 @@ export async function rescoreSession(sessionId: Id): Promise<number | null> {
   const { e1rm: priorBestE1rm, volume: priorBestVolume } = await gatherSeasonPriorBests(sessionId, sets)
   const exerciseIds = [...new Set(sets.map(s => s.exerciseId))]
   const exercises = await db.exercises.bulkGet(exerciseIds)
-  const exerciseNames = new Map<Id, string>()
-  exerciseIds.forEach((id, i) => exerciseNames.set(id, exercises[i]?.name ?? 'Exercise'))
+  const { exMap, exerciseNames } = exerciseMaps(exerciseIds, exercises)
 
   // Carry the streak + first-of-day context from the stored event so scoring
   // reproduces the same streakMult/dayFactor it originally earned.
@@ -153,7 +241,7 @@ export async function rescoreSession(sessionId: Id): Promise<number | null> {
   const carriedFirstOfDay = event ? event.dayFactor === 1 : true
 
   const result = scoreSession({
-    sets,
+    sets: toScoreSets(sets, exMap, session),
     bodyweightKg: session.bodyweightKg,
     priorBestE1rm,
     priorBestVolume,

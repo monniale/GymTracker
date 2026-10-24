@@ -122,6 +122,28 @@ describe('gatherWeekBriefing', () => {
     expect(weekStats(b)).toMatchObject({ sessions: 2, points: 215, prs: 2, loggedDays: 0, proteinPerKg: null })
   })
 
+  it('counts bodyweight in the volume of a stamped session only', async () => {
+    const pullUp = (await db.exercises.where('nameLower').equals('pull-up').first())!
+    const add = async (name: string, startedAt: number, bwScoring: boolean) => {
+      const id = await db.sessions.add({
+        name, startedAt, endedAt: startedAt + HOUR, bodyweightKg: 80, extraExerciseIds: [], ...(bwScoring ? { bwScoring: true as const } : {}),
+      })
+      // Stored e1RM as each build would write it: effective load for the stamped one, logged weight before.
+      const rows: [number, number, number][] = bwScoring ? [[0, 10, 106.7], [10, 8, 114]] : [[0, 10, 0], [10, 8, 12.7]]
+      for (const [k, [weightKg, reps, e1rm]] of rows.entries()) {
+        await db.sets.add({ sessionId: id, exerciseId: pullUp.id!, setNumber: k + 1, weightKg, reps, isWarmup: false, completedAt: startedAt + (k + 1) * 60_000, e1rm })
+      }
+    }
+    await add('Old pull', T(2026, 10, 19, 18), false)
+    await add('New pull', T(2026, 10, 21, 18), true)
+    const b = await gatherWeekBriefing('2026-10-19', '2026-10-27')
+    const [old, fresh] = b.sessions
+    expect(old).toMatchObject({ name: 'Old pull', volumeKg: 10 * 8 })
+    expect(old.exercises).toEqual([{ name: 'Pull-Up', sets: 2, best: '10 kg × 8' }])
+    expect(fresh).toMatchObject({ name: 'New pull', volumeKg: 80 * 10 + 90 * 8 })
+    expect(fresh.exercises).toEqual([{ name: 'Pull-Up', sets: 2, best: 'BW+10 kg × 8' }])
+  })
+
   it('marks the current week as not finished', async () => {
     const b = await gatherWeekBriefing('2026-10-26', '2026-10-27')
     expect(b.finished).toBe(false)

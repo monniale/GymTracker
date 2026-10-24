@@ -16,8 +16,9 @@ import { sessionCardModel, renderSessionCard, shareImage, cardFileName, loadCard
 import { isCardioSet, cardioSessionTotals, cardioMinutes, fmtCardioSet } from '../../lib/cardio'
 import { haptic } from '../../native/haptics'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { effectiveLoad } from '../../lib/load'
 import { t, tp, fmtNum } from '../../i18n'
-import type { Id, ScoreEvent, Session, SetRow } from '../../types'
+import type { Exercise, Id, ScoreEvent, Session, SetRow } from '../../types'
 
 export default function SessionSummary() {
   const { id } = useParams()
@@ -42,11 +43,12 @@ export default function SessionSummary() {
   const rankState = useLiveQuery(() => db.rankState.get(1))
   // Cardio exercises earn no points, so they aren't in the score breakdown: list them separately.
   const cardioIds = [...new Set(sets.filter(isCardioSet).map(s => String(s.exerciseId)))]
-  const cardioNames = useLiveQuery(async () => {
-    const ids = [...new Set(sets.filter(isCardioSet).map(s => s.exerciseId))]
-    const rows = await db.exercises.bulkGet(ids)
-    return new Map(ids.map((id, i) => [String(id), rows[i] ? exerciseDisplayName(rows[i]!.name) : t('workout.summary.cardio')]))
-  }, [cardioIds.join('|')])
+  // The session's exercises: cardio names, and the bodyweight factor of bodyweight sets for the volume.
+  const exMap = useLiveQuery(() => exercisesOf(sets), [[...new Set(sets.map(s => String(s.exerciseId)))].join('|')])
+  const cardioNames = new Map(cardioIds.map(id => {
+    const ex = exMap?.get(sets.find(s => String(s.exerciseId) === id)!.exerciseId)
+    return [id, ex ? exerciseDisplayName(ex.name) : t('workout.summary.cardio')]
+  }))
 
   // Android: a success buzz for a PR or rank-up, judged on first load (never in report mode).
   // Delayed so it lands as its own buzz after Finish's, which would otherwise supersede it.
@@ -69,7 +71,9 @@ export default function SessionSummary() {
   const after = rankForPoints(rankState.points)
   const before = rankForPoints(Math.max(0, rankState.points - event.total))
   const rankedUp = after.index > before.index
-  const volume = Math.round(sets.filter(s => !s.isWarmup).reduce((a, s) => a + s.weightKg * s.reps, 0))
+  const volume = Math.round(
+    sets.filter(s => !s.isWarmup).reduce((a, s) => a + effectiveLoad(s, exMap?.get(s.exerciseId), session) * s.reps, 0),
+  )
   const strengthSets = sets.filter(s => !isCardioSet(s)).length
   const cardio = cardioSessionTotals(sets)
   const duration = session.endedAt ? session.endedAt - session.startedAt : 0
@@ -191,7 +195,7 @@ export default function SessionSummary() {
 
         {cardioIds.map(id => (
           <div key={id} className="flex items-center gap-2 rounded-xl bg-card px-4 py-2.5">
-            <span className="min-w-0 flex-1 truncate font-medium">{cardioNames?.get(id) ?? t('workout.summary.cardio')}</span>
+            <span className="min-w-0 flex-1 truncate font-medium">{cardioNames.get(id)}</span>
             <span className="num shrink-0 whitespace-nowrap text-sm text-sub">
               {fmtCardioSet(cardioSessionTotals(sets.filter(s => String(s.exerciseId) === id)))}
             </span>
@@ -206,6 +210,7 @@ export default function SessionSummary() {
         session={session}
         event={event}
         sets={sets}
+        exercises={exMap}
         rankPoints={rankState.points}
         streakWeeks={rankState.streakWeeks}
         fresh={!isReport}
@@ -222,10 +227,11 @@ export default function SessionSummary() {
 }
 
 /** Renders the workout as a 1080×1350 PNG and opens the share sheet (or downloads it). */
-function ShareCardButton({ session, event, sets, rankPoints, streakWeeks, fresh }: {
+function ShareCardButton({ session, event, sets, exercises, rankPoints, streakWeeks, fresh }: {
   session: Session
   event: ScoreEvent
   sets: SetRow[]
+  exercises: Map<Id, Exercise> | undefined
   rankPoints: number
   streakWeeks: number
   fresh: boolean
@@ -244,7 +250,11 @@ function ShareCardButton({ session, event, sets, rankPoints, streakWeeks, fresh 
     setBusy(true)
     setError(null)
     try {
-      const model = sessionCardModel(session, event, sets, rankPoints, { fresh, streakWeeks })
+      const model = sessionCardModel(session, event, sets, rankPoints, {
+        fresh,
+        streakWeeks,
+        exercises: exercises ?? (await exercisesOf(sets)),
+      })
       const blob = await renderSessionCard(model, emblemUrl(model.tier))
       await shareImage(blob, cardFileName(model, localDateStr(new Date(session.startedAt))))
     } catch (e) {
@@ -276,4 +286,10 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
       <span className="shrink-0">{value}</span>
     </div>
   )
+}
+
+/** The exercises of a session's sets, by id. */
+async function exercisesOf(sets: SetRow[]): Promise<Map<Id, Exercise>> {
+  const rows = await db.exercises.bulkGet([...new Set(sets.map(s => s.exerciseId))])
+  return new Map(rows.filter((e): e is Exercise => e !== undefined).map(e => [e.id!, e]))
 }

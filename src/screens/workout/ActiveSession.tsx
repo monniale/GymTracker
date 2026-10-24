@@ -5,7 +5,7 @@ import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles } from 'lucide-r
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { useNow, useWakeLock } from '../../lib/hooks'
-import { epley } from '../../lib/scoring'
+import { effectiveLoad, fmtSetLoad, setE1rm, usesBodyweightLoad } from '../../lib/load'
 import { suggestNext } from '../../lib/progression'
 import { platesPerSide, formatPlates, warmupRamp, DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
 import { useWorkoutPlan } from '../../lib/workoutSuggest'
@@ -20,7 +20,7 @@ import { NoteSheet } from './NoteSheet'
 import { PendingRow, CardioPendingRow } from './PendingRow'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t, tp, fmtNum } from '../../i18n'
-import type { Exercise, Id, PlannedSet, SetRow } from '../../types'
+import type { Exercise, Id, PlannedSet, Session, SetRow } from '../../types'
 
 const WARMUP_REST_SEC = 30
 
@@ -149,8 +149,8 @@ export default function ActiveSession() {
               item={item}
               exercise={exMap.get(item.exerciseId)}
               sessionId={session.id!}
+              session={session}
               sessionSets={sets.filter(s => s.exerciseId === item.exerciseId)}
-              bodyweightKg={session.bodyweightKg}
               defaultRestSec={settings?.defaultRestSec ?? 90}
               barKg={settings?.barWeightKg ?? DEFAULT_BAR_KG}
               plates={settings?.platesAvailable ?? DEFAULT_PLATES}
@@ -186,8 +186,9 @@ interface CardProps {
   item: SessionItem
   exercise?: Exercise
   sessionId: Id
+  /** The active session: its bodyweight and `bwScoring` stamp decide bodyweight-exercise load. */
+  session: Session
   sessionSets: SetRow[]
-  bodyweightKg: number
   defaultRestSec: number
   barKg: number
   plates: number[]
@@ -201,7 +202,7 @@ interface CardProps {
 }
 
 function ExerciseCard({
-  item, exercise, sessionId, sessionSets, bodyweightKg, defaultRestSec, barKg, plates, aiSets: aiPlan, suppressRest,
+  item, exercise, sessionId, session, sessionSets, defaultRestSec, barKg, plates, aiSets: aiPlan, suppressRest,
   nextExerciseName, supersetNextName,
 }: CardProps) {
   const startRest = useAppStore(s => s.startRest)
@@ -233,15 +234,22 @@ function ExerciseCard({
   const restSec = item.restSec ?? exercise?.defaultRestSec ?? defaultRestSec
   const isBarbell = !cardio && exercise?.equipment === 'barbell'
   const name = exercise ? exerciseDisplayName(exercise.name) : undefined
+  // Bodyweight exercise on a stamped session: weightKg is ADDED kg (negative = assisted).
+  const bodyweightLoad = usesBodyweightLoad(exercise, session)
+  const bodyweightKg = session.bodyweightKg
 
   const suggestion = useMemo(
     () => cardio ? null : suggestNext(
       prevSets.map(s => ({ weightKg: s.weightKg, reps: s.reps })),
       item.targetReps,
       exercise?.progressionStepKg ?? 2.5,
+      { bodyweight: bodyweightLoad },
     ),
-    [cardio, prevSets, item.targetReps, exercise?.progressionStepKg],
+    [cardio, prevSets, item.targetReps, exercise?.progressionStepKg, bodyweightLoad],
   )
+
+  /** A set label: "80 kg × 8", or "BW+10 kg × 8" on a bodyweight exercise. */
+  const loadLabel = (s: { weightKg: number; reps: number }) => fmtSetLoad(s, bodyweightLoad)
 
   // The AI-planned set for this row's work-set position (F2), if any.
   function aiSetFor(index: number): PlannedSet | undefined {
@@ -306,7 +314,9 @@ function ExerciseCard({
         target = fmtCardioSet(cardioDraftForWork(done, lastWork))
       } else {
         const next = draftForWork(done, lastWork)
-        target = next.weightKg > 0 ? `${fmtNum(next.weightKg)} kg × ${next.reps}` : tp('units.reps', next.reps)
+        target = bodyweightLoad
+          ? loadLabel(next)
+          : next.weightKg > 0 ? `${fmtNum(next.weightKg)} kg × ${next.reps}` : tp('units.reps', next.reps)
       }
       return t('workout.rest.setTarget', {
         name: name ?? t('workout.rest.nextSet'), n: done + 1, total: planned, target,
@@ -324,7 +334,7 @@ function ExerciseCard({
       reps,
       isWarmup,
       completedAt: Date.now(),
-      e1rm: epley(weightKg, reps),
+      e1rm: setE1rm({ weightKg, reps }, exercise, session),
     })
     if (isWarmup) startRest(WARMUP_REST_SEC, restLabel({ weightKg, reps }, true), { warmup: true })
     else if (!suppressRest) startRest(restSec, restLabel({ weightKg, reps }, false))
@@ -359,7 +369,7 @@ function ExerciseCard({
       reps: st.reps,
       isWarmup: true,
       completedAt: at + i,
-      e1rm: epley(st.weightKg, st.reps),
+      e1rm: setE1rm(st, exercise, session),
     })))
   }
 
@@ -435,7 +445,7 @@ function ExerciseCard({
               >
                 <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                 <span className="num flex-1 font-display text-lg font-semibold">
-                  {isCardioSet(s) ? fmtCardioSet(s) : `${fmtNum(s.weightKg)} kg × ${s.reps}`}
+                  {isCardioSet(s) ? fmtCardioSet(s) : loadLabel(s)}
                   {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
                 </span>
                 <Check size={18} className="text-accent" aria-hidden />
@@ -470,6 +480,8 @@ function ExerciseCard({
                 initWeight={draft.weightKg}
                 initReps={draft.reps}
                 bodyweightKg={bodyweightKg}
+                bodyweightLoad={bodyweightLoad}
+                loadOf={w => effectiveLoad({ weightKg: w }, exercise, session)}
                 suggestion={aiSets ? null : workLogged === 0 ? suggestion : null}
                 aiFilled={!!aiSetFor(i)}
                 platesFor={platesFor}
@@ -484,7 +496,9 @@ function ExerciseCard({
               <span className="num flex-1 text-base text-sub">
                 {cardio
                   ? fmtCardioSet(cardioDraftFor(i))
-                  : ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
+                  : bodyweightLoad
+                    ? loadLabel(ghost)
+                    : ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
               </span>
               {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label={t('workout.session.aiSuggestion')} />}
             </div>
@@ -500,7 +514,11 @@ function ExerciseCard({
       </button>
 
       {exercise && (
-        <NoteSheet open={noteOpen} onClose={() => setNoteOpen(false)} exercise={exercise} />
+        <NoteSheet
+          open={noteOpen}
+          onClose={() => setNoteOpen(false)}
+          exercise={exercise}
+        />
       )}
     </div>
   )
