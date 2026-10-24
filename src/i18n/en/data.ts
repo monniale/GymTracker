@@ -24,6 +24,12 @@ export default {
     keptChanging: 'Remote kept changing — try again',
     tokenRejected: 'GitHub token rejected — it may have expired. Paste a fresh one in Settings.',
     repoNotFound: 'Repository {owner}/{repo} not found. Create it as a PRIVATE repo on GitHub first.',
+    demoLoaded: 'Demo data is loaded. Clear it in Settings › Data before connecting sync.',
+  },
+  /** Loading the web demo (lib/demoData.ts) refused. */
+  demo: {
+    connected: 'Sync is connected, so the demo cannot replace your data.',
+    notEmpty: 'This device already has your data, so the demo cannot replace it.',
   },
   /** Strong / Hevy CSV import (lib/importHistory.ts). */
   import: {

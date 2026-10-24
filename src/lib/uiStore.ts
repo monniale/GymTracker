@@ -24,7 +24,16 @@ export interface UiStore {
   /** Show the exercise library's animations/thumbnails (loaded from the dataset repo). Off by default. */
   showExerciseMedia: boolean
   setShowExerciseMedia: (on: boolean) => void
+  /**
+   * The demo backup (lib/demoData.ts) is what the database holds right now. While true, sync is
+   * blocked (doSync returns 'demo', connect() refuses) so made-up data never reaches a sync repo.
+   * Cleared by clearDemoData() and by importing a real backup.
+   */
+  demoLoaded: boolean
+  setDemoLoaded: (v: boolean) => void
 }
+
+const UI_KEY = 'gymtracker-ui'
 
 export const useUiStore = create<UiStore>()(
   persist(
@@ -33,10 +42,16 @@ export const useUiStore = create<UiStore>()(
       setLanguage: language => set({ language }),
       showExerciseMedia: false,
       setShowExerciseMedia: showExerciseMedia => set({ showExerciseMedia }),
+      demoLoaded: false,
+      setDemoLoaded: demoLoaded => set({ demoLoaded }),
     }),
     {
-      name: 'gymtracker-ui',
-      partialize: s => ({ language: s.language, showExerciseMedia: s.showExerciseMedia }),
+      name: UI_KEY,
+      partialize: s => ({
+        language: s.language,
+        showExerciseMedia: s.showExerciseMedia,
+        demoLoaded: s.demoLoaded,
+      }),
       merge: (persisted, current) => {
         const p = persisted as Partial<UiStore> | undefined
         const lang = p?.language
@@ -44,11 +59,40 @@ export const useUiStore = create<UiStore>()(
           ...current,
           language: lang === 'en' || lang === 'it' ? lang : current.language,
           showExerciseMedia: p?.showExerciseMedia === true,
+          demoLoaded: p?.demoLoaded === true,
         }
       },
     },
   ),
 )
+
+/**
+ * Another tab of the app shares the same IndexedDB but keeps its own in-memory store: pick up the
+ * flags that tab saved (above all `demoLoaded`, which guards sync), so this tab's UI and sync
+ * guards follow the demo being loaded or cleared there.
+ */
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', e => {
+    if (e.key === UI_KEY) void useUiStore.persist.rehydrate()
+  })
+}
+
+/**
+ * True when this tab's store, or the value last saved by any tab, says the demo is loaded. The sync
+ * guards read this at check time, so a tab whose store has not caught up yet (the storage event is
+ * asynchronous) still never pushes the demo rows another tab wrote.
+ */
+export function demoLoadedAnyTab(): boolean {
+  if (useUiStore.getState().demoLoaded) return true
+  try {
+    const raw = localStorage.getItem(UI_KEY)
+    if (!raw) return false
+    const saved = JSON.parse(raw) as { state?: { demoLoaded?: unknown } } | null
+    return saved?.state?.demoLoaded === true
+  } catch {
+    return false
+  }
+}
 
 /** The current UI language, for code outside React. */
 export function getLang(): Lang {

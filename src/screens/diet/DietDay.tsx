@@ -13,6 +13,7 @@ import { t, fmtNum, type Key } from '../../i18n'
 import ProgressRing from '../../components/ProgressRing'
 import DietCoachCard from '../../components/DietCoachCard'
 import MacroCompletionCard from '../../components/MacroCompletionCard'
+import DemoBanner from '../../components/DemoBanner'
 import AddFoodSheet from './AddFoodSheet'
 import EntryEditor from './EntryEditor'
 import PlannedEntrySheet from './PlannedEntrySheet'
@@ -124,6 +125,7 @@ export default function DietDay() {
 
   return (
     <div className="pt-4">
+      <DemoBanner />
       <div className="mb-4 flex items-center justify-between">
         <button
           onClick={() => setDate(addDays(date, -1))}

@@ -14,6 +14,7 @@
     "android:open": "cap open android",
     "preview": "vite preview",
     "test": "TZ=Europe/Rome LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 vitest run",
+    "demo:build": "DEMO_OUT=public/demo-backup.json TZ=Europe/Rome LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 vitest run scripts/demo",
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {

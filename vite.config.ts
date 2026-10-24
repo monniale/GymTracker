@@ -40,6 +40,9 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['apple-touch-icon.png'],
         workbox: {
           globPatterns: ['**/*.{js,css,html,png,svg,woff2,json}'],
+          // The web demo backup (lib/demoData.ts, ~380 KB) is fetched only when someone taps
+          // "Try with demo data": keep it out of the precache every visitor downloads.
+          globIgnores: ['**/demo-backup.json'],
           // Exercise animations (opt-in, Settings) load from the dataset repo at a pinned commit:
           // keep the ones already seen for offline use. CORS responses only (the <img> asks
           // with crossOrigin), so no opaque entries inflate the storage quota. Thumbnails are

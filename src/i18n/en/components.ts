@@ -1,5 +1,12 @@
 /** `components` namespace (rules in src/i18n/index.ts). Keys: screen.element, camelCase. */
 export default {
+  /** DemoBanner (demo data loaded on the web first run, lib/demoData.ts). */
+  demo: {
+    banner: 'Demo data loaded',
+    clear: 'Clear',
+    confirm: 'Delete all demo data and start with an empty app?',
+    error: 'Demo data: {error}',
+  },
   tabBar: {
     workout: 'Workout',
     diet: 'Diet',

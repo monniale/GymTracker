@@ -134,6 +134,8 @@ The signed APK is attached to each [GitHub Release](https://github.com/monniale/
 ### 🌐 Use it in your browser
 Open **https://monniale.github.io/GymTracker/**. That's it. It works offline after the first visit.
 
+Want to look around first? On an empty app, tap **Try with demo data** on the Workout screen: it loads 16 weeks of made-up workouts and meals. Sync stays off while it is loaded, and **Clear demo data** (Settings › Data) brings back an empty app.
+
 ### 📲 Install it like an app
 
 <details>
