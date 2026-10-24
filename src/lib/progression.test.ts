@@ -104,3 +104,93 @@ describe('suggestNext (bodyweight load)', () => {
     expect(suggestNext([{ weightKg: 0, reps: 0 }], 8, 2.5, bw)).toBeNull()
   })
 })
+
+describe('suggestNext (RPE and set types)', () => {
+  it('ignores drop sets when picking the top weight', () => {
+    // The heavier "drop" row is a logging oddity; the 80 kg straight sets set the top weight.
+    expect(suggestNext([
+      { weightKg: 80, reps: 8 }, { weightKg: 80, reps: 8 }, { weightKg: 90, reps: 4, setType: 'drop' },
+    ], 8)).toEqual({ weightKg: 82.5, reps: 8, reason: 'weight-up' })
+    // A missed drop set does not block the step either.
+    expect(suggestNext([
+      { weightKg: 80, reps: 8 }, { weightKg: 60, reps: 6, setType: 'drop' },
+    ], 8)?.reason).toBe('weight-up')
+  })
+
+  it('still progresses on drop sets when they are all there is', () => {
+    expect(suggestNext([{ weightKg: 60, reps: 12, setType: 'drop' }], 12))
+      .toEqual({ weightKg: 62.5, reps: 12, reason: 'weight-up' })
+  })
+
+  it('takes two steps when every target was hit at RPE 7 or less', () => {
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 6.5 }, { weightKg: 80, reps: 8, rpe: 7 },
+    ], 8)).toEqual({ weightKg: 85, reps: 8, reason: 'weight-up' })
+  })
+
+  it('takes one step when only some top sets carry an RPE', () => {
+    // The unrated sets may have been hard: no double step on a partial rating.
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 6 }, { weightKg: 80, reps: 8 }, { weightKg: 80, reps: 8 },
+    ], 8, 2.5)).toEqual({ weightKg: 82.5, reps: 8, reason: 'weight-up' })
+    // A failure set without an RPE counts as rated (RPE 10), so it holds instead.
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 6 }, { weightKg: 80, reps: 8, setType: 'failure' },
+    ], 8)?.reason).toBe('hold')
+  })
+
+  it('takes one step at a moderate RPE', () => {
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 7 }, { weightKg: 80, reps: 8, rpe: 8.5 },
+    ], 8)).toEqual({ weightKg: 82.5, reps: 8, reason: 'weight-up' })
+  })
+
+  it('an easy RPE does not double when a target was missed', () => {
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 6 }, { weightKg: 80, reps: 6, rpe: 7 },
+    ], 8)).toEqual({ weightKg: 80, reps: 7, reason: 'reps-up' })
+  })
+
+  it('holds weight and reps at RPE 9.5 or more', () => {
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 8 }, { weightKg: 80, reps: 8, rpe: 9.5 },
+    ], 8)).toEqual({ weightKg: 80, reps: 8, reason: 'hold' })
+    // Missed reps near the limit: repeat what was done, not one more.
+    expect(suggestNext([
+      { weightKg: 80, reps: 8 }, { weightKg: 80, reps: 6, rpe: 10 },
+    ], 8)).toEqual({ weightKg: 80, reps: 6, reason: 'hold' })
+  })
+
+  it('counts a failure set without an RPE as RPE 10', () => {
+    expect(suggestNext([
+      { weightKg: 80, reps: 8 }, { weightKg: 80, reps: 8, setType: 'failure' },
+    ], 8)).toEqual({ weightKg: 80, reps: 8, reason: 'hold' })
+    // A failure set with its own RPE uses that RPE.
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, setType: 'failure', rpe: 9 },
+    ], 8)?.reason).toBe('weight-up')
+  })
+
+  it('only top-weight sets count for the effort', () => {
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 8 }, { weightKg: 60, reps: 12, rpe: 10, setType: 'drop' },
+    ], 8)).toEqual({ weightKg: 82.5, reps: 8, reason: 'weight-up' })
+    // A lighter straight back-off set at RPE 10 does not hold the top weight.
+    expect(suggestNext([
+      { weightKg: 80, reps: 8, rpe: 8 }, { weightKg: 70, reps: 8, rpe: 10 },
+    ], 8)).toEqual({ weightKg: 82.5, reps: 8, reason: 'weight-up' })
+  })
+
+  it('AMRAP sets count like working sets', () => {
+    expect(suggestNext([{ weightKg: 80, reps: 11, setType: 'amrap', rpe: 8 }], 8))
+      .toEqual({ weightKg: 82.5, reps: 8, reason: 'weight-up' })
+  })
+
+  it('applies to bodyweight load: double the capped step, and hold', () => {
+    const bw = { bodyweight: true }
+    expect(suggestNext([{ weightKg: 0, reps: 8, rpe: 7 }], 8, 2.5, bw))
+      .toEqual({ weightKg: 2.5, reps: 8, reason: 'weight-up' })
+    expect(suggestNext([{ weightKg: -20, reps: 6, rpe: 10 }], 8, 2.5, bw))
+      .toEqual({ weightKg: -20, reps: 6, reason: 'hold' })
+  })
+})

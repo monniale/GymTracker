@@ -17,7 +17,9 @@ import { sessionItems, type SessionItem } from '../../lib/sessionItems'
 import { haptic } from '../../native/haptics'
 import ExercisePicker from './ExercisePicker'
 import { NoteSheet } from './NoteSheet'
-import { PendingRow, CardioPendingRow } from './PendingRow'
+import { PendingRow, CardioPendingRow, SetBadges, type LogExtra } from './PendingRow'
+import { normalizeRpe } from '../../lib/setTypes'
+import { useUiStore } from '../../lib/uiStore'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t, tp, fmtNum } from '../../i18n'
 import type { Exercise, Id, PlannedSet, Session, SetRow } from '../../types'
@@ -211,6 +213,7 @@ function ExerciseCard({
   const aiSets = cardio ? undefined : aiPlan
   const [extraRows, setExtraRows] = useState(0)
   const [noteOpen, setNoteOpen] = useState(false)
+  const effortScale = useUiStore(s => s.effortScale)
 
   // Last completed session containing this exercise — prefill + progression source.
   const prevSets = useLiveQuery(async () => {
@@ -240,7 +243,7 @@ function ExerciseCard({
 
   const suggestion = useMemo(
     () => cardio ? null : suggestNext(
-      prevSets.map(s => ({ weightKg: s.weightKg, reps: s.reps })),
+      prevSets.map(s => ({ weightKg: s.weightKg, reps: s.reps, rpe: s.rpe, setType: s.setType })),
       item.targetReps,
       exercise?.progressionStepKg ?? 2.5,
       { bodyweight: bodyweightLoad },
@@ -325,7 +328,9 @@ function ExerciseCard({
     return nextExerciseName ? t('workout.rest.next', { name: nextExerciseName }) : t('workout.rest.last')
   }
 
-  async function logSet(weightKg: number, reps: number, isWarmup: boolean) {
+  async function logSet(weightKg: number, reps: number, isWarmup: boolean, extra: LogExtra = {}) {
+    // Optional fields are written only when set: a plain working set stores neither (absent = working).
+    const rpe = normalizeRpe(extra.rpe)
     await db.sets.add({
       sessionId,
       exerciseId: item.exerciseId,
@@ -335,6 +340,8 @@ function ExerciseCard({
       isWarmup,
       completedAt: Date.now(),
       e1rm: setE1rm({ weightKg, reps }, exercise, session),
+      ...(rpe !== undefined ? { rpe } : {}),
+      ...(extra.setType && !isWarmup ? { setType: extra.setType } : {}),
     })
     if (isWarmup) startRest(WARMUP_REST_SEC, restLabel({ weightKg, reps }, true), { warmup: true })
     else if (!suppressRest) startRest(restSec, restLabel({ weightKg, reps }, false))
@@ -447,6 +454,7 @@ function ExerciseCard({
                 <span className="num flex-1 font-display text-lg font-semibold">
                   {isCardioSet(s) ? fmtCardioSet(s) : loadLabel(s)}
                   {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
+                  {!isCardioSet(s) && <SetBadges set={s} scale={effortScale} />}
                 </span>
                 <Check size={18} className="text-accent" aria-hidden />
                 <button

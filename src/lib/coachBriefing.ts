@@ -8,7 +8,24 @@ import { localDateStr, mondayOf, parseLocalDate } from './dates'
 import { isCardioExercise, isCardioSet, cardioSessionTotals, cardioMinutes, fmtDistance, paceSecPerKm, fmtPace } from './cardio'
 import { sessionItems } from './sessionItems'
 import { bwFactorOf, effectiveLoad, usesBodyweightLoad } from './load'
-import type { Id } from '../types'
+import { briefingTag, SET_NOTATION_LEGEND } from './setTypes'
+import type { Id, SetRow } from '../types'
+
+/** A logged set as briefings carry it: RPE and set type only when recorded (absent = working). */
+export interface BriefingSet {
+  weightKg: number
+  reps: number
+  rpe?: number
+  setType?: SetRow['setType']
+}
+
+/** The set's RPE and type, only the fields it has (so a plain set stays `{ weightKg, reps }`). */
+function effortFields(s: Pick<SetRow, 'rpe' | 'setType'>): Pick<BriefingSet, 'rpe' | 'setType'> {
+  return {
+    ...(s.rpe !== undefined ? { rpe: s.rpe } : {}),
+    ...(s.setType !== undefined && s.setType !== 'working' ? { setType: s.setType } : {}),
+  }
+}
 
 /**
  * A compact, pre-computed summary of one finished workout. This is what the AI
@@ -20,7 +37,7 @@ export interface BriefingExercise {
   name: string
   muscleGroup: string
   /** `weightKg` as logged (added kg when `bodyweightFactor` is set), `loadKg` the effective load. */
-  sets: { weightKg: number; reps: number; loadKg: number }[]
+  sets: (BriefingSet & { loadKg: number })[]
   /** Fraction of bodyweight moved, set only for a bodyweight exercise of a stamped session. */
   bodyweightFactor?: number
   bestE1rm: number
@@ -76,7 +93,7 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
     const exSets = sets
       .filter(s => s.exerciseId === b.exerciseId && !s.isWarmup)
       .sort((a, z) => a.setNumber - z.setNumber)
-      .map(s => ({ weightKg: s.weightKg, reps: s.reps, loadKg: effectiveLoad(s, ex, session) }))
+      .map(s => ({ weightKg: s.weightKg, reps: s.reps, loadKg: effectiveLoad(s, ex, session), ...effortFields(s) }))
     const prior = priorBests.e1rm.get(b.exerciseId) ?? null
 
     const std = ex ? standardFor(ex.nameLower) : null
@@ -91,7 +108,9 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
     const nextSuggestion = sug
       ? sug.reason === 'weight-up'
         ? `${sugKg} for ${sug.reps} reps`
-        : `${sug.reps} reps at ${sugKg}`
+        : sug.reason === 'hold'
+          ? `hold ${sugKg} for ${sug.reps} reps (this session ended near the limit)`
+          : `${sug.reps} reps at ${sugKg}`
       : null
 
     return {
@@ -159,9 +178,15 @@ function bwKg(addedKg: number): string {
   return addedKg === 0 ? 'BW' : `BW${addedKg > 0 ? '+' : '-'}${Math.abs(addedKg)}kg`
 }
 
-/** "80kg×8"; on a bodyweight exercise the weight is added kg: "BW×12", "BW+10kg×8", "BW-20kg×6". */
-function briefingSet(s: { weightKg: number; reps: number }, bodyweightLoad: boolean): string {
-  return `${bodyweightLoad ? bwKg(s.weightKg) : `${s.weightKg}kg`}×${s.reps}`
+/** "80kg×8"; on a bodyweight exercise the weight is added kg: "BW×12", "BW+10kg×8", "BW-20kg×6".
+ * Then the RPE and set type (`briefingTag`): "80kg×8@8", "60kg×12 D", "BW+10kg×8@9 F". */
+function briefingSet(s: BriefingSet, bodyweightLoad: boolean): string {
+  return `${bodyweightLoad ? bwKg(s.weightKg) : `${s.weightKg}kg`}×${s.reps}${briefingTag(s)}`
+}
+
+/** True when any set prints an RPE or a set-type tag, so the briefing needs the legend. */
+function usesSetNotation(sets: BriefingSet[]): boolean {
+  return sets.some(s => briefingTag(s) !== '')
 }
 
 /** Serialize a briefing into a compact, grounded prompt for Gemini. Pure. */
@@ -184,6 +209,7 @@ export function formatBriefing(b: WorkoutBriefing): string {
   if (b.exercises.some(e => e.bodyweightFactor !== undefined)) {
     lines.push('(BW = bodyweight; on bodyweight exercises the kg are added to it, ×factor = share of bodyweight moved, e1RM counts it)')
   }
+  if (usesSetNotation(b.exercises.flatMap(e => e.sets))) lines.push(SET_NOTATION_LEGEND)
   for (const e of b.exercises) {
     const bw = e.bodyweightFactor !== undefined
     const setsStr = e.sets.length ? e.sets.map(s => briefingSet(s, bw)).join(', ') : 'no work sets'
@@ -238,7 +264,7 @@ export interface PlanExercise {
   targetSets: number
   targetReps: number
   stepKg: number
-  lastSets: { weightKg: number; reps: number }[]
+  lastSets: BriefingSet[]
   baseline: ProgressionSuggestion | null
   strengthLevel: string | null
   recentBestE1rm: number | null
@@ -283,13 +309,13 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
         .equals(item.exerciseId)
         .filter(s => s.sessionId !== sessionId && !s.isWarmup)
         .sortBy('completedAt')
-      let lastSets: { weightKg: number; reps: number }[] = []
+      let lastSets: BriefingSet[] = []
       if (all.length > 0) {
         const lastSessionId = all[all.length - 1].sessionId
         lastSets = all
           .filter(s => s.sessionId === lastSessionId)
           .sort((a, b) => a.setNumber - b.setNumber)
-          .map(s => ({ weightKg: s.weightKg, reps: s.reps }))
+          .map(s => ({ weightKg: s.weightKg, reps: s.reps, ...effortFields(s) }))
       }
       const recentBestE1rm = all.length ? Math.round(Math.max(...all.map(s => s.e1rm))) : null
       const stepKg = ex?.progressionStepKg ?? 2.5
@@ -327,6 +353,12 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
   }
 }
 
+const BASELINE_NOTE: Record<ProgressionSuggestion['reason'], string> = {
+  'weight-up': 'add weight',
+  'reps-up': 'add a rep',
+  hold: 'hold, last session was near the limit',
+}
+
 /** Serialize a pre-workout plan briefing into a grounded prompt. Pure. */
 export function formatWorkoutPlanBriefing(b: WorkoutPlanBriefing): string {
   const lines: string[] = []
@@ -336,15 +368,14 @@ export function formatWorkoutPlanBriefing(b: WorkoutPlanBriefing): string {
   if (b.exercises.some(e => e.equipment === 'bodyweight')) {
     lines.push('Weights for bodyweight exercises are ADDED kg on top of bodyweight (0 = plain bodyweight, negative = assisted by a machine or band).')
   }
+  if (usesSetNotation(b.exercises.flatMap(e => e.lastSets))) lines.push(SET_NOTATION_LEGEND)
   lines.push('Exercises (plan opening sets for each, keyed by ref):')
   for (const e of b.exercises) {
     const last = e.lastSets.length
-      ? e.lastSets.map(s => `${s.weightKg}kg×${s.reps}`).join(', ')
+      ? e.lastSets.map(s => `${s.weightKg}kg×${s.reps}${briefingTag(s)}`).join(', ')
       : 'no history'
     const base = e.baseline
-      ? e.baseline.reason === 'weight-up'
-        ? `${e.baseline.weightKg}kg×${e.baseline.reps} (add weight)`
-        : `${e.baseline.weightKg}kg×${e.baseline.reps} (add a rep)`
+      ? `${e.baseline.weightKg}kg×${e.baseline.reps} (${BASELINE_NOTE[e.baseline.reason]})`
       : 'none (repeat last, or start light if new)'
     const lvl = e.strengthLevel ? `, level ${e.strengthLevel}` : ''
     const eq = e.equipment ? `, ${e.equipment}` : ''

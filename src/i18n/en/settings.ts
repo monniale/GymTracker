@@ -25,6 +25,12 @@ export default {
     plates: 'Plates you own',
     hint: "Used by the plate calculator shown when adjusting a barbell set's weight.",
   },
+  workout: {
+    effortScale: 'Effort scale',
+    effortScaleHint: 'How set effort is shown and picked: RPE (@8 = about 2 reps left) or reps in reserve (RIR 2).',
+    rpe: 'RPE',
+    rir: 'RIR',
+  },
   restTimer: {
     title: 'Rest timer',
     defaultRest: 'Default rest',

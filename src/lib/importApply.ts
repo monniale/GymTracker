@@ -159,6 +159,7 @@ export async function applyImport(parsed: ParsedHistory): Promise<ImportResult> 
             // Scored with bodyweight load (planImportScoring), so a rescore reproduces it.
             bwScoring: true,
           })
+          // rpe / setType ride along only when the file had them (absent = working, never 'working').
           await db.sets.bulkAdd(p.sets.map(s => ({ id: crypto.randomUUID(), sessionId, ...s })))
           await db.scoreEvents.add({ id: crypto.randomUUID(), sessionId, ...p.event })
           setCount += p.sets.length
