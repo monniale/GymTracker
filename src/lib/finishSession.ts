@@ -1,4 +1,4 @@
-import { db } from '../db/db'
+import { db, withSyncTrackingSuspended } from '../db/db'
 import { scoreSession, SCORING } from './scoring'
 import { registerSessionForStreak } from './season'
 import { localDateStr } from './dates'
@@ -95,6 +95,26 @@ export async function gatherSeasonPriorBests(
 }
 
 /**
+ * Stored `e1rm` rows of stamped sessions that differ from `setE1rm` (the exercise as it is now and
+ * that row's own session). Rows of unstamped sessions, or whose exercise is missing, are left out.
+ */
+function staleStampedE1rm(
+  rows: SetRow[],
+  exerciseOf: (id: Id) => Exercise | undefined,
+  sessionsById: Map<Id, Session>,
+): { key: Id; changes: { e1rm: number } }[] {
+  const fixes: { key: Id; changes: { e1rm: number } }[] = []
+  for (const r of rows) {
+    const own = sessionsById.get(r.sessionId)
+    const ex = exerciseOf(r.exerciseId)
+    if (own?.bwScoring !== true || !ex) continue
+    const e1rm = setE1rm(r, ex, own)
+    if (e1rm !== r.e1rm) fixes.push({ key: r.id!, changes: { e1rm } })
+  }
+  return fixes
+}
+
+/**
  * Re-computes the stored e1rm of every set of `exercise` that belongs to a
  * stamped session, after its bodyweight share, equipment or kind changed
  * (NoteSheet). The e1rm then matches the live load that every reader computes
@@ -103,6 +123,12 @@ export async function gatherSeasonPriorBests(
  * Unstamped sessions are left alone (their load is `weightKg` whatever the
  * exercise says). Call it inside a transaction over `db.sets` + `db.sessions`.
  * Returns how many rows changed.
+ *
+ * The stored e1rm of a stamped row is derived data (exercise + session), so it
+ * is written with sync tracking suspended: a fresh `updatedAt` on sets of a
+ * finished workout would let them outlive that workout's deletion on another
+ * device, or beat a real edit of the same set there, in a merge. Every device
+ * re-derives it after a pull, merge or import instead (`healStampedE1rm`).
  */
 export async function refreshStampedE1rm(exercise: Exercise): Promise<number> {
   const rows = await db.sets.where('exerciseId').equals(exercise.id!).toArray()
@@ -110,17 +136,28 @@ export async function refreshStampedE1rm(exercise: Exercise): Promise<number> {
   const sessions = await db.sessions.bulkGet(ids)
   const byId = new Map<Id, Session>()
   sessions.forEach((row, i) => { if (row) byId.set(ids[i], row) })
-  let changed = 0
-  for (const r of rows) {
-    const own = byId.get(r.sessionId)
-    if (own?.bwScoring !== true) continue
-    const e1rm = setE1rm(r, exercise, own)
-    if (e1rm !== r.e1rm) {
-      await db.sets.update(r.id!, { e1rm })
-      changed++
-    }
-  }
-  return changed
+  const fixes = staleStampedE1rm(rows, () => exercise, byId)
+  if (fixes.length > 0) await withSyncTrackingSuspended(() => db.sets.bulkUpdate(fixes))
+  return fixes.length
+}
+
+/**
+ * Re-derives the stored e1rm of every set of a stamped session (`setE1rm`), suspended like
+ * `refreshStampedE1rm`. Run after the synced tables were replaced (`applyTables`: sync pull or
+ * merge, backup import): rows logged on another device before it saw a bodyweight-share or
+ * equipment change, a share that a merge brought back, or a row an older build edited (it writes
+ * the e1rm of the added kg only) then match the live load again. Call it inside a transaction
+ * over `db.sets`, `db.sessions` and `db.exercises`. Returns how many rows changed.
+ */
+export async function healStampedE1rm(): Promise<number> {
+  const stamped = await db.sessions.filter(s => s.bwScoring === true).toArray()
+  if (stamped.length === 0) return 0
+  const byId = new Map<Id, Session>(stamped.map(s => [s.id!, s]))
+  const exercises = new Map<Id, Exercise>((await db.exercises.toArray()).map(e => [e.id!, e]))
+  const rows = await db.sets.where('sessionId').anyOf([...byId.keys()]).toArray()
+  const fixes = staleStampedE1rm(rows, id => exercises.get(id), byId)
+  if (fixes.length > 0) await withSyncTrackingSuspended(() => db.sets.bulkUpdate(fixes))
+  return fixes.length
 }
 
 /** Exercises by id (for the set loads) and their stored English names (for the breakdown). */

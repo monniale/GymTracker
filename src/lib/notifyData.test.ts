@@ -94,6 +94,7 @@ describe('gatherPlannerData (fake-indexeddb, fresh GymDB)', () => {
       waterTargetMl: 3000,
       lastWaterAt: T(2026, 10, 14, 9, 40),
       bodyLogDates: ['2026-10-15'],
+      scheduledDays: {},
       rank: { points: 1234, seasonStart: '2026-09-01', lastSessionDate: '2026-10-13', streakWeeks: 2, lastStreakWeek: '2026-10-05' },
       // Sunday-evening recap on 18 Oct covers this week: 2 finished sessions, 120.5 + 90 + 15 pts.
       recap: { weekMonday: '2026-10-12', sessions: 2, points: 225.5 },
@@ -115,8 +116,31 @@ describe('gatherPlannerData (fake-indexeddb, fresh GymDB)', () => {
     const d = await gatherPlannerData(NOW, prefs, null, gdb)
     expect(d).toMatchObject({
       sessionDays: [], weekSessionsDone: 0, weeklyTarget: 3, dayTypeOverrides: {}, mealsLoggedToday: [],
-      waterTodayMl: 0, waterTargetMl: 2500, lastWaterAt: null, bodyLogDates: [], rank: null, recap: null,
+      waterTodayMl: 0, waterTargetMl: 2500, lastWaterAt: null, bodyLogDates: [], scheduledDays: {}, rank: null, recap: null,
     })
+  })
+
+  it('maps the template schedule onto the window dates (lowest position wins a shared weekday)', async () => {
+    await withSyncTrackingSuspended(async () => {
+      await gdb.templates.bulkPut([
+        { id: 't-legs', name: 'Legs', position: 2, items: [], weekdays: [4, 1], updatedAt: 1 },
+        { id: 't-push', name: 'Push', position: 0, items: [], weekdays: [1, 5], updatedAt: 1 },
+        { id: 't-sun', name: 'Long run', position: 3, items: [], weekdays: [0], updatedAt: 1 },
+        { id: 't-free', name: 'Free', position: 1, items: [], updatedAt: 1 },
+      ])
+    })
+    // Wed 14 Oct: window 14..20 Oct.
+    const d = await gatherPlannerData(NOW, mergeNotifyPrefs({}), null, gdb)
+    expect(d.scheduledDays).toEqual({
+      '2026-10-15': 'Legs', // Thursday
+      '2026-10-16': 'Push', // Friday
+      '2026-10-18': 'Long run', // Sunday = 0
+      '2026-10-19': 'Push', // Monday: Push (position 0) before Legs (position 2)
+    })
+    const prefs = mergeNotifyPrefs({ workout: { enabled: true, days: [3], time: '18:00', skipWhenTargetMet: false } })
+    const keys = planNotifications({ now: NOW, prefs, data: d }).filter(s => s.cat === 'workout').map(s => s.key)
+    // The schedule replaces Wednesday from prefs.
+    expect(keys).toEqual(['workout:2026-10-15', 'workout:2026-10-16', 'workout:2026-10-18', 'workout:2026-10-19'])
   })
 
   it('a finished or missing "active" session has no start time', async () => {

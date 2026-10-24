@@ -72,11 +72,13 @@ export function emitDataReplaced(): void {
 
 /** Run fn with sync tracking off (snapshot imports must not stamp/mark dirty). */
 export async function withSyncTrackingSuspended<T>(fn: () => Promise<T>): Promise<T> {
+  // Nestable: an inner call (e.g. healStampedE1rm inside applyTables) must not end the outer one.
+  const outer = suspended
   suspended = true
   try {
     return await fn()
   } finally {
-    suspended = false
+    suspended = outer
   }
 }
 

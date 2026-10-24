@@ -5,11 +5,11 @@ import { Play, Pencil, Plus, HistoryIcon, Timer, RotateCcw, ChevronRight, BookOp
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { unlockAudio } from '../../lib/audio'
-import { useNow } from '../../lib/hooks'
-import { fmtDuration } from '../../lib/dates'
+import { useLocalToday, useNow } from '../../lib/hooks'
+import { fmtDuration, parseLocalDate } from '../../lib/dates'
 import { useNotifyStore } from '../../lib/notifyStore'
 import { isNative } from '../../native/platform'
-import { nextTemplate } from '../../lib/nextTemplate'
+import { nextTemplate, templatesDoneOn } from '../../lib/nextTemplate'
 import { useUiStore } from '../../lib/uiStore'
 import { canOfferDemo, hasUserData, loadDemoData } from '../../lib/demoData'
 import { useSyncStore } from '../../lib/sync'
@@ -23,11 +23,20 @@ const RestoreCard = isNative ? lazy(() => import('../../native/ui/RestoreCard'))
 export default function WorkoutHome() {
   const navigate = useNavigate()
   const templates = useLiveQuery(() => db.templates.orderBy('position').toArray())
-  // Rotation hint (the Android widget shows the same "Next" workout).
-  // null = no finished session yet; undefined = still loading (no badge, so it doesn't jump).
+  // "Today" (scheduled for today's weekday) or rotation "Next up" hint; the Android widget shows
+  // the same workout. null = no finished session yet; undefined = still loading (no badge, so it
+  // doesn't jump).
   const lastFinished = useLiveQuery(async () =>
     (await db.sessions.orderBy('startedAt').reverse().filter(s => s.endedAt !== undefined).first()) ?? null)
-  const upNext = templates && lastFinished !== undefined ? nextTemplate(templates, lastFinished ?? undefined) : null
+  const today = useLocalToday()
+  // Templates already done today: a scheduled one stops being "Today" even if another workout followed.
+  const doneToday = useLiveQuery(
+    async () => templatesDoneOn(await db.sessions.where('startedAt').aboveOrEqual(parseLocalDate(today).getTime()).toArray(), today),
+    [today],
+  )
+  const upNext = templates && lastFinished !== undefined && doneToday
+    ? nextTemplate(templates, lastFinished ?? undefined, today, doneToday)
+    : null
   const settings = useLiveQuery(() => db.settings.get(1))
   const activeSessionId = useAppStore(s => s.activeSessionId)
   const setActiveSessionId = useAppStore(s => s.setActiveSessionId)
@@ -134,9 +143,11 @@ export default function WorkoutHome() {
               <p className="truncate font-display text-xl font-semibold">{tpl.name}</p>
               <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-sub">
                 <span className="whitespace-nowrap">{tp('units.exercises', tpl.items.length)}</span>
-                {upNext && templates && templates.length > 1 && String(upNext.id) === String(tpl.id) && (
+                {/* A rotation hint needs 2+ templates; a scheduled one shows even when it is the only one. */}
+                {upNext && templates && (upNext.reason === 'today' || templates.length > 1)
+                  && String(upNext.template.id) === String(tpl.id) && (
                   <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
-                    {t('workout.home.nextUp')}
+                    {upNext.reason === 'today' ? t('workout.home.today') : t('workout.home.nextUp')}
                   </span>
                 )}
               </p>

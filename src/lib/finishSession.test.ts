@@ -3,7 +3,9 @@ import Dexie from 'dexie'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../db/db'
 import { ensureSeeded } from '../db/seed'
-import { finishSession, rescoreSession, gatherSeasonPriorBests, refreshStampedE1rm } from './finishSession'
+import { finishSession, rescoreSession, gatherSeasonPriorBests, refreshStampedE1rm, healStampedE1rm } from './finishSession'
+import { applyTables, collectTables } from '../db/backup'
+import { isSyncDirty, setSyncDirty } from '../db/db'
 import { scoreSession, epley, SCORING } from './scoring'
 import { setE1rm, toScoreSets } from './load'
 import type { Exercise, Id, Session, SetRow } from '../types'
@@ -232,5 +234,34 @@ describe('changing a bodyweight share', () => {
     })
     expect(expected.total).toBeGreaterThan(before.total)
     expect(await rescoreSession('past')).toBe(expected.total)
+  })
+
+  it('the refresh keeps updatedAt and the dirty flag (derived data cannot win a merge)', async () => {
+    const pushUp = (await db.exercises.where('nameLower').equals('push-up').first())!
+    await addSession('past', T(2026, 10, 10), [[pushUp, 0, 15]], { bwScoring: true, endedAt: T(2026, 10, 10, 19) })
+    const stampedAt = (await db.sets.get('past-0'))!.updatedAt
+    setSyncDirty(false)
+    vi.setSystemTime(T(2026, 10, 15, 13))
+    expect(await refreshStampedE1rm({ ...pushUp, bwFactor: 1 })).toBe(1)
+    const row = (await db.sets.get('past-0'))!
+    expect(row.e1rm).toBeCloseTo(epley(80, 15))
+    expect(row.updatedAt).toBe(stampedAt)
+    expect(isSyncDirty()).toBe(false)
+  })
+
+  it('a pull, merge or import re-derives stale stamped e1rm (other device, older build)', async () => {
+    const pushUp = (await db.exercises.where('nameLower').equals('push-up').first())!
+    await addSession('unstamped', T(2026, 10, 3), [[pushUp, 5, 20]], { endedAt: T(2026, 10, 3, 19) })
+    await addSession('past', T(2026, 10, 10), [[pushUp, 0, 15], [bench, 80, 5]], { bwScoring: true, endedAt: T(2026, 10, 10, 19) })
+    const tables = await collectTables()
+    // Logged elsewhere at the old share / zeroed by an older build, while the share is now 100 %.
+    const exercises = (tables.exercises as Exercise[]).map(e => (e.id === pushUp.id ? { ...e, bwFactor: 1 } : e))
+    const sets = (tables.sets as SetRow[]).map(r => ({ ...r, e1rm: r.id === 'past-0' ? 0 : r.e1rm }))
+    await applyTables({ ...tables, exercises, sets })
+    expect((await db.sets.get('past-0'))!.e1rm).toBeCloseTo(epley(80, 15))
+    expect((await db.sets.get('past-1'))!.e1rm).toBeCloseTo(epley(80, 5))
+    // An unstamped row keeps its added-kg e1rm.
+    expect((await db.sets.get('unstamped-0'))!.e1rm).toBeCloseTo(epley(5, 20))
+    expect(await healStampedE1rm()).toBe(0)
   })
 })

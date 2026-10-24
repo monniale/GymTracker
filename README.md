@@ -72,6 +72,9 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - **Bodyweight exercises score your bodyweight**: pull-ups, dips and push-ups count bodyweight (times a per-exercise share) plus any added kg, logged as "BW × 12", "BW+10 kg × 8" or assisted "BW−20 kg × 6". Workouts logged before this feature keep their scores.
 - **RPE / RIR and set types**: tag a set with its effort (RPE 6–10, or reps in reserve if you prefer, in Settings) and mark drop sets, sets to failure and AMRAP sets. They score like any set; progression holds the weight after a near-max session and takes a bigger step after an easy one, and the AI coach sees them. Strong and Hevy imports keep them.
 - Equipment variants (barbell, dumbbell, machine, cable…), per-exercise notes, and exercises added mid-session.
+- **Exercise history**: one screen per exercise with its best e1RM, heaviest set and every workout that had it, newest first, with all-time rep maxes starred. Open it from Progress, the exercise library or a live workout.
+- **Weekday schedule**: give a template its days (say Legs on Monday and Thursday) and that day it shows as "Today" on the Workout tab, on the Android widget and in the training reminder. Templates without days keep the usual rotation.
+- **Swap an exercise mid-workout**: rack taken? Swap Bench Press for a similar exercise (same muscle, other equipment first) for this session only, or also update the template.
 - **History calendar**: open any past workout and fix a typo. Its score is recalculated.
 - **Cardio sets** with time and distance. They count for your streak and weekly target, but not for rank points.
 - A **shareable workout card**: a PNG of the session (points, rank, top lifts and PRs) for the share sheet.

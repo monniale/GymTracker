@@ -287,4 +287,37 @@ describe('gatherWorkoutBriefing with bodyweight load', () => {
     expect(b.nextSuggestion).toBe('12.5 kg for 8 reps')
     expect(b.strengthLevel).toBeNull()
   })
+
+  it('the plan briefing rates a pull-up only from bodyweight-load (stamped) history', async () => {
+    const pullUp = (await db.exercises.where('nameLower').equals('pull-up').first())!
+    await finishPullUps('old', 0, false)
+    await db.sessions.put({ id: 'plan', name: 'Pull', startedAt: T(15, 18), bodyweightKg: 80, extraExerciseIds: [pullUp.id!], bwScoring: true })
+    // Only unstamped rows (added kg, e1rm 0): no level, not 'Untrained'.
+    expect((await gatherWorkoutPlanBriefing('plan'))!.exercises[0].strengthLevel).toBeNull()
+
+    await finishPullUps('new', 0, true)
+    const rated = (await gatherWorkoutPlanBriefing('plan'))!.exercises[0]
+    expect(rated.strengthLevel).not.toBeNull()
+    expect(rated.strengthLevel).not.toBe('Untrained')
+  })
+
+  it('a swapped-in exercise keeps the target reps of the template line it replaced', async () => {
+    const bench = (await db.exercises.where('nameLower').equals('bench press').first())!
+    const incline = (await db.exercises.where('nameLower').equals('incline dumbbell press').first())!
+    const tpl = await db.templates.add({
+      name: 'Push', position: 0, updatedAt: 1, items: [{ exerciseId: bench.id!, targetSets: 3, targetReps: 12 }],
+    })
+    const session: Session = {
+      id: 'sw', name: 'Push', templateId: tpl, startedAt: T(15), bodyweightKg: 80, extraExerciseIds: [], bwScoring: true,
+      swaps: [{ from: bench.id!, to: incline.id! }],
+    }
+    await db.sessions.put(session)
+    await db.sets.bulkPut([0, 1, 2].map(i => ({
+      id: `sw-${i}`, sessionId: 'sw', exerciseId: incline.id!, setNumber: i + 1, weightKg: 20, reps: 10, isWarmup: false,
+      completedAt: T(15) + i * 60_000, e1rm: setE1rm({ weightKg: 20, reps: 10 }, incline, session),
+    })))
+    await finishSession('sw')
+    // 10 of 12 reps: add a rep (the line's target), not 'weight-up' against the 8-rep fallback.
+    expect((await gatherWorkoutBriefing('sw'))!.exercises[0].nextSuggestion).toBe('11 reps at 20 kg')
+  })
 })

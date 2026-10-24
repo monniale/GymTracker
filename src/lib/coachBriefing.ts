@@ -7,9 +7,9 @@ import { DEFAULT_BAR_KG } from './plates'
 import { localDateStr, mondayOf, parseLocalDate } from './dates'
 import { isCardioExercise, isCardioSet, cardioSessionTotals, cardioMinutes, fmtDistance, paceSecPerKm, fmtPace } from './cardio'
 import { sessionItems } from './sessionItems'
-import { bwFactorOf, effectiveLoad, usesBodyweightLoad } from './load'
+import { bwFactorOf, effectiveLoad, setE1rm, usesBodyweightLoad } from './load'
 import { briefingTag, SET_NOTATION_LEGEND } from './setTypes'
-import type { Id, SetRow } from '../types'
+import type { Exercise, Id, Session, SetRow } from '../types'
 
 /** A logged set as briefings carry it: RPE and set type only when recorded (absent = working). */
 export interface BriefingSet {
@@ -82,10 +82,13 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
   ])
 
   const exMap = new Map(allExercises.map(e => [e.id!, e]))
-  // Template lines only, deliberately not `sessionItems`: an exercise added mid-session falls back
-  // to 8 reps below, even a cardio one (whose session line would say 20 minutes).
+  // Template lines only (after this session's swaps, so a swapped-in exercise keeps its line's
+  // reps), deliberately without the added exercises: an exercise added mid-session falls back to
+  // 8 reps below, even a cardio one (whose session line would say 20 minutes).
   const targetRepsById = new Map<Id, number>()
-  for (const item of template?.items ?? []) targetRepsById.set(item.exerciseId, item.targetReps)
+  for (const item of sessionItems(template, { extraExerciseIds: [], swaps: session.swaps }, exMap)) {
+    targetRepsById.set(item.exerciseId, item.targetReps)
+  }
 
   const exercises: BriefingExercise[] = event.breakdown.map(b => {
     const ex = exMap.get(b.exerciseId)
@@ -277,6 +280,22 @@ export interface WorkoutPlanBriefing {
   exercises: PlanExercise[]
 }
 
+/** Best live e1RM of the bodyweight-load rows (stamped sessions) among `rows`, null when none. */
+async function stampedBestE1rm(rows: SetRow[], ex: Exercise | undefined): Promise<number | null> {
+  const ids = [...new Set(rows.map(r => r.sessionId))]
+  const sessions = await db.sessions.bulkGet(ids)
+  const byId = new Map<Id, Session>()
+  sessions.forEach((row, i) => { if (row) byId.set(ids[i], row) })
+  let best: number | null = null
+  for (const r of rows) {
+    const own = byId.get(r.sessionId)
+    if (!usesBodyweightLoad(ex, own)) continue
+    const e1rm = setE1rm(r, ex, own)
+    if (e1rm > 0 && (best === null || e1rm > best)) best = e1rm
+  }
+  return best === null ? null : Math.round(best)
+}
+
 /** Assemble a PRE-workout briefing for a just-started session: the planned
  * exercise list (template + mid-session adds) with each exercise's last-session
  * work sets and the deterministic progression baseline. Null if no session or no
@@ -323,9 +342,12 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
       const bodyweightLoad = usesBodyweightLoad(ex, session)
       const baseline = suggestNext(lastSets, item.targetReps, stepKg, { bodyweight: bodyweightLoad })
       const std = ex ? standardFor(ex.nameLower) : null
+      // The pull-up standard rates the bodyweight load only (invariant 6): the best of the rows
+      // from stamped sessions, read live, never an unstamped session's added kg.
+      const ratedE1rm = std?.key === 'pullup' ? await stampedBestE1rm(all, ex) : recentBestE1rm
       const strengthLevel =
-        std && session.bodyweightKg > 0 && recentBestE1rm !== null
-          ? levelFor(recentBestE1rm, session.bodyweightKg, std).level
+        std && session.bodyweightKg > 0 && ratedE1rm !== null
+          ? levelFor(ratedE1rm, session.bodyweightKg, std).level
           : null
       return {
         ref: String(item.exerciseId),

@@ -8,6 +8,7 @@ import NumberStepper from '../../components/NumberStepper'
 import { defaultTemplateItem, isCardioExercise } from '../../lib/cardio'
 import ExercisePicker from './ExercisePicker'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { WEEKDAY_FULL_NAMES, WEEKDAY_LABELS } from '../../lib/dates'
 import { t } from '../../i18n'
 import type { Exercise, TemplateItem } from '../../types'
 
@@ -43,6 +44,13 @@ export default function TemplateEditor() {
 
   const addExercise = (e: Exercise) => update({ items: [...template.items, defaultTemplateItem(e)] })
 
+  // Weekday schedule: stored sorted as getDay values (Sunday 0); no day left removes the field.
+  const weekdays = template.weekdays ?? []
+  const toggleWeekday = (d: number) => {
+    const next = weekdays.includes(d) ? weekdays.filter(x => x !== d) : [...weekdays, d].sort((a, b) => a - b)
+    void update({ weekdays: next.length > 0 ? next : undefined })
+  }
+
   async function deleteTemplate() {
     if (!window.confirm(t('workout.template.confirmDelete', { name: template!.name }))) return
     await deleteWithTombstone('templates', tid)
@@ -65,6 +73,31 @@ export default function TemplateEditor() {
           aria-label={t('workout.template.nameAria')}
           className="min-w-0 w-full truncate border-b border-transparent font-display text-2xl font-bold focus:border-primary"
         />
+      </div>
+
+      <div className="mb-4" role="group" aria-label={t('workout.template.schedule')}>
+        <div className="grid grid-cols-7 gap-1">
+          {WEEKDAY_LABELS.map((label, i) => {
+            // WEEKDAY_LABELS is Monday-first; getDay counts from Sunday 0.
+            const d = (i + 1) % 7
+            const active = weekdays.includes(d)
+            return (
+              <button
+                key={d}
+                type="button"
+                aria-pressed={active}
+                aria-label={WEEKDAY_FULL_NAMES[i]}
+                onClick={() => toggleWeekday(d)}
+                className={`h-9 min-w-0 truncate rounded-lg text-sm font-semibold ${
+                  active ? 'bg-primary/15 text-primary' : 'bg-card text-sub'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="mt-1 text-xs text-sub">{t('workout.template.weekdaysHint')}</p>
       </div>
 
       <div className="space-y-3">

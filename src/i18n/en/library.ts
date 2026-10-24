@@ -38,6 +38,7 @@ export default {
     createFirstTemplate: 'Create your first template',
     mediaLoading: 'Loading the animation…',
     mediaFailed: 'The animation couldn’t load (offline?).',
+    history: 'History',
   },
   howTo: 'How to',
   settings: {

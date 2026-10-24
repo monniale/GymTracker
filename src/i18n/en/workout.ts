@@ -24,6 +24,8 @@ export default {
     inProgress: 'Session in progress',
     tapToResume: '{name} — tap to resume',
     nextUp: 'Next up',
+    /** Chip on the template scheduled for today's weekday. */
+    today: 'Today',
     editTemplate: 'Edit {name}',
     start: 'Start',
     newTemplate: 'New workout',
@@ -50,6 +52,8 @@ export default {
     linkSuperset: 'Link as superset',
     link: 'Link',
     delete: 'Delete workout',
+    schedule: 'Schedule',
+    weekdaysHint: 'Days this workout is planned for: on those days it shows as “Today”.',
   },
   picker: {
     search: 'Search exercises…',
@@ -70,6 +74,30 @@ export default {
     addRamp: 'Add warm-up ramp',
     ramp: 'Ramp',
     aiSuggestion: 'AI suggestion',
+  },
+  /** The "…" menu on a live session's exercise card. */
+  cardMenu: {
+    open: 'More for {name}',
+    notes: 'Notes & settings',
+    history: 'History',
+    swap: 'Swap exercise…',
+  },
+  /** Swapping an exercise for this session (src/screens/workout/ExerciseCardMenu.tsx). */
+  swap: {
+    title: 'Swap {name}',
+    sameMuscle: 'Same muscle: {muscle}',
+    mine: 'My exercises',
+    library: 'Library',
+    none: 'No similar exercises. Try the full picker.',
+    fullPicker: 'Open full picker',
+    updateTemplate: 'Also update the template',
+    updateTemplateHint: 'Use it in “{name}” from now on.',
+    pickNamed: 'Swap to {name}',
+    failed: 'Could not swap the exercise.',
+    alreadyInSession: 'Already in this workout.',
+    alreadyInTemplate: 'Already in this template. Turn off “Also update the template” to swap for this workout only.',
+    swappedFrom: 'Swapped from {name}',
+    swappedOut: 'Swapped out',
   },
   /** Rest-timer label: also the body of the Android lock-screen countdown. */
   rest: {
