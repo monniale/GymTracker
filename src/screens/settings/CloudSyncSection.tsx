@@ -4,6 +4,7 @@ import { db } from '../../db/db'
 import { outboxSize } from '../../db/outbox'
 import {
   useCloudStore, cloudSignIn, cloudVerify, cloudSignOut, cloudSyncNow, cloudHasData, cloudInitialSync,
+  activePendingSignIn, cancelPendingSignIn,
   type InitialChoice,
 } from '../../lib/cloudSync'
 import { cloudConfigured } from '../../lib/supabaseConfig'
@@ -90,9 +91,10 @@ function SignedInView({ demoLoaded }: { demoLoaded: boolean }) {
 }
 
 function SignInView() {
-  const [email, setEmail] = useState('')
+  // A sign-in sent earlier (another tab, a trip to the mail app, an app restart) resumes at the code step.
+  const [email, setEmail] = useState(() => activePendingSignIn()?.email ?? '')
   const [code, setCode] = useState('')
-  const [sent, setSent] = useState(false)
+  const [sent, setSent] = useState(() => activePendingSignIn() !== null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [choice, setChoice] = useState(false)
@@ -180,7 +182,7 @@ function SignInView() {
             {busy && <Loader2 size={18} className="animate-spin" />} {t('settings.cloud.signIn')}
           </button>
           <button
-            onClick={() => { setSent(false); setCode(''); setError(null) }}
+            onClick={() => { cancelPendingSignIn(); setSent(false); setCode(''); setError(null) }}
             className="w-full py-2 text-xs font-medium text-sub active:text-ink"
           >
             {t('settings.cloud.changeEmail')}

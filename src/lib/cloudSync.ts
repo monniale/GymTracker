@@ -48,7 +48,19 @@ export interface CloudStore {
   lastSyncAt: number | null
   lastError: string | null
   syncing: boolean
+  /** A sign-in email on its way: kept across tab switches, app restarts and the trip to the
+   * mail app, so the code/link can be entered without requesting a new one. */
+  pendingSignIn: { email: string; sentAt: number } | null
   setSession: (s: SbSession | null) => void
+}
+
+/** How long a sent sign-in stays offered (Supabase's default OTP expiry is one hour). */
+export const PENDING_SIGN_IN_MS = 60 * 60_000
+
+/** The sign-in still waiting for its code, if it hasn't expired. */
+export function activePendingSignIn(now = Date.now()): { email: string; sentAt: number } | null {
+  const p = useCloudStore.getState().pendingSignIn
+  return p && now - p.sentAt < PENDING_SIGN_IN_MS ? p : null
 }
 
 /** Device-local (invariant 3): the session and cursor never enter Dexie or a backup. */
@@ -60,11 +72,12 @@ export const useCloudStore = create<CloudStore>()(
       lastSyncAt: null,
       lastError: null,
       syncing: false,
+      pendingSignIn: null,
       setSession: session => set({ session, lastError: null }),
     }),
     {
       name: 'gymtracker-cloud',
-      partialize: s => ({ session: s.session, lastSeq: s.lastSeq, lastSyncAt: s.lastSyncAt }),
+      partialize: s => ({ session: s.session, lastSeq: s.lastSeq, lastSyncAt: s.lastSyncAt, pendingSignIn: s.pendingSignIn }),
     },
   ),
 )
@@ -79,12 +92,18 @@ export function isCloudSignedIn(): boolean {
 export async function cloudSignIn(email: string): Promise<void> {
   if (demoLoadedAnyTab()) throw new Error(t('data.cloud.demoLoaded'))
   await requestOtp(email.trim())
+  useCloudStore.setState({ pendingSignIn: { email: email.trim(), sentAt: Date.now() } })
+}
+
+/** Forget the sign-in in progress ("Use another email"). */
+export function cancelPendingSignIn(): void {
+  useCloudStore.setState({ pendingSignIn: null })
 }
 
 /** Step 2: the code → a session on this device. The cursor starts at 0: the first sync pulls everything. */
 export async function cloudVerify(email: string, code: string): Promise<SbSession> {
   const session = await verifyOtp(email.trim(), code)
-  useCloudStore.setState({ session, lastSeq: 0, lastError: null })
+  useCloudStore.setState({ session, lastSeq: 0, lastError: null, pendingSignIn: null })
   return session
 }
 
@@ -105,7 +124,7 @@ export async function consumeAuthRedirect(): Promise<boolean> {
   try {
     const user = await getUser(access)
     const expiresAt = Number(q.get('expires_at')) || Math.floor(Date.now() / 1000) + (Number(q.get('expires_in')) || 3600)
-    useCloudStore.setState({ session: { access_token: access, refresh_token: refresh, expires_at: expiresAt, user }, lastSeq: 0, lastError: null })
+    useCloudStore.setState({ session: { access_token: access, refresh_token: refresh, expires_at: expiresAt, user }, lastSeq: 0, lastError: null, pendingSignIn: null })
     return true
   } catch (e) {
     useCloudStore.setState({ lastError: (e as Error).message })

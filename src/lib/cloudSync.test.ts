@@ -6,7 +6,7 @@ import { ensureSeeded } from '../db/seed'
 import { ackOutbox, clearOutbox, pendingOutbox, queueOutbox } from '../db/outbox'
 import { useUiStore } from './uiStore'
 import {
-  cloudTables, applyCloudRows, cloudInitialSync, cloudSyncNow, cloudVerify, keyFromCloudId, useCloudStore,
+  cloudTables, applyCloudRows, cloudSignIn, activePendingSignIn, cancelPendingSignIn, PENDING_SIGN_IN_MS, cloudInitialSync, cloudSyncNow, cloudVerify, keyFromCloudId, useCloudStore,
 } from './cloudSync'
 import { parseSignInLink, type CloudRow } from './supabaseApi'
 
@@ -253,7 +253,19 @@ describe('cloudInitialSync', () => {
     expect(parseSignInLink('123 456')).toBeNull()
   })
 
-  it('verify stores the session and resets the cursor', async () => {
+  it('remembers a sent sign-in until it is used, cancelled or an hour old', async () => {
+    useCloudStore.setState({ session: null, pendingSignIn: null })
+    await cloudSignIn(' f@x.it ')
+    expect(activePendingSignIn()).toMatchObject({ email: 'f@x.it' })
+    expect(activePendingSignIn(Date.now() + PENDING_SIGN_IN_MS + 1)).toBeNull()
+    cancelPendingSignIn()
+    expect(activePendingSignIn()).toBeNull()
+    await cloudSignIn('f@x.it')
+    await cloudVerify('f@x.it', '123456')
+    expect(useCloudStore.getState().pendingSignIn).toBeNull()
+  })
+
+    it('verify stores the session and resets the cursor', async () => {
     useCloudStore.setState({ session: null, lastSeq: 99 })
     await cloudVerify('f@x.it', '123456')
     expect(useCloudStore.getState()).toMatchObject({ lastSeq: 0, session: { user: { id: 'u1' } } })
