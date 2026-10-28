@@ -34,6 +34,10 @@ jobs:
           # allowance. Unset → the code falls back to DEMO_KEY. (Inlined into the
           # public bundle at build time; only acceptable for a free per-IP key.)
           VITE_USDA_KEY: ${{ secrets.VITE_USDA_KEY }}
+          # Optional: cloud sync (Supabase). Both are public by design (RLS guards the data);
+          # unset → the Cloud sync section is hidden. See supabase/migrations/0001_rows.sql.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - run: node scripts/check-pwa-dist.mjs
       - uses: actions/configure-pages@v4
         with:

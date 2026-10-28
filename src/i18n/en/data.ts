@@ -18,6 +18,16 @@ export default {
     notFound: 'Repository or path not found',
   },
   /** Sync engine errors (lib/sync.ts). */
+  cloud: {
+    network: 'Network error — check your connection.',
+    auth: 'Cloud sign-in expired — sign in again in Settings.',
+    rateLimit: 'The cloud is rate-limiting requests — try again in a minute.',
+    paused: 'The cloud project is paused (free tier, idle for a week). Resume it in the Supabase dashboard, then sync again.',
+    badCode: 'Wrong or expired code — request a new one.',
+    error: 'Cloud error {status}: {detail}',
+    notSignedIn: 'Not signed in to cloud sync.',
+    demoLoaded: 'Demo data is loaded. Clear it in Settings › Data before signing in to cloud sync.',
+  },
   sync: {
     remoteInvalidJson: 'Remote data file is not valid JSON',
     remoteNotSnapshot: 'Remote file is not a GymTracker snapshot',

@@ -200,28 +200,7 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     if (l.userOverridden !== r.userOverridden) return l.userOverridden ? l : r
     return ts(r) > ts(l) ? r : l
   }).filter(alive('foods', byId))
-  const byOff = new Map<string, Food[]>()
-  for (const f of foodsUnion) {
-    if (!f.offId) continue
-    const list = byOff.get(f.offId) ?? []
-    list.push(f)
-    byOff.set(f.offId, list)
-  }
-  const remap = new Map<string, Id>()
-  const dropped = new Set<string>()
-  for (const [offId, group] of byOff) {
-    if (group.length < 2) continue
-    const winner = [...group].sort((a, b) => {
-      if (a.userOverridden !== b.userOverridden) return a.userOverridden ? -1 : 1
-      return Math.max(ts(b), b.lastUsedAt ?? 0) - Math.max(ts(a), a.lastUsedAt ?? 0)
-    })[0]
-    for (const f of group) {
-      if (f === winner) continue
-      remap.set(String(f.id), winner.id!)
-      dropped.add(String(f.id))
-      notes.push(`deduped barcode ${offId}: ${String(f.id)} -> ${String(winner.id)}`)
-    }
-  }
+  const { remap, dropped } = dedupFoodsByOffId(foodsUnion, notes)
   const foods = foodsUnion.filter(f => !dropped.has(String(f.id)))
   const foodLogs = foodLogsRaw.map(log =>
     remap.has(String(log.foodId)) ? { ...log, foodId: remap.get(String(log.foodId))! } : log)
@@ -250,6 +229,46 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
   }
 }
 
+/**
+ * Barcode duplicates (the same `offId` saved on two devices): the winner is the user-edited row,
+ * else the most recently updated/used one. Returns the losers and the id remap for their logs.
+ */
+export function dedupFoodsByOffId(foods: Food[], notes: string[] = []): { remap: Map<string, Id>; dropped: Set<string> } {
+  const byOff = new Map<string, Food[]>()
+  for (const f of foods) {
+    if (!f.offId) continue
+    const list = byOff.get(f.offId) ?? []
+    list.push(f)
+    byOff.set(f.offId, list)
+  }
+  const remap = new Map<string, Id>()
+  const dropped = new Set<string>()
+  for (const [offId, group] of byOff) {
+    if (group.length < 2) continue
+    const winner = [...group].sort((a, b) => {
+      if (a.userOverridden !== b.userOverridden) return a.userOverridden ? -1 : 1
+      return Math.max(ts(b), b.lastUsedAt ?? 0) - Math.max(ts(a), a.lastUsedAt ?? 0)
+    })[0]
+    for (const f of group) {
+      if (f === winner) continue
+      remap.set(String(f.id), winner.id!)
+      dropped.add(String(f.id))
+      notes.push(`deduped barcode ${offId}: ${String(f.id)} -> ${String(winner.id)}`)
+    }
+  }
+  return { remap, dropped }
+}
+
+/** Season points as the sum of this season's events + carry-over − idle decay (the merge truth). */
+export function rankPointsFor(base: RankState, scoreEvents: ScoreEvent[], seasons: Season[]): number {
+  const prev = seasons.find(s => s.seasonId === base.seasonId - 1)
+  const carry = prev ? Math.round(prev.finalPoints * SEASON_CARRYOVER) : 0
+  const seasonSum = scoreEvents
+    .filter(e => e.date >= base.seasonStart)
+    .reduce((acc, e) => acc + e.total, 0)
+  return Math.max(0, Math.round(carry + seasonSum - base.idleDecayTaken))
+}
+
 function pickSingleton<T extends Stamped>(local: T[], remote: T[]): T[] {
   const l = local[0]
   const r = remote[0]
@@ -276,12 +295,7 @@ function mergeRankState(
     base = ts(r as Stamped) > ts(l as Stamped) ? r : l
   }
 
-  const prev = seasons.find(s => s.seasonId === base.seasonId - 1)
-  const carry = prev ? Math.round(prev.finalPoints * SEASON_CARRYOVER) : 0
-  const seasonSum = scoreEvents
-    .filter(e => e.date >= base.seasonStart)
-    .reduce((acc, e) => acc + e.total, 0)
-  const points = Math.max(0, Math.round(carry + seasonSum - base.idleDecayTaken))
+  const points = rankPointsFor(base, scoreEvents, seasons)
   if (points !== base.points) {
     notes.push(`rankState points recomputed ${base.points} -> ${points}`)
   }
