@@ -1,8 +1,11 @@
 -- GymTracker cloud sync: one generic table mirrors the app's Dexie tables row by row.
 -- Run once in the project's SQL editor (Supabase dashboard › SQL). Then:
---   Authentication › Email: keep "Enable email provider" on; edit the "Magic Link" template so
---   its body contains {{ .Token }} (the 6-digit code the app asks for) — a bare link cannot
---   return to the Android WebView.
+--   Authentication › URL Configuration: Site URL = the deployed app (https://<user>.github.io/GymTracker/),
+--   so a sign-in link opened in the browser lands in the app with its tokens.
+--   Authentication › Emails: the default "Magic link or OTP" template sends a link; the app accepts
+--   that link pasted whole (its `token` parameter), or the 6-digit code if the template contains
+--   {{ .Token }} — editing templates needs custom SMTP on the free plan (e.g. Gmail with an app
+--   password: smtp.gmail.com:465), or Pro.
 --   Project Settings › API: copy the URL and the anon key into the build's .env
 --   (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) and the GitHub Actions secrets.
 

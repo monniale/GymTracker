@@ -8,7 +8,7 @@ import { useUiStore } from './uiStore'
 import {
   cloudTables, applyCloudRows, cloudInitialSync, cloudSyncNow, cloudVerify, keyFromCloudId, useCloudStore,
 } from './cloudSync'
-import type { CloudRow } from './supabaseApi'
+import { parseSignInLink, type CloudRow } from './supabaseApi'
 
 vi.mock('./supabaseConfig', () => ({
   SUPABASE_URL: 'https://test.supabase.co',
@@ -244,6 +244,13 @@ describe('cloudInitialSync', () => {
     expect(cloud.get('sessions\u0000cloud-only')!.deleted).toBe(true)
     expect(cloud.get(`sessions\u0000${id}`)!.data).toMatchObject({ name: 'Mine' })
     expect(await db.sessions.get('cloud-only')).toBeUndefined()
+  })
+
+  it('verify accepts a pasted sign-in link (token hash) instead of a code', async () => {
+    useCloudStore.setState({ session: null })
+    await cloudVerify('f@x.it', 'Sign in: https://test.supabase.co/auth/v1/verify?token=pkce_abc123&type=magiclink&redirect_to=https%3A%2F%2Fx.github.io%2FGymTracker%2F')
+    expect(requests.at(-1)).toMatchObject({ path: '/auth/v1/verify', body: { type: 'magiclink', token_hash: 'pkce_abc123' } })
+    expect(parseSignInLink('123 456')).toBeNull()
   })
 
   it('verify stores the session and resets the cursor', async () => {

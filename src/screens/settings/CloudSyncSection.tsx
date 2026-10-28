@@ -164,16 +164,17 @@ function SignInView() {
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">{t('settings.cloud.code')}</span>
             <input
               type="text"
-              inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
-              onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              className="num min-h-[48px] w-full rounded-xl bg-surface px-3 text-xl tracking-[0.3em]"
+              onChange={e => setCode(e.target.value)}
+              placeholder={t('settings.cloud.codePlaceholder')}
+              className={`min-h-[48px] w-full rounded-xl bg-surface px-3 ${/^[\d\s]*$/.test(code) ? 'num text-xl tracking-[0.3em]' : 'text-sm'}`}
             />
           </label>
+          <p className="text-xs text-sub">{t('settings.cloud.codeHint')}</p>
           <button
             onClick={() => void signIn()}
-            disabled={busy || code.length < 6}
+            disabled={busy || code.trim().length < 6}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90 disabled:opacity-40"
           >
             {busy && <Loader2 size={18} className="animate-spin" />} {t('settings.cloud.signIn')}

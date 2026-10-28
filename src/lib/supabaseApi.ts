@@ -76,10 +76,40 @@ export async function requestOtp(email: string): Promise<void> {
   await sb('/auth/v1/otp', { method: 'POST', body: JSON.stringify({ email, create_user: true }) })
 }
 
-/** Exchange the emailed code for a session. */
-export async function verifyOtp(email: string, code: string): Promise<SbSession> {
-  const res = await sb('/auth/v1/verify', { method: 'POST', body: JSON.stringify({ type: 'email', email, token: code.trim() }) })
+/**
+ * Exchange what the email carried for a session: the 6-digit code (a template with {{ .Token }},
+ * which needs custom SMTP on the free plan), or the default "Sign in" link pasted whole — its
+ * `token` query parameter is the token hash GoTrue verifies without any redirect.
+ */
+export async function verifyOtp(email: string, codeOrLink: string): Promise<SbSession> {
+  const link = parseSignInLink(codeOrLink)
+  const body = link
+    ? { type: link.type, token_hash: link.tokenHash }
+    : { type: 'email', email, token: codeOrLink.replace(/\s+/g, '') }
+  const res = await sb('/auth/v1/verify', { method: 'POST', body: JSON.stringify(body) })
   return parseSession(await res.json())
+}
+
+/** `…/auth/v1/verify?token=<hash>&type=magiclink&redirect_to=…` → its hash and type; null for a code. */
+export function parseSignInLink(text: string): { tokenHash: string; type: string } | null {
+  const m = /https?:\/\/\S+/.exec(text.trim())
+  if (!m) return null
+  try {
+    const url = new URL(m[0])
+    const tokenHash = url.searchParams.get('token') ?? url.searchParams.get('token_hash')
+    if (!tokenHash) return null
+    return { tokenHash, type: url.searchParams.get('type') ?? 'magiclink' }
+  } catch {
+    return null
+  }
+}
+
+/** The signed-in user behind an access token (after a redirect that only carries tokens). */
+export async function getUser(token: string): Promise<{ id: string; email?: string }> {
+  const res = await sb('/auth/v1/user', { method: 'GET' }, token)
+  const u = (await res.json()) as { id?: string; email?: string }
+  if (!u.id) throw new SbError(t('data.cloud.error', { status: 200, detail: 'no user' }), 200, 'other')
+  return { id: u.id, email: u.email }
 }
 
 export async function refreshSession(refreshToken: string): Promise<SbSession> {

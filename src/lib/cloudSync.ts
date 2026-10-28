@@ -19,7 +19,7 @@ import { fixAfterPull, remapFoodIds } from './cloudFixups'
 import { dedupFoodsByOffId } from './merge'
 import { cloudConfigured } from './supabaseConfig'
 import {
-  SbError, listLiveIds, pullRows, pushRows, refreshSession, requestOtp, signOutRemote, verifyOtp,
+  SbError, getUser, listLiveIds, pullRows, pushRows, refreshSession, requestOtp, signOutRemote, verifyOtp,
   type CloudRow, type SbSession,
 } from './supabaseApi'
 import { demoLoadedAnyTab } from './uiStore'
@@ -86,6 +86,31 @@ export async function cloudVerify(email: string, code: string): Promise<SbSessio
   const session = await verifyOtp(email.trim(), code)
   useCloudStore.setState({ session, lastSeq: 0, lastError: null })
   return session
+}
+
+/**
+ * A magic link clicked in the browser lands on the Site URL with the tokens in the hash
+ * (`#access_token=…&refresh_token=…&expires_at=…`). Called before the router mounts: turns them
+ * into a session, then replaces the hash with the Settings route. Returns whether it did.
+ */
+export async function consumeAuthRedirect(): Promise<boolean> {
+  if (!cloudConfigured() || typeof window === 'undefined') return false
+  const hash = window.location.hash.replace(/^#\/?/, '')
+  if (!/(^|&)access_token=/.test(hash)) return false
+  const q = new URLSearchParams(hash)
+  const access = q.get('access_token')
+  const refresh = q.get('refresh_token')
+  window.location.replace(`${window.location.pathname}${window.location.search}#/settings`)
+  if (!access || !refresh) return false
+  try {
+    const user = await getUser(access)
+    const expiresAt = Number(q.get('expires_at')) || Math.floor(Date.now() / 1000) + (Number(q.get('expires_in')) || 3600)
+    useCloudStore.setState({ session: { access_token: access, refresh_token: refresh, expires_at: expiresAt, user }, lastSeq: 0, lastError: null })
+    return true
+  } catch (e) {
+    useCloudStore.setState({ lastError: (e as Error).message })
+    return false
+  }
 }
 
 export async function cloudSignOut(): Promise<void> {
