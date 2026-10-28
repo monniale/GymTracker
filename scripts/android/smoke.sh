@@ -358,6 +358,10 @@ attach 40 || die "could not reach the WebView over CDP (debug build? see $OUT)"
 # Safety guard, before anything else: never drive a build connected to the real data repo.
 SYNC=$(js '(() => { try { const s = JSON.parse(localStorage.getItem("gymtracker-sync") || "{}").state || {}; return (s.owner || "") + "/" + (s.repo || "") } catch (e) { return "?" } })()') || SYNC="?"
 REPO=${SYNC#*/}
+CLOUD=$(js '(() => { try { const s = JSON.parse(localStorage.getItem("gymtracker-cloud") || "{}").state || {}; return s.session ? "signed-in" : "none" } catch (e) { return "?" } })()') || CLOUD="?"
+if [ "$CLOUD" != "none" ]; then
+  die "ABORT: the debug app is signed in to cloud sync (Supabase) or its state could not be read — sign out (or pm clear $PKG) first"
+fi
 if [ "$SYNC" = "?" ] || [ "$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$FORBIDDEN_REPO" | tr '[:upper:]' '[:lower:]')" ]; then
   ash am force-stop "$PKG"
   die "ABORT: the debug app's GitHub Sync points at '$SYNC' (forbidden: $FORBIDDEN_REPO) or could not be read — disconnect it (or pm clear $PKG) first"

@@ -3,6 +3,7 @@ import { applyTables, TABLES, type BackupFile, type TableDump, type TableName } 
 import { ensureSeeded } from '../db/seed'
 import { addDays, daysBetween, localDateStr } from './dates'
 import { withSyncLock, isConnected, useSyncStore } from './sync'
+import { isCloudSignedIn } from './cloudSync'
 import { useUiStore } from './uiStore'
 import { useAppStore } from '../store'
 import { t } from '../i18n'
@@ -230,7 +231,7 @@ export function canOfferDemo(o: {
  */
 async function assertDemoAllowed(): Promise<void> {
   await useSyncStore.persist.rehydrate()
-  if (isConnected()) throw new Error(t('data.demo.connected'))
+  if (isConnected() || isCloudSignedIn()) throw new Error(t('data.demo.connected'))
   if (await hasUserData()) throw new Error(t('data.demo.notEmpty'))
 }
 

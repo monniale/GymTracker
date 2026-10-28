@@ -5,6 +5,7 @@ import type {
   BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone,
   CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Program, Id,
 } from '../types'
+import { queueOutbox } from './outbox'
 
 /** Tables with '++id' primary keys: new rows get UUID string ids so inserts
  * made on different devices can never collide (legacy integer ids remain). */
@@ -172,7 +173,7 @@ export class GymDB extends Dexie {
       programs: '++id, presetId',
     })
 
-    // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking.
+    // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking, cloud outbox.
     this.use({
       stack: 'dbcore',
       name: 'gymtracker-sync',
@@ -184,16 +185,20 @@ export class GymDB extends Dexie {
             ...table,
             mutate: req => {
               if (!suspended) {
+                const now = Date.now()
+                const keyPath = table.schema.primaryKey.keyPath
                 if (req.type === 'add' || req.type === 'put') {
-                  const now = Date.now()
                   for (const value of req.values as Array<Record<string, unknown>>) {
                     if (value && typeof value === 'object') {
                       if (req.type === 'add' && UUID_TABLES.has(name) && value.id === undefined) {
                         value.id = crypto.randomUUID()
                       }
                       value.updatedAt = now
+                      if (typeof keyPath === 'string') queueOutbox(name, value[keyPath] as Id, now, false)
                     }
                   }
+                } else if (req.type === 'delete') {
+                  for (const key of req.keys) queueOutbox(name, key as Id, now, true)
                 }
                 markDirty()
               }

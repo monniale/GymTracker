@@ -16,6 +16,16 @@ const data: Dict['data'] = {
     cannotReadUser: 'Il token non può leggere l’utente',
     notFound: 'Repository o percorso non trovato',
   },
+  cloud: {
+    network: 'Errore di rete — controlla la connessione.',
+    auth: 'Accesso al cloud scaduto — accedi di nuovo nelle Impostazioni.',
+    rateLimit: 'Il cloud sta limitando le richieste — riprova tra un minuto.',
+    paused: 'Il progetto cloud è in pausa (piano gratuito, inattivo da una settimana). Riattivalo dalla dashboard Supabase, poi sincronizza di nuovo.',
+    badCode: 'Codice errato o scaduto — richiedine uno nuovo.',
+    error: 'Errore cloud {status}: {detail}',
+    notSignedIn: 'Non hai effettuato l’accesso alla sincronizzazione cloud.',
+    demoLoaded: 'Ci sono dati demo. Cancellali in Impostazioni › Dati prima di accedere alla sincronizzazione cloud.',
+  },
   sync: {
     remoteInvalidJson: 'Il file di dati remoto non è un JSON valido',
     remoteNotSnapshot: 'Il file remoto non è uno snapshot di GymTracker',
