@@ -3,6 +3,8 @@ import { Cloud, CloudOff, RefreshCw, Loader2, ExternalLink, AlertTriangle, Flask
 import { useSyncStore, syncNow, previewConnection, connect, type ConnectPreview, type BootstrapChoice } from '../../lib/sync'
 import { fmtDateTime } from '../../lib/dates'
 import { useUiStore } from '../../lib/uiStore'
+import { useCloudStore } from '../../lib/cloudSync'
+import { cloudConfigured } from '../../lib/supabaseConfig'
 import Sheet from '../../components/Sheet'
 import { t, tp } from '../../i18n'
 
@@ -41,6 +43,7 @@ function DemoNotice({ connected = false }: { connected?: boolean }) {
 
 function ConnectedView({ demoLoaded }: { demoLoaded: boolean }) {
   const store = useSyncStore()
+  const cloudOn = useCloudStore(s => s.session !== null) && cloudConfigured()
 
   async function disconnect() {
     if (!window.confirm(t('settings.sync.disconnectConfirm'))) return
@@ -84,7 +87,7 @@ function ConnectedView({ demoLoaded }: { demoLoaded: boolean }) {
         </p>
       )}
       <p className="mt-2 text-xs text-sub">
-        {t('settings.sync.auto')}{' '}
+        {cloudOn ? t('settings.cloud.githubBackup') : t('settings.sync.auto')}{' '}
         <span className="num">{store.deviceId.slice(0, 8)}</span>
       </p>
       <button onClick={disconnect} className="mt-1 py-2 text-xs font-medium text-danger">

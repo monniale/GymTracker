@@ -168,7 +168,9 @@ Open the link in **Chrome**, then **⋮ → Install app**. For the full Android 
 3. Finish a workout and your coach's note appears.
 
 ### 🔄 Sync between devices (optional)
-**Settings → Sync**: connect a **private GitHub repo** with a fine-grained token, and your data syncs between your phone and your browser.
+Two ways, both optional:
+- **Cloud sync** (Settings → Cloud sync): sign in with your email and a 6-digit code; every change reaches your other devices a few seconds later, row by row. Runs on a free [Supabase](https://supabase.com) project you own — setup in [`supabase/migrations/0001_rows.sql`](supabase/migrations/0001_rows.sql); the build needs `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (public by design, row-level security guards your data). A daily GitHub Actions ping keeps the free project from pausing.
+- **GitHub snapshot** (Settings → GitHub Sync): connect a **private GitHub repo** with a fine-grained token. On its own it syncs like before; alongside cloud sync it becomes a daily backup.
 
 ## 🔒 Where your data lives
 

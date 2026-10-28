@@ -6,7 +6,7 @@ import { ensureSeeded } from '../db/seed'
 import { ackOutbox, clearOutbox, pendingOutbox, queueOutbox } from '../db/outbox'
 import { useUiStore } from './uiStore'
 import {
-  CLOUD_TABLES, applyCloudRows, cloudInitialSync, cloudSyncNow, cloudVerify, keyFromCloudId, useCloudStore,
+  cloudTables, applyCloudRows, cloudInitialSync, cloudSyncNow, cloudVerify, keyFromCloudId, useCloudStore,
 } from './cloudSync'
 import type { CloudRow } from './supabaseApi'
 
@@ -218,7 +218,7 @@ describe('applyCloudRows / ids', () => {
       cloudRow('dayTypes', { date: '2026-10-28', type: 'rest' }, 5),
     ])
     expect([...touched]).toEqual(['dayTypes'])
-    expect(CLOUD_TABLES).not.toContain('tombstones')
+    expect(cloudTables()).not.toContain('tombstones')
   })
 })
 

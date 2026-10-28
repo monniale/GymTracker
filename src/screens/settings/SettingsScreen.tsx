@@ -22,6 +22,7 @@ import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
 import NumberStepper from "../../components/NumberStepper";
 import SegmentedControl from "../../components/SegmentedControl";
 import SyncSection from "./SyncSection";
+import CloudSyncSection from "./CloudSyncSection";
 import AiSection from "./AiSection";
 import ImportHistorySheet from "./ImportHistorySheet";
 import TargetsCalculatorSheet from "./TargetsCalculator";
@@ -366,6 +367,7 @@ export default function SettingsScreen() {
       )}
 
       <div id="settings-sync" className={SCROLL_MARGIN}>
+        <CloudSyncSection />
         <SyncSection />
       </div>
 

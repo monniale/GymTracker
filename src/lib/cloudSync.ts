@@ -26,8 +26,13 @@ import { demoLoadedAnyTab } from './uiStore'
 import { t } from '../i18n'
 import type { Food, Id } from '../types'
 
-/** Tables that sync row by row (the backup allow-list minus tombstones: the cloud keeps deletes itself). */
-export const CLOUD_TABLES: readonly string[] = TABLES.filter(name => !LOCAL_ONLY_TABLES.has(name))
+/** Tables that sync row by row (the backup allow-list minus tombstones: the cloud keeps deletes itself).
+ * Computed on first use: `backup.ts` sits in an import cycle with this module (via demoData → sync). */
+let cloudTablesCache: readonly string[] | null = null
+export function cloudTables(): readonly string[] {
+  cloudTablesCache ??= TABLES.filter(name => !LOCAL_ONLY_TABLES.has(name))
+  return cloudTablesCache
+}
 
 const PUSH_CHUNK = 500
 const PULL_PAGE = 1000
@@ -122,7 +127,7 @@ export function keyFromCloudId(id: string): Id {
 async function rowsFor(entries: OutboxEntry[]): Promise<CloudRow[]> {
   const out: CloudRow[] = []
   for (const e of entries) {
-    if (!CLOUD_TABLES.includes(e.table)) continue
+    if (!cloudTables().includes(e.table)) continue
     const row = e.deleted ? undefined : ((await db.table(e.table).get(e.key)) as Record<string, unknown> | undefined)
     out.push(row
       ? { tbl: e.table, id: String(e.key), data: row, updated_at: Number(row.updatedAt ?? e.updatedAt), deleted: false }
@@ -158,7 +163,7 @@ export async function applyCloudRows(rows: CloudRow[]): Promise<Set<string>> {
   const touched = new Set<string>()
   const byTable = new Map<string, CloudRow[]>()
   for (const r of rows) {
-    if (!CLOUD_TABLES.includes(r.tbl)) continue
+    if (!cloudTables().includes(r.tbl)) continue
     const list = byTable.get(r.tbl) ?? []
     list.push(r)
     byTable.set(r.tbl, list)
@@ -234,6 +239,12 @@ async function pullAll(token: string): Promise<Set<string>> {
   }
 }
 
+/** Whether the account already holds rows (asked before the first sync on a device with data). */
+export async function cloudHasData(): Promise<boolean> {
+  const token = await accessToken()
+  return (await pullRows(token, 0, 1)).length > 0
+}
+
 /* ------------------------------ engine ------------------------------ */
 
 export type CloudOutcome = 'disconnected' | 'demo' | 'up-to-date' | 'synced' | 'error'
@@ -278,7 +289,7 @@ export type InitialChoice = 'merge' | 'use-cloud' | 'overwrite-cloud'
 /** Every local synced row, as cloud rows; `stamp` (overwrite) gives each one a clock that beats the cloud's. */
 async function allLocalRows(stamp: ((tbl: string, id: string) => number) | null): Promise<CloudRow[]> {
   const out: CloudRow[] = []
-  for (const name of CLOUD_TABLES) {
+  for (const name of cloudTables()) {
     for (const row of (await db.table(name).toArray()) as Record<string, unknown>[]) {
       const id = String(keyOf(name, row))
       const updatedAt = stamp ? stamp(name, id) : Number(row.updatedAt ?? 0)
@@ -308,8 +319,8 @@ export function cloudInitialSync(choice: InitialChoice): Promise<CloudOutcome> {
       const token = await accessToken()
       if (choice === 'use-cloud') {
         await withSyncTrackingSuspended(() =>
-          db.transaction('rw', CLOUD_TABLES.map(n => db.table(n)), async () => {
-            for (const name of CLOUD_TABLES) await db.table(name).clear()
+          db.transaction('rw', cloudTables().map(n => db.table(n)), async () => {
+            for (const name of cloudTables()) await db.table(name).clear()
           }))
         clearOutbox()
         store.setState({ lastSeq: 0 })

@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ensureSeeded } from './db/seed'
 import { runDailyChecksOnce } from './lib/season'
 import { checkAchievements } from './lib/achievements'
-import { installSyncTriggers, syncNow, isConnected, withSyncLock } from './lib/sync'
+import { installSyncTriggers, withSyncLock, syncOnEvent } from './lib/sync'
 import { evaluateQuests } from './lib/quests'
 import { backfillCoachHistory } from './lib/coachHistory'
 import TabBar from './components/TabBar'
@@ -51,7 +51,7 @@ export default function App() {
       // queued ahead of the launch sync so it pushes them.
       void withSyncLock(backfillCoachHistory).catch(e => console.error('[coach] backfill failed', e))
       installSyncTriggers()
-      if (isConnected()) void syncNow('launch')
+      syncOnEvent('launch')
     })()
   }, [])
 
