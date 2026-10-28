@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import { localDateStr, mondayOf, addDays, parseLocalDate } from './dates'
 import { dayTargets, totalsForLogs } from './nutrition'
+import { effectiveLoad } from './load'
 import { t, fmtNum } from '../i18n'
 import type { Id } from '../types'
 
@@ -101,10 +102,14 @@ const POOL: QuestDef[] = [
     target: 15_000,
     measure: async w => {
       const sessions = await sessionsInWeek(w)
+      const exMap = new Map((await db.exercises.toArray()).map(e => [e.id!, e]))
       let vol = 0
       for (const s of sessions) {
         const sets = await db.sets.where('sessionId').equals(s.id!).toArray()
-        vol += sets.filter(x => !x.isWarmup).reduce((a, x) => a + x.weightKg * x.reps, 0)
+        // Effective load: bodyweight sets of a stamped session count the bodyweight moved.
+        vol += sets
+          .filter(x => !x.isWarmup)
+          .reduce((a, x) => a + effectiveLoad(x, exMap.get(x.exerciseId), s) * x.reps, 0)
       }
       return Math.round(vol)
     },

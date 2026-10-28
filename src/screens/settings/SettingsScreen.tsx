@@ -10,6 +10,8 @@ import {
   AlertTriangle,
   Film,
   ImageOff,
+  FlaskConical,
+  Calculator,
 } from "lucide-react";
 import { db } from "../../db/db";
 import { exportBackup, importBackup } from "../../db/backup";
@@ -18,11 +20,15 @@ import { localDateStr } from "../../lib/dates";
 import { archiveCurrentSeason } from "../../lib/season";
 import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
 import NumberStepper from "../../components/NumberStepper";
+import SegmentedControl from "../../components/SegmentedControl";
 import SyncSection from "./SyncSection";
+import CloudSyncSection from "./CloudSyncSection";
 import AiSection from "./AiSection";
 import ImportHistorySheet from "./ImportHistorySheet";
+import TargetsCalculatorSheet from "./TargetsCalculator";
 import { isNative } from "../../native/platform";
 import { useUiStore, type Lang } from "../../lib/uiStore";
+import { clearDemoData } from "../../lib/demoData";
 import type { Settings } from "../../types";
 import { t } from "../../i18n";
 
@@ -49,6 +55,7 @@ export default function SettingsScreen() {
   const csvRef = useRef<HTMLInputElement>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [historyCsv, setHistoryCsv] = useState<string | null>(null);
+  const [calcOpen, setCalcOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   // Android's first-run card links here with `state.focus` ("sync" | "data").
@@ -176,6 +183,21 @@ export default function SettingsScreen() {
             max={400}
           />
         </div>
+        <div className="mt-4 flex justify-center border-t border-edge/50 pt-3">
+          <button
+            type="button"
+            onClick={() => setCalcOpen(true)}
+            className="flex min-h-[44px] items-center gap-2 whitespace-nowrap rounded-xl bg-muted/40 px-4 font-semibold active:bg-muted"
+          >
+            <Calculator size={18} className="shrink-0" />
+            {t("settings.calc.button")}
+          </button>
+        </div>
+        <TargetsCalculatorSheet
+          open={calcOpen}
+          onClose={() => setCalcOpen(false)}
+          settings={settings}
+        />
       </Section>
 
       <Section title={t("settings.targets.rest")}>
@@ -330,6 +352,8 @@ export default function SettingsScreen() {
         )}
       </Section>
 
+      <EffortScaleSection />
+
       {NotificationsSection && (
         <Suspense fallback={null}>
           <NotificationsSection />
@@ -343,12 +367,14 @@ export default function SettingsScreen() {
       )}
 
       <div id="settings-sync" className={SCROLL_MARGIN}>
+        <CloudSyncSection />
         <SyncSection />
       </div>
 
       <AiSection />
 
       <Section title={t("settings.data.title")} id="settings-data">
+        <ClearDemoButton onMessage={setImportMsg} />
         <div className="flex gap-2">
           <button
             onClick={() =>
@@ -439,6 +465,36 @@ export default function SettingsScreen() {
   );
 }
 
+/** Web demo data (lib/demoData.ts): shown only while it is loaded. */
+function ClearDemoButton({ onMessage }: { onMessage: (msg: string | null) => void }) {
+  const demoLoaded = useUiStore((s) => s.demoLoaded);
+  const [busy, setBusy] = useState(false);
+  if (!demoLoaded) return null;
+
+  async function onClear() {
+    if (!window.confirm(t("settings.data.clearDemoConfirm"))) return;
+    setBusy(true);
+    onMessage(null);
+    try {
+      await clearDemoData();
+    } catch (e) {
+      onMessage(t("settings.data.clearDemoFailed", { error: (e as Error).message }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={() => void onClear()}
+      disabled={busy}
+      className="mb-2 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-danger/40 px-3 text-center font-semibold text-danger active:bg-danger/10 disabled:opacity-50"
+    >
+      <FlaskConical size={18} className="shrink-0" /> {t("settings.data.clearDemo")}
+    </button>
+  );
+}
+
 /** Build stamp, so you can tell which deploy the installed PWA is running. */
 function VersionFooter() {
   const built = new Date(__BUILD_TIME__);
@@ -515,6 +571,26 @@ function LanguageSection() {
           </button>
         ))}
       </div>
+    </Section>
+  );
+}
+
+/** How set effort is shown and picked (device-local): RPE "@8" or reps in reserve "RIR 2". Stored sets keep RPE. */
+function EffortScaleSection() {
+  const scale = useUiStore((s) => s.effortScale);
+  const setScale = useUiStore((s) => s.setEffortScale);
+  return (
+    <Section title={t("settings.workout.effortScale")}>
+      <SegmentedControl
+        value={scale}
+        options={[
+          { value: "rpe", label: t("settings.workout.rpe") },
+          { value: "rir", label: t("settings.workout.rir") },
+        ]}
+        onChange={setScale}
+        ariaLabel={t("settings.workout.effortScale")}
+      />
+      <p className="mt-2 text-xs text-sub">{t("settings.workout.effortScaleHint")}</p>
     </Section>
   );
 }

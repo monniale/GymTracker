@@ -11,10 +11,12 @@ on:
 permissions:
   contents: read
 
-# One group per branch. A push to a branch with an open pull request starts a push run and
-# a pull_request run. They share this group, so the newer run cancels the older one.
+# One group per pull request (keyed by number, so forks with the same branch name never share
+# one) and one per pushed branch. A newer run cancels the older one in its own group only: the push
+# run and the pull_request run of the same commit both finish, so a pull request never shows a
+# cancelled check it did not cause.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref_name }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,8 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+
         with:
           node-version: 22
           cache: npm
@@ -33,6 +37,8 @@ jobs:
       - run: npx tsc -p tsconfig.node.json --noEmit
       # The "test" script sets TZ and the locale itself.
       - run: npm test
+      # Program presets: scripts/programs/*.json valid and public/programs.json rebuilt from them.
+      - run: node scripts/build-programs.mjs --check
       # Pages build. No VITE_USDA_KEY here: the app falls back to DEMO_KEY, and
       # pull requests must not receive repository secrets.
       - run: npm run build

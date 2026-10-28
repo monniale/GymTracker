@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { Cloud, CloudOff, RefreshCw, Loader2, ExternalLink, AlertTriangle } from 'lucide-react'
+import { Cloud, CloudOff, RefreshCw, Loader2, ExternalLink, AlertTriangle, FlaskConical } from 'lucide-react'
 import { useSyncStore, syncNow, previewConnection, connect, type ConnectPreview, type BootstrapChoice } from '../../lib/sync'
 import { fmtDateTime } from '../../lib/dates'
+import { useUiStore } from '../../lib/uiStore'
+import { useCloudStore } from '../../lib/cloudSync'
+import { cloudConfigured } from '../../lib/supabaseConfig'
 import Sheet from '../../components/Sheet'
 import { t, tp } from '../../i18n'
 
@@ -14,6 +17,8 @@ const TOKEN_PLACEHOLDER = 'github_pat_…'
 export default function SyncSection() {
   const store = useSyncStore()
   const connected = !!store.token && !!store.repo
+  // Demo data must never reach a sync repo: lib/sync.ts refuses too, this only explains why.
+  const demoLoaded = useUiStore(s => s.demoLoaded)
 
   return (
     <section className="mb-4 rounded-2xl border border-edge bg-card p-4">
@@ -21,13 +26,24 @@ export default function SyncSection() {
         {connected ? <Cloud size={14} className="text-accent" /> : <CloudOff size={14} />}
         {t('settings.sync.title')}
       </h2>
-      {connected ? <ConnectedView /> : <ConnectView />}
+      {connected && <ConnectedView demoLoaded={demoLoaded} />}
+      {!connected && (demoLoaded ? <DemoNotice /> : <ConnectView />)}
     </section>
   )
 }
 
-function ConnectedView() {
+function DemoNotice({ connected = false }: { connected?: boolean }) {
+  return (
+    <p className="flex items-start gap-1.5 text-sm text-sub">
+      <FlaskConical size={16} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+      {t(connected ? 'settings.sync.demoNoticeConnected' : 'settings.sync.demoNotice')}
+    </p>
+  )
+}
+
+function ConnectedView({ demoLoaded }: { demoLoaded: boolean }) {
   const store = useSyncStore()
+  const cloudOn = useCloudStore(s => s.session !== null) && cloudConfigured()
 
   async function disconnect() {
     if (!window.confirm(t('settings.sync.disconnectConfirm'))) return
@@ -42,29 +58,36 @@ function ConnectedView() {
             {store.owner}/{store.repo}
           </p>
           <p className="truncate text-xs text-sub">
-            {store.syncing
-              ? t('settings.sync.syncing')
-              : store.lastSyncAt
-                ? t('settings.sync.lastSync', { time: fmtDateTime(store.lastSyncAt) })
-                : t('settings.sync.never')}
+            {demoLoaded
+              ? t('settings.sync.demoPaused')
+              : store.syncing
+                ? t('settings.sync.syncing')
+                : store.lastSyncAt
+                  ? t('settings.sync.lastSync', { time: fmtDateTime(store.lastSyncAt) })
+                  : t('settings.sync.never')}
           </p>
         </div>
         <button
           onClick={() => void syncNow('manual')}
-          disabled={store.syncing}
+          disabled={store.syncing || demoLoaded}
           className="flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-primary/15 px-4 text-sm font-semibold text-primary active:bg-primary/30 disabled:opacity-50"
         >
           {store.syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
           {t('settings.sync.syncNow')}
         </button>
       </div>
+      {demoLoaded && (
+        <div className="mt-2">
+          <DemoNotice connected />
+        </div>
+      )}
       {store.lastError && (
         <p className="mt-2 flex items-start gap-1.5 text-xs text-danger">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" /> {store.lastError}
         </p>
       )}
       <p className="mt-2 text-xs text-sub">
-        {t('settings.sync.auto')}{' '}
+        {cloudOn ? t('settings.cloud.githubBackup') : t('settings.sync.auto')}{' '}
         <span className="num">{store.deviceId.slice(0, 8)}</span>
       </p>
       <button onClick={disconnect} className="mt-1 py-2 text-xs font-medium text-danger">

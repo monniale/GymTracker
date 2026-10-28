@@ -18,12 +18,28 @@ export default {
     notFound: 'Repository or path not found',
   },
   /** Sync engine errors (lib/sync.ts). */
+  cloud: {
+    network: 'Network error — check your connection.',
+    auth: 'Cloud sign-in expired — sign in again in Settings.',
+    rateLimit: 'The cloud is rate-limiting requests — try again in a minute.',
+    paused: 'The cloud project is paused (free tier, idle for a week). Resume it in the Supabase dashboard, then sync again.',
+    badCode: 'Wrong or expired code — request a new one.',
+    error: 'Cloud error {status}: {detail}',
+    notSignedIn: 'Not signed in to cloud sync.',
+    demoLoaded: 'Demo data is loaded. Clear it in Settings › Data before signing in to cloud sync.',
+  },
   sync: {
     remoteInvalidJson: 'Remote data file is not valid JSON',
     remoteNotSnapshot: 'Remote file is not a GymTracker snapshot',
     keptChanging: 'Remote kept changing — try again',
     tokenRejected: 'GitHub token rejected — it may have expired. Paste a fresh one in Settings.',
     repoNotFound: 'Repository {owner}/{repo} not found. Create it as a PRIVATE repo on GitHub first.',
+    demoLoaded: 'Demo data is loaded. Clear it in Settings › Data before connecting sync.',
+  },
+  /** Loading the web demo (lib/demoData.ts) refused. */
+  demo: {
+    connected: 'Sync is connected, so the demo cannot replace your data.',
+    notEmpty: 'This device already has your data, so the demo cannot replace it.',
   },
   /** Strong / Hevy CSV import (lib/importHistory.ts). */
   import: {
@@ -42,8 +58,8 @@ export default {
     rankUp: 'RANK UP!',
     volumePr: 'VOL PR',
     e1rmPr: 'e1RM PR',
-    /** `{sets}` is the counted sets ("3 sets"). */
-    setsBest: '{sets} · best {weight} kg × {reps}',
+    /** `{sets}` is the counted sets ("3 sets"), `{set}` the best set ("80 kg × 8", "BW+10 kg × 8"). */
+    setsBest: '{sets} · best {set}',
     moreExercises: { one: '+ {n} more exercise', other: '+ {n} more exercises' },
     /** Footer stat labels (drawn upper-case). */
     statSets: { one: 'set', other: 'sets' },

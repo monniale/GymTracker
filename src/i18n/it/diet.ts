@@ -114,7 +114,7 @@ const diet: Dict['diet'] = {
     photoFailed: 'Impossibile leggere la foto.',
     estimate: 'Stima',
     estimating: 'Stimo…',
-    noKey: 'Aggiungi una chiave Gemini in Opzioni › AI per stimare i pasti senza etichetta (asporto, kebab, pizzerie).',
+    noKey: 'Collega un modello AI in Opzioni › AI per stimare i pasti senza etichetta (asporto, kebab, pizzerie).',
     offline: 'Offline — connettiti per stimare.',
     empty: 'Nessun alimento riconosciuto — aggiungi dettagli e riprova.',
     saveFailed: 'Impossibile salvare il pasto — riprova.',

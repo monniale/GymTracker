@@ -1,7 +1,9 @@
 import { parseCsv } from './csv'
 import { epley, scoreSession } from './scoring'
 import { localDateStr, parseLocalDate } from './dates'
-import { isCardioSet } from './cardio'
+import { isCardioExercise, isCardioSet } from './cardio'
+import { effectiveLoad, setE1rm } from './load'
+import { normalizeRpe, type SetKind } from './setTypes'
 import { t, tp } from '../i18n'
 import type { Equipment, Exercise, ExerciseBreakdown, Id, MuscleGroup } from '../types'
 
@@ -14,14 +16,21 @@ import type { Equipment, Exercise, ExerciseBreakdown, Id, MuscleGroup } from '..
  * `;` separated; Date `2024-03-12 18:05:00` (local), Duration `1h 2m`; Weight and
  * Distance in the app's units (kg/lb, km/mi), so the user picks them. Set Order
  * is a number, `W…` for a warm-up, `D…`/`F…` for drop/failure sets, or a text
- * row such as "Rest Timer" (skipped).
+ * row such as "Rest Timer" (skipped). RPE is clamped to 6–10 in 0.5 steps; 0,
+ * empty or junk is dropped.
  *
  * Hevy (Settings › Export & import data): `title, start_time, end_time,
  * description, exercise_title, superset_id, exercise_notes, set_index, set_type,
  * weight_kg, reps, distance_km, duration_seconds, rpe`; times `12 Mar 2024, 18:05`;
  * set_type `normal|warmup|failure|dropset`. Imperial exports carry `weight_lbs` /
  * `distance_miles` columns instead.
+ *
+ * Set types are metadata only: a drop or failure set scores like any working
+ * set. A working set stores no `setType` (absent = working).
  */
+
+/** A stored set type other than working (warm-up stays `isWarmup`). */
+export type ImportedSetType = Exclude<SetKind, 'warmup' | 'working'>
 
 export type ImportFormat = 'strong' | 'hevy'
 
@@ -38,6 +47,10 @@ export interface ImportedSet {
   weightKg: number
   reps: number
   isWarmup: boolean
+  /** 6–10 in 0.5 steps; absent when the file had none (or junk). */
+  rpe?: number
+  /** Drop / failure set; absent = working (or warm-up, see `isWarmup`). */
+  setType?: ImportedSetType
   /** Cardio rows (no reps). */
   durationSec?: number
   distanceM?: number
@@ -77,6 +90,12 @@ function num(v: string | undefined): number {
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100
+
+/** An RPE cell → 6–10 in 0.5 steps; empty, 0 (no RPE) or junk → undefined. */
+function readRpe(v: string | undefined): number | undefined {
+  const n = num(v)
+  return Number.isFinite(n) && n > 0 ? normalizeRpe(n) : undefined
+}
 
 /** "2024-03-12 18:05:00" / "2024-03-12T18:05" → local ms. */
 export function parseStrongDate(v: string): number | null {
@@ -122,13 +141,22 @@ function toSet(
   isWarmup: boolean,
   durationSec: number,
   distanceM: number,
+  rpe?: number,
+  setType?: ImportedSetType,
 ): ImportedSet | null {
   const w = Number.isFinite(weightKg) && weightKg > 0 ? r2(weightKg) : 0
   const r = Number.isFinite(reps) && reps > 0 ? Math.round(reps) : 0
   const d = Number.isFinite(durationSec) && durationSec > 0 ? Math.round(durationSec) : 0
   const m = Number.isFinite(distanceM) && distanceM > 0 ? Math.round(distanceM) : 0
-  if (r > 0) return { exerciseName, weightKg: w, reps: r, isWarmup }
-  // No reps: a cardio row when it has a time; a distance alone gets no duration to show, so skip it.
+  if (r > 0) {
+    return {
+      exerciseName, weightKg: w, reps: r, isWarmup,
+      ...(rpe !== undefined ? { rpe } : {}),
+      // A warm-up is its own kind: it never carries a drop/failure type.
+      ...(setType && !isWarmup ? { setType } : {}),
+    }
+  }
+  // No reps (RPE and set type dropped): a cardio row when it has a time; a distance alone gets no duration to show, so skip it.
   if (d > 0) return { exerciseName, weightKg: 0, reps: 0, isWarmup: false, durationSec: d, ...(m > 0 ? { distanceM: m } : {}) }
   return null
 }
@@ -166,11 +194,15 @@ export function parseStrong(rows: string[][], opts: ImportOptions = DEFAULT_IMPO
     if (!exerciseName) continue
     const order = (col(row, 'set order') ?? '').trim()
     let isWarmup = false
+    let setType: ImportedSetType | undefined
     if (/^w\d*$/i.test(order)) isWarmup = true
-    else if (!/^\d+$/.test(order) && !/^[df]\d*$/i.test(order)) continue // "Rest Timer" and other non-set rows
+    else if (/^d\d*$/i.test(order)) setType = 'drop'
+    else if (/^f\d*$/i.test(order)) setType = 'failure'
+    else if (!/^\d+$/.test(order)) continue // "Rest Timer" and other non-set rows
     const weight = num(col(row, 'weight')) * (opts.weightUnit === 'lb' ? LB : 1)
     const distance = num(col(row, 'distance')) * (opts.distanceUnit === 'mi' ? MILE : 1000)
-    const set = toSet(exerciseName, weight, num(col(row, 'reps')), isWarmup, num(col(row, 'seconds')), distance)
+    const rpe = readRpe(col(row, 'rpe'))
+    const set = toSet(exerciseName, weight, num(col(row, 'reps')), isWarmup, num(col(row, 'seconds')), distance, rpe, setType)
     if (!set) continue
     const key = `${date.trim()}|${name}`
     let g = groups.get(key)
@@ -203,10 +235,13 @@ export function parseHevy(rows: string[][]): ParsedHistory {
     const name = (col(row, 'title') ?? '').trim() || 'Imported workout'
     const exerciseName = (col(row, 'exercise_title') ?? '').trim()
     if (!exerciseName) continue
-    const isWarmup = (col(row, 'set_type') ?? '').trim().toLowerCase() === 'warmup'
+    const kind = (col(row, 'set_type') ?? '').trim().toLowerCase()
+    const isWarmup = kind === 'warmup'
+    const setType: ImportedSetType | undefined = kind === 'dropset' ? 'drop' : kind === 'failure' ? 'failure' : undefined
     const weight = imperialWeight ? num(col(row, 'weight_lbs')) * LB : num(col(row, 'weight_kg'))
     const distance = imperialDistance ? num(col(row, 'distance_miles')) * MILE : num(col(row, 'distance_km')) * 1000
-    const set = toSet(exerciseName, weight, num(col(row, 'reps')), isWarmup, num(col(row, 'duration_seconds')), distance)
+    const rpe = readRpe(col(row, 'rpe'))
+    const set = toSet(exerciseName, weight, num(col(row, 'reps')), isWarmup, num(col(row, 'duration_seconds')), distance, rpe, setType)
     if (!set) continue
     const key = `${start.trim()}|${name}`
     let g = groups.get(key)
@@ -382,6 +417,9 @@ export interface PlannedSetRow {
   isWarmup: boolean
   completedAt: number
   e1rm: number
+  /** Copied from the import; metadata only (never read by the scoring). */
+  rpe?: number
+  setType?: ImportedSetType
   durationSec?: number
   distanceM?: number
 }
@@ -406,11 +444,17 @@ export interface PlannedImportSession {
 
 export interface ImportScoringContext {
   exerciseIdOf: (rawName: string) => Id
+  /** The exercise behind an id (its equipment and bodyweight factor set the load of a bodyweight set). */
+  exerciseOf: (id: Id) => Exercise | undefined
   exerciseNames: Map<Id, string>
   /** YYYY-MM-DD; sessions before it are history and add no rank points. */
   seasonStart: string
-  /** Sets already in the app (for prior bests), any order. */
-  existingSets: { exerciseId: Id; weightKg: number; reps: number; isWarmup: boolean; completedAt: number; sessionId: Id }[]
+  /**
+   * Sets already in the app (for prior bests), any order. `loadKg` is the
+   * effective load (`effectiveLoad` with the set's session); absent = `weightKg`.
+   * `bwScoring` is the stamp of the set's session (absent = unstamped).
+   */
+  existingSets: { exerciseId: Id; weightKg: number; reps: number; isWarmup: boolean; completedAt: number; sessionId: Id; loadKg?: number; bwScoring?: boolean }[]
   /** Start times of the app's finished sessions (for the same-day factor). */
   existingSessionStarts: number[]
   bodyweightFor: (date: string) => number
@@ -422,13 +466,24 @@ export interface ImportScoringContext {
  * the earlier imported ones): season-scoped for a session in the current
  * season, all earlier history for an older one. No streak (0) and no points
  * outside the current season; the same-day factor counts the day's earlier
- * sessions.
+ * sessions. Imported sessions are stamped `bwScoring` (importApply), so a
+ * bodyweight set scores bodyweight × factor + its (added, never negative)
+ * weight. Prior bests use each set's effective load and skip zero-load rows,
+ * like `gatherSeasonPriorBests`, and for a bodyweight exercise they skip every
+ * row of an unstamped session (its weight is added kg only, another unit): an
+ * older unstamped bodyweight set, 0 kg or weighted, counts for neither the
+ * e1RM nor the volume.
  */
 export function planImportScoring(sessions: ImportedSession[], ctx: ImportScoringContext): PlannedImportSession[] {
   const seasonStartMs = parseLocalDate(ctx.seasonStart).getTime()
+  const unstampedBodyweight = (s: { exerciseId: Id; bwScoring?: boolean }) => {
+    const ex = ctx.exerciseOf(s.exerciseId)
+    return s.bwScoring !== true && ex?.equipment === 'bodyweight' && !isCardioExercise(ex)
+  }
   const history = ctx.existingSets
-    .filter(s => !s.isWarmup && s.weightKg > 0 && s.reps > 0)
-    .map(s => ({ exerciseId: s.exerciseId, sessionKey: `x${String(s.sessionId)}`, t: s.completedAt, e1rm: epley(s.weightKg, s.reps), vol: s.weightKg * s.reps }))
+    .map(s => ({ ...s, load: s.loadKg ?? s.weightKg }))
+    .filter(s => !s.isWarmup && s.load > 0 && s.reps > 0 && !unstampedBodyweight(s))
+    .map(s => ({ exerciseId: s.exerciseId, sessionKey: `x${String(s.sessionId)}`, t: s.completedAt, e1rm: epley(s.load, s.reps), vol: s.load * s.reps }))
   const starts = [...ctx.existingSessionStarts]
   const out: PlannedImportSession[] = []
 
@@ -445,6 +500,8 @@ export function planImportScoring(sessions: ImportedSession[], ctx: ImportScorin
     const priorBestVolume = new Map<Id, number>()
     for (const { ex, vol } of volBySession.values()) priorBestVolume.set(ex, Math.max(priorBestVolume.get(ex) ?? 0, vol))
 
+    const date = localDateStr(new Date(imp.startedAt))
+    const session = { bodyweightKg: ctx.bodyweightFor(date), bwScoring: true as const }
     const span = Math.max(1, imp.endedAt - imp.startedAt)
     const perExercise = new Map<Id, number>()
     const sets: PlannedSetRow[] = imp.sets.map((s, i) => {
@@ -459,17 +516,24 @@ export function planImportScoring(sessions: ImportedSession[], ctx: ImportScorin
         isWarmup: s.isWarmup,
         // Spread inside the session so ordering and per-day queries hold.
         completedAt: imp.startedAt + Math.round(((i + 1) * span) / (imp.sets.length + 1)),
-        e1rm: epley(s.weightKg, s.reps),
+        e1rm: setE1rm(s, ctx.exerciseOf(exerciseId), session),
+        ...(s.rpe !== undefined ? { rpe: s.rpe } : {}),
+        ...(s.setType ? { setType: s.setType } : {}),
         ...(s.durationSec ? { durationSec: s.durationSec } : {}),
         ...(s.distanceM ? { distanceM: s.distanceM } : {}),
       }
     })
 
-    const date = localDateStr(new Date(imp.startedAt))
     const sameDayEarlier = starts.some(t => t < imp.startedAt && localDateStr(new Date(t)) === date)
+    const exMap = new Map<Id, Exercise>()
+    for (const id of perExercise.keys()) {
+      const ex = ctx.exerciseOf(id)
+      if (ex) exMap.set(id, ex)
+    }
     const result = scoreSession({
-      sets,
-      bodyweightKg: ctx.bodyweightFor(date),
+      // toScoreSets wants stored rows (with a sessionId); same mapping for the planned ones.
+      sets: sets.map(s => ({ ...s, loadKg: effectiveLoad(s, exMap.get(s.exerciseId), session) })),
+      bodyweightKg: session.bodyweightKg,
       priorBestE1rm,
       priorBestVolume,
       streakWeeks: 0,
@@ -486,8 +550,9 @@ export function planImportScoring(sessions: ImportedSession[], ctx: ImportScorin
     })
     starts.push(imp.startedAt)
     for (const s of sets) {
-      if (s.isWarmup || isCardioSet(s) || s.weightKg <= 0 || s.reps <= 0) continue
-      history.push({ exerciseId: s.exerciseId, sessionKey: `i${n}`, t: s.completedAt, e1rm: s.e1rm, vol: s.weightKg * s.reps })
+      if (s.isWarmup || isCardioSet(s) || s.e1rm <= 0) continue
+      const load = effectiveLoad(s, exMap.get(s.exerciseId), session)
+      history.push({ exerciseId: s.exerciseId, sessionKey: `i${n}`, t: s.completedAt, e1rm: s.e1rm, vol: load * s.reps })
     }
   }
   return out

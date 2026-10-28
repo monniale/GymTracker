@@ -33,7 +33,7 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - ⚡ **Fast at the gym**: your sets are pre-filled from last time. Tap ✓ and the rest timer starts on its own.
 - 📴 **Works offline**: everything is stored on your phone. No account, no sign-up, no server.
 - 🏆 **Makes training a game**: ranks from Copper to Champion, 12-week seasons, streaks, quests and achievements.
-- 🤖 **Has an AI coach**: bring your own free Gemini key and get a written verdict on every workout and every day of eating.
+- 🤖 **Has an AI coach**: bring your own key (free Gemini, any OpenAI-compatible server including a local Ollama, or Claude) and get a written verdict on every workout and every day of eating.
 - 🔄 **Syncs on your terms**: optional sync to *your own* private GitHub repo. No one else's cloud is involved.
 
 ## 📸 Screenshots
@@ -69,7 +69,14 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - **One-tap logging**: every set is pre-filled from your last session.
 - **Progression suggestions**: the app tells you when to add weight, using double progression.
 - **Warm-up ramps** and a **plate calculator** for barbell lifts.
+- **Bodyweight exercises score your bodyweight**: pull-ups, dips and push-ups count bodyweight (times a per-exercise share) plus any added kg, logged as "BW × 12", "BW+10 kg × 8" or assisted "BW−20 kg × 6". Workouts logged before this feature keep their scores.
+- **RPE / RIR and set types**: tag a set with its effort (RPE 6–10, or reps in reserve if you prefer, in Settings) and mark drop sets, sets to failure and AMRAP sets. They score like any set; progression holds the weight after a near-max session and takes a bigger step after an easy one, and the AI coach sees them. Strong and Hevy imports keep them.
 - Equipment variants (barbell, dumbbell, machine, cable…), per-exercise notes, and exercises added mid-session.
+- **Exercise history**: one screen per exercise with its best e1RM, heaviest set and every workout that had it, newest first, with all-time rep maxes starred. Open it from Progress, the exercise library or a live workout.
+- **Weekday schedule**: give a template its days (say Legs on Monday and Thursday) and that day it shows as "Today" on the Workout tab, on the Android widget and in the training reminder. Templates without days keep the usual rotation.
+- **Programs**: install a ready-made plan (Starting Strength, StrongLifts 5×5, GZCLP, 5/3/1 Boring But Big, nSuns, Reddit PPL, PHUL, Upper/Lower, Full body 3×) and its workouts pre-fill themselves: linear steps with deloads, GZCLP stages, 5/3/1 weeks on your training max with the last set for max reps (AMRAP), or rep ranges like 8–12. Any template can use these progression schemes.
+- **Share a workout or a program** as a link or a file. The other person sees which exercises they already have before importing.
+- **Swap an exercise mid-workout**: rack taken? Swap Bench Press for a similar exercise (same muscle, other equipment first) for this session only, or also update the template.
 - **History calendar**: open any past workout and fix a typo. Its score is recalculated.
 - **Cardio sets** with time and distance. They count for your streak and weekly target, but not for rank points.
 - A **shareable workout card**: a PNG of the session (points, rank, top lifts and PRs) for the share sheet.
@@ -108,15 +115,16 @@ A free, offline-first fitness app with an AI coach, for the web and Android.
 - **12-week seasons** with a recap and a "ghost race" against your previous season.
 - Weekly quests, achievements and PR confetti 🎉
 
-### 🤖 AI coach (Gemini, optional)
+### 🤖 AI coach (optional: Gemini, OpenAI-compatible or Claude)
 - A **coach's note after every workout** and a **diet report** for any day.
 - **Suggested opening weights** before a session, ideas to **complete your macros**, and **food swaps**.
-- **Fallback to other models**: if your model runs out of free quota or is down, the request is retried on your key's other free Flash models.
+- **Pick your provider**: Google Gemini (free tier), any OpenAI-compatible server (OpenAI, OpenRouter, Groq, Mistral, or Ollama / LM Studio on your own computer, no key needed) or Anthropic Claude.
+- **Fallback to other models** (Gemini): if your model runs out of free quota or is down, the request is retried on your key's other free Flash models. Other providers retry once on the same model; no paid fallback is ever used.
 - A **weekly review**: the coach looks back at the whole week (training, food, bodyweight) and sets 2–3 goals for the next one.
 - **Coach history**: every verdict is saved and synced, including the earlier one when you regenerate a note.
 
 > [!NOTE]
-> The AI coach uses **your own free Gemini API key** from [Google AI Studio](https://aistudio.google.com/apikey). The key stays on your device and is never synced. Only the workout and diet numbers needed for a note are sent to Google.
+> The AI coach uses **your own API key**: a free Gemini key from [Google AI Studio](https://aistudio.google.com/apikey), a key for an OpenAI-compatible service, or a Claude key from the [Anthropic Console](https://platform.claude.com/settings/keys). The key stays on your device and is never synced. Only the workout and diet numbers needed for a note are sent, to the provider you picked (with a local Ollama / LM Studio server, nothing leaves your network).
 
 ### 📱 Android app extras
 The same app, packaged for Android with [Capacitor](https://capacitorjs.com). It is tuned for a Samsung Galaxy S25 on One UI 8.5 / Android 16 and runs on Android 7 and later.
@@ -133,6 +141,8 @@ The signed APK is attached to each [GitHub Release](https://github.com/monniale/
 
 ### 🌐 Use it in your browser
 Open **https://monniale.github.io/GymTracker/**. That's it. It works offline after the first visit.
+
+Want to look around first? On an empty app, tap **Try with demo data** on the Workout screen: it loads 16 weeks of made-up workouts and meals. Sync stays off while it is loaded, and **Clear demo data** (Settings › Data) brings back an empty app.
 
 ### 📲 Install it like an app
 
@@ -153,12 +163,14 @@ Open the link in **Chrome**, then **⋮ → Install app**. For the full Android 
 </details>
 
 ### 🤖 Turn on the AI coach (optional)
-1. Create a free API key at [Google AI Studio](https://aistudio.google.com/apikey).
-2. In the app, go to **Settings → AI Coach** and paste it.
+1. Create a free API key at [Google AI Studio](https://aistudio.google.com/apikey) (or use an OpenAI-compatible service, a local Ollama / LM Studio server, or a Claude key).
+2. In the app, go to **Settings → AI Coach**, pick the provider and paste the key.
 3. Finish a workout and your coach's note appears.
 
 ### 🔄 Sync between devices (optional)
-**Settings → Sync**: connect a **private GitHub repo** with a fine-grained token, and your data syncs between your phone and your browser.
+Two ways, both optional:
+- **Cloud sync** (Settings → Cloud sync): sign in with your email and a 6-digit code; every change reaches your other devices a few seconds later, row by row. Runs on a free [Supabase](https://supabase.com) project you own — setup in [`supabase/migrations/0001_rows.sql`](supabase/migrations/0001_rows.sql); the build needs `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (public by design, row-level security guards your data). A daily GitHub Actions ping keeps the free project from pausing.
+- **GitHub snapshot** (Settings → GitHub Sync): connect a **private GitHub repo** with a fine-grained token. On its own it syncs like before; alongside cloud sync it becomes a daily backup.
 
 ## 🔒 Where your data lives
 
@@ -169,13 +181,13 @@ flowchart TB
         app["💪 GymTracker"] <--> db[("Local database<br/>(IndexedDB)")]
     end
     phone <-.->|optional sync| gh["🐙 Your private<br/>GitHub repo"]
-    phone -.->|optional · your key| ai["🤖 Google<br/>Gemini"]
+    phone -.->|optional · your key| ai["🤖 Gemini, Claude or<br/>an OpenAI-compatible API"]
     phone -.->|food search| food["🥫 Open Food Facts<br/>& USDA"]
 ```
 
 - **The main copy is always on your device.** The app has no server of its own and no account.
 - **GitHub Sync** pushes a snapshot of your data to a repo *you* own. It's also your backup.
-- **Your keys never leave the device**: the Gemini key and the GitHub token are never synced or exported.
+- **Your keys never leave the device**: the AI key and the GitHub token are never synced or exported.
 - You can also **export or import a JSON backup** at any time from Settings.
 
 > [!TIP]
@@ -202,7 +214,7 @@ The web app needs **Node 18+**. The Android build needs **Node 22+** and **JDK 2
 src/
 ├── screens/      # workout · diet · progress · rank · settings
 ├── components/   # shared UI: charts, sheets, steppers, AI cards…
-├── lib/          # scoring, sync, Gemini client, nutrition, reminders…
+├── lib/          # scoring, sync, AI clients, nutrition, reminders…
 ├── db/           # Dexie schema, seed data, backup / import
 └── native/       # Android-only code (never shipped in the web build)
 android/          # Capacitor Android project (Java plugins)
@@ -236,7 +248,7 @@ Bug reports, translations and pull requests are welcome.
 
 - Exercise data (names, muscles, instructions) from **[exercises-dataset](https://github.com/hasaneyldrm/exercises-dataset)** by Hasan Emir Yıldırım (MIT; the license text ships in `public/exercise-library.json`). The optional animations are © **[Gym visual](https://gymvisual.com/)**; they are not part of this repo and load from the dataset's repo only when you turn them on.
 - Food data from **[Open Food Facts](https://world.openfoodfacts.org)** and **[USDA FoodData Central](https://fdc.nal.usda.gov)**
-- AI by **[Google Gemini](https://ai.google.dev)**
+- AI by **[Google Gemini](https://ai.google.dev)**, **[Anthropic Claude](https://www.anthropic.com/claude)** (official TypeScript SDK) or any OpenAI-compatible API you choose
 - Icons by **[Lucide](https://lucide.dev)** · barcode reading by **[zxing-wasm](https://github.com/Sec-ant/zxing-wasm)** and **Google ML Kit**
 - The licenses of every bundled library are listed in **[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)**.
 

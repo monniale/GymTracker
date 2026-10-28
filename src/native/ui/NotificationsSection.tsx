@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import {
   AlertTriangle,
   Bell,
@@ -9,6 +10,7 @@ import {
   Send,
   Settings2,
 } from 'lucide-react'
+import { db } from '../../db/db'
 import { useNotifyStore } from '../../lib/notifyStore'
 import type { IsoWeekday, NotifyPrefs } from '../../lib/notifyPrefs'
 import type { MealType } from '../../types'
@@ -562,6 +564,8 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 
 function WorkoutCard({ status, update }: CardProps) {
   const w = useNotifyStore(s => s.prefs.workout)
+  // A template weekday schedule replaces the days picked here (notifyData scheduledDays).
+  const scheduled = useLiveQuery(async () => (await db.templates.toArray()).some(x => (x.weekdays?.length ?? 0) > 0))
   const set = (patch: Partial<NotifyPrefs['workout']>, turningOn = false) =>
     update(p => ({ ...p, workout: { ...p.workout, ...patch } }), turningOn)
   return (
@@ -579,26 +583,32 @@ function WorkoutCard({ status, update }: CardProps) {
     >
       {w.enabled && (
         <>
-          <div className="grid grid-cols-7 gap-1 pt-1">
-            {WEEKDAYS.map(({ d, short, long }) => {
-              const active = w.days.includes(d)
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  aria-pressed={active}
-                  aria-label={long}
-                  onClick={() => set({ days: active ? w.days.filter(x => x !== d) : [...w.days, d] })}
-                  className={`h-9 min-w-0 rounded-lg text-sm font-semibold ${
-                    active ? 'bg-primary/15 text-primary' : 'bg-card text-sub'
-                  }`}
-                >
-                  {short}
-                </button>
-              )
-            })}
-          </div>
-          {w.days.length === 0 && <p className="text-xs text-primary">{t('native.notifications.workout.pickDays')}</p>}
+          {scheduled ? (
+            <p className="pt-1 text-xs text-sub">{t('native.notifications.workout.scheduleHint')}</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-7 gap-1 pt-1">
+                {WEEKDAYS.map(({ d, short, long }) => {
+                  const active = w.days.includes(d)
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={long}
+                      onClick={() => set({ days: active ? w.days.filter(x => x !== d) : [...w.days, d] })}
+                      className={`h-9 min-w-0 rounded-lg text-sm font-semibold ${
+                        active ? 'bg-primary/15 text-primary' : 'bg-card text-sub'
+                      }`}
+                    >
+                      {short}
+                    </button>
+                  )
+                })}
+              </div>
+              {w.days.length === 0 && <p className="text-xs text-primary">{t('native.notifications.workout.pickDays')}</p>}
+            </>
+          )}
           <FieldRow label={t('native.notifications.workout.remindAt')}>
             <TimeInput label={t('native.notifications.workout.timeLabel')} value={w.time} onChange={time => set({ time })} />
           </FieldRow>

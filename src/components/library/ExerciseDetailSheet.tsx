@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { History } from 'lucide-react'
 import Sheet from '../Sheet'
 import { useUiStore } from '../../lib/uiStore'
 import { EQUIPMENT_LABEL, muscleGroupLabel } from '../../lib/equipment'
@@ -11,7 +13,7 @@ import {
 import { hasInvolvement, involvement } from '../../lib/muscleMap'
 import { InvolvementFigure } from './BodyFigure'
 import { useT } from '../../i18n'
-import type { Exercise } from '../../types'
+import type { Exercise, Id } from '../../types'
 
 interface Props {
   open: boolean
@@ -21,13 +23,16 @@ interface Props {
   lib?: LibraryExercise
   /** The user's row, when the detail is for one of their exercises. */
   exercise?: Exercise
+  /** One of my exercises this entry maps to: shows a History button (Progress › exercise history). */
+  historyExerciseId?: Id
   /** Action buttons under the instructions. */
   children?: ReactNode
 }
 
 /** One exercise: animation (opt-in), muscles, equipment and step-by-step instructions. */
-export default function ExerciseDetailSheet({ open, onClose, library, lib, exercise, children }: Props) {
+export default function ExerciseDetailSheet({ open, onClose, library, lib, exercise, historyExerciseId, children }: Props) {
   const { t, lang } = useT()
+  const navigate = useNavigate()
   const showMedia = useUiStore(s => s.showExerciseMedia)
   const title = exercise ? exerciseDisplayName(exercise.name) : lib?.name ?? ''
   const group = exercise?.muscleGroup ?? (lib ? libMuscleGroup(lib) : 'other')
@@ -91,6 +96,15 @@ export default function ExerciseDetailSheet({ open, onClose, library, lib, exerc
         </ol>
       ) : (
         <p className="mb-4 text-sm text-sub">{t('library.detail.noSteps')}</p>
+      )}
+
+      {historyExerciseId !== undefined && (
+        <button
+          onClick={() => navigate(`/progress/exercise/${historyExerciseId}`)}
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-muted/40 py-3 font-semibold text-ink active:bg-muted"
+        >
+          <History size={18} aria-hidden /> {t('library.detail.history')}
+        </button>
       )}
 
       {children}

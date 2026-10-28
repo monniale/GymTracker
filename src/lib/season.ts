@@ -4,6 +4,7 @@ import {
   SEASON_DAYS, DECAY_GRACE_DAYS, DECAY_PER_DAY, DECAY_MAX, SEASON_CARRYOVER,
   rankForPoints, rankLabelEn,
 } from './ranks'
+import { effectiveLoad } from './load'
 import type { Season } from '../types'
 
 /** Archives the running season (with recap stats) and starts the next one. */
@@ -16,16 +17,20 @@ export async function archiveCurrentSeason(endDate: string): Promise<void> {
     .where('startedAt').aboveOrEqual(seasonStartMs)
     .filter(s => s.endedAt !== undefined)
     .toArray()
-  const ids = new Set(sessions.map(s => s.id!))
-  const sets = (await db.sets.toArray()).filter(s => ids.has(s.sessionId) && !s.isWarmup)
+  const byId = new Map(sessions.map(s => [s.id!, s]))
+  const sets = (await db.sets.toArray()).filter(s => byId.has(s.sessionId) && !s.isWarmup)
+  const exMap = new Map((await db.exercises.toArray()).map(e => [e.id!, e]))
   let recap: Season['recap'] = {
     sessions: sessions.length,
-    totalVolumeKg: Math.round(sets.reduce((a, s) => a + s.weightKg * s.reps, 0)),
+    // Effective load: bodyweight sets of a stamped session count the bodyweight moved.
+    totalVolumeKg: Math.round(
+      sets.reduce((a, s) => a + effectiveLoad(s, exMap.get(s.exerciseId), byId.get(s.sessionId)) * s.reps, 0),
+    ),
   }
   const best = sets.reduce<typeof sets[number] | null>(
     (acc, s) => (acc === null || s.e1rm > acc.e1rm ? s : acc), null)
   if (best) {
-    const ex = await db.exercises.get(best.exerciseId)
+    const ex = exMap.get(best.exerciseId)
     recap = { ...recap, bestLift: { exerciseName: ex?.name ?? 'Exercise', e1rm: Math.round(best.e1rm * 10) / 10 } }
   }
 

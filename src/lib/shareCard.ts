@@ -3,16 +3,17 @@ import { rankForPoints, rankLabel, type RankTier } from './ranks'
 import { fmtDuration, fmtLongDate, localDateStr } from './dates'
 import { isCardioSet } from './cardio'
 import { exerciseDisplayName } from './exerciseNames'
+import { effectiveLoad, fmtSetLoad, usesBodyweightLoad } from './load'
 import { t, tp, fmtNum } from '../i18n'
-import type { ScoreEvent, Session, SetRow } from '../types'
+import type { Exercise, Id, ScoreEvent, Session, SetRow } from '../types'
 
 /** One exercise row on the card. */
 export interface CardExercise {
   name: string
   /** Working sets (warm-ups excluded). */
   sets: number
-  /** Heaviest working set by e1RM. */
-  best: { weightKg: number; reps: number } | null
+  /** Heaviest working set by e1RM; `bodyweightLoad` when its weight is added kg on bodyweight. */
+  best: { weightKg: number; reps: number; bodyweightLoad: boolean } | null
   e1rmPr: boolean
   volumePr: boolean
 }
@@ -42,14 +43,16 @@ const MAX_EXERCISES = 4
 /**
  * Everything the share card shows, from the stored session. `fresh` is the
  * post-workout summary: only then can the current rank tell a rank-up (an old
- * report only knows today's rank).
+ * report only knows today's rank). `exercises` (the session's exercises by id)
+ * lets bodyweight sets of a stamped session count bodyweight in the volume and
+ * show their best as "BW+10 kg × 8".
  */
 export function sessionCardModel(
   session: Session,
   event: ScoreEvent,
   sets: SetRow[],
   rankPoints: number,
-  { fresh, streakWeeks }: { fresh: boolean; streakWeeks: number },
+  { fresh, streakWeeks, exercises: exMap }: { fresh: boolean; streakWeeks: number; exercises: Map<Id, Exercise> },
 ): SessionCardModel {
   // Strength working sets only: cardio rows (no weight/reps) have their own minutes elsewhere.
   const working = sets.filter(s => !s.isWarmup && !isCardioSet(s))
@@ -62,7 +65,9 @@ export function sessionCardModel(
     return {
       name: exerciseDisplayName(b.exerciseName),
       sets: mine.length,
-      best: top ? { weightKg: top.weightKg, reps: top.reps } : null,
+      best: top
+        ? { weightKg: top.weightKg, reps: top.reps, bodyweightLoad: usesBodyweightLoad(exMap.get(b.exerciseId), session) }
+        : null,
       e1rmPr: b.e1rmPr,
       volumePr: b.volumePr,
     }
@@ -79,7 +84,7 @@ export function sessionCardModel(
     moreExercises: Math.max(0, ranked.length - MAX_EXERCISES),
     prCount: event.breakdown.filter(b => b.e1rmPr || b.volumePr).length,
     sets: working.length,
-    volumeKg: Math.round(working.reduce((a, s) => a + s.weightKg * s.reps, 0)),
+    volumeKg: Math.round(working.reduce((a, s) => a + effectiveLoad(s, exMap.get(s.exerciseId), session) * s.reps, 0)),
     durationMs: session.endedAt ? Math.max(0, session.endedAt - session.startedAt) : 0,
     streakWeeks: fresh ? streakWeeks : 0,
   }
@@ -270,7 +275,7 @@ export async function renderSessionCard(m: SessionCardModel, emblemSrc?: string)
     ctx.font = `500 28px ${BODY}`
     const sets = tp('units.sets', ex.sets)
     const detail = ex.best
-      ? t('data.shareCard.setsBest', { sets, weight: fmtNum(ex.best.weightKg), reps: ex.best.reps })
+      ? t('data.shareCard.setsBest', { sets, set: fmtSetLoad(ex.best, ex.best.bodyweightLoad) })
       : sets
     ctx.fillText(fit(ctx, detail, right - nameX - 8), nameX, y + 80)
     y += 106

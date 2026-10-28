@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { muscleGroupLabel } from '../../lib/equipment'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronRight, Scale, Trophy, Plus, Sparkles, CalendarDays, CalendarRange } from 'lucide-react'
 import { db } from '../../db/db'
@@ -21,8 +21,9 @@ import ExercisePicker from '../workout/ExercisePicker'
 import Sheet from '../../components/Sheet'
 import NumberStepper from '../../components/NumberStepper'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
+import { fmtSetLoad, usesBodyweightLoad, withLoads } from '../../lib/load'
 import { t, tp, fmtNum, type PluralMessageKey } from '../../i18n'
-import type { Exercise, Id } from '../../types'
+import type { Exercise, Id, Session } from '../../types'
 
 const ORANGE = '#F97316'
 const GREEN = '#22C55E'
@@ -44,9 +45,40 @@ function CountText({ msgKey, n }: { msgKey: PluralMessageKey; n: number }) {
   )
 }
 
+/** The exercise a link opened the screen on (Exercise history › Chart), if it is a valid id. */
+function seededExerciseId(state: unknown): Id | null {
+  const id = (state as { exerciseId?: unknown } | null)?.exerciseId
+  return (typeof id === 'number' && Number.isFinite(id)) || (typeof id === 'string' && id.length > 0) ? id : null
+}
+
 export default function ProgressScreen() {
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [exerciseId, setExerciseId] = useState<Id | null>(null)
+  const seeded = seededExerciseId(useLocation().state)
+  const [exerciseId, setExerciseId] = useState<Id | null>(seeded)
+  const screen = useRef<HTMLDivElement>(null)
+  const exerciseSection = useRef<HTMLElement>(null)
+  // Opened on an exercise: bring its charts into view instead of the tiles at the top. The tiles
+  // above it load one by one and push it down, so keep it aligned for a moment, until the user scrolls.
+  const seededOnMount = useRef(seeded)
+  useEffect(() => {
+    const el = exerciseSection.current
+    if (seededOnMount.current === null || !el) return
+    const align = () => el.scrollIntoView({ block: 'start' })
+    align()
+    if (typeof ResizeObserver === 'undefined' || !screen.current) return
+    const ro = new ResizeObserver(align)
+    ro.observe(screen.current)
+    const stop = () => ro.disconnect()
+    const timer = setTimeout(stop, 1500)
+    window.addEventListener('touchstart', stop, { once: true, passive: true })
+    window.addEventListener('wheel', stop, { once: true, passive: true })
+    return () => {
+      stop()
+      clearTimeout(timer)
+      window.removeEventListener('touchstart', stop)
+      window.removeEventListener('wheel', stop)
+    }
+  }, [])
 
   const exercises = useLiveQuery(() => db.exercises.toArray()) ?? []
   const exMap = useMemo(() => new Map(exercises.map(e => [e.id!, e])), [exercises])
@@ -64,7 +96,7 @@ export default function ProgressScreen() {
   const activeEx = activeExId ? exMap.get(activeExId) : undefined
 
   return (
-    <div className="pt-4">
+    <div ref={screen} className="pt-4">
       <h1 className="mb-4 font-display text-3xl font-bold">{t('progress.screen.title')}</h1>
 
       <BodyweightTile />
@@ -73,15 +105,26 @@ export default function ProgressScreen() {
       <TrainingHeatmapTile />
       <MuscleHeatTile exMap={exMap} />
 
-      <section className="mt-4 rounded-2xl border border-edge bg-card p-4">
-        <button
-          onClick={() => setPickerOpen(true)}
-          className="mb-2 flex w-full items-center justify-between"
-          aria-label={t('progress.screen.chooseExercise')}
-        >
-          <h2 className="font-display text-xl font-semibold">{activeEx ? exerciseDisplayName(activeEx.name) : t('progress.screen.pickExercise')}</h2>
-          <ChevronDown size={18} className="text-sub" />
-        </button>
+      <section ref={exerciseSection} className="mt-4 scroll-mt-4 rounded-2xl border border-edge bg-card p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+            aria-label={t('progress.screen.chooseExercise')}
+          >
+            <h2 className="min-w-0 truncate font-display text-xl font-semibold">{activeEx ? exerciseDisplayName(activeEx.name) : t('progress.screen.pickExercise')}</h2>
+            <ChevronDown size={18} className="shrink-0 text-sub" />
+          </button>
+          {activeExId && (
+            <Link
+              to={`/progress/exercise/${activeExId}`}
+              aria-label={t('progress.exercise.historyLink')}
+              className="flex min-h-[44px] shrink-0 items-center whitespace-nowrap px-1 text-sm font-semibold text-primary"
+            >
+              {t('common.history')} <ChevronRight size={16} aria-hidden />
+            </Link>
+          )}
+        </div>
         {activeExId ? (
           <>
             {isCardioExercise(activeEx)
@@ -113,11 +156,18 @@ function ExerciseTrend({ exerciseId }: { exerciseId: Id }) {
       .filter(s => !s.isWarmup && !isCardioSet(s))
       .toArray()
     if (sets.length === 0) return { e1rm: [], volume: [] }
+    // Effective load (bodyweight sets of stamped sessions count the bodyweight moved).
+    const ex = await db.exercises.get(exerciseId)
+    const sessionIds = [...new Set(sets.map(s => s.sessionId))]
+    const sessions = await db.sessions.bulkGet(sessionIds)
+    const sessionsById = new Map<Id, Session>()
+    sessions.forEach((row, i) => { if (row) sessionsById.set(sessionIds[i], row) })
+    const loaded = withLoads(sets, new Map<Id, Exercise>(ex ? [[exerciseId, ex]] : []), sessionsById)
     const bySession = new Map<Id, { best: number; volume: number; t: number }>()
-    for (const s of sets) {
+    for (const s of loaded) {
       const cur = bySession.get(s.sessionId) ?? { best: 0, volume: 0, t: s.completedAt }
       cur.best = Math.max(cur.best, s.e1rm)
-      cur.volume += s.weightKg * s.reps
+      cur.volume += s.loadKg * s.reps
       cur.t = Math.min(cur.t, s.completedAt)
       bySession.set(s.sessionId, cur)
     }
@@ -200,7 +250,7 @@ function RepMaxCell({ rec, highlight }: { rec?: RepMax; highlight?: boolean }) {
   return (
     <span className="num min-w-0 flex-1 leading-tight">
       <span className={`block truncate text-sm font-semibold ${highlight ? 'text-primary' : ''}`}>
-        {fmtNum(rec.weightKg)} kg ×{rec.reps}
+        {fmtSetLoad(rec, rec.bodyweightLoad)}
       </span>
       <span className="block truncate text-[11px] text-sub">{dayMonth(rec.completedAt)}</span>
     </span>
@@ -438,17 +488,19 @@ function TrainingHeatmapTile() {
 function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
   const settings = useLiveQuery(() => db.settings.get(1))
   const prs = useLiveQuery(async () => {
-    const sets = await db.sets.filter(s => !s.isWarmup && s.weightKg > 0).toArray()
-    const byEx = new Map<Id, { e1rm: number; weight: number; reps: number; date: number }>()
+    // e1RM > 0, not weight > 0: a plain bodyweight set of a stamped session logs 0 kg but has a load.
+    const sets = await db.sets.filter(s => !s.isWarmup && s.e1rm > 0).toArray()
+    const byEx = new Map<Id, { e1rm: number; weight: number; reps: number; date: number; sessionId: Id }>()
     for (const s of sets) {
       const cur = byEx.get(s.exerciseId)
       if (!cur || s.e1rm > cur.e1rm) {
-        byEx.set(s.exerciseId, { e1rm: s.e1rm, weight: s.weightKg, reps: s.reps, date: s.completedAt })
+        byEx.set(s.exerciseId, { e1rm: s.e1rm, weight: s.weightKg, reps: s.reps, date: s.completedAt, sessionId: s.sessionId })
       }
     }
-    return [...byEx.entries()]
-      .sort((a, b) => b[1].e1rm - a[1].e1rm)
-      .slice(0, 12)
+    const top = [...byEx.entries()].sort((a, b) => b[1].e1rm - a[1].e1rm).slice(0, 12)
+    // Only the shown records' sessions, to tell added kg on bodyweight from a plain weight.
+    const sessions = await db.sessions.bulkGet(top.map(([, pr]) => pr.sessionId))
+    return top.map(([exId, pr], i) => [exId, { ...pr, session: sessions[i] }] as const)
   }, [])
 
   if (!prs || prs.length === 0) return null
@@ -461,7 +513,9 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
         {prs.map(([exId, pr]) => {
           const ex = exMap.get(exId)
           const std = ex ? standardFor(ex.nameLower) : null
-          const level = std && settings ? levelFor(pr.e1rm, settings.bodyweightKg, std) : null
+          // The pull-up standard rates the bodyweight load: not an unstamped row's added kg.
+          const rated = std && (std.key !== 'pullup' || usesBodyweightLoad(ex, pr.session))
+          const level = std && rated && settings ? levelFor(pr.e1rm, settings.bodyweightKg, std) : null
           return (
             <div key={exId} className="rounded-xl border border-edge bg-card p-3">
               <p className="truncate text-sm font-medium">{ex ? exerciseDisplayName(ex.name) : '…'}</p>
@@ -470,7 +524,7 @@ function PrWall({ exMap }: { exMap: Map<Id, Exercise> }) {
                 <span className="text-sm font-medium text-sub"> e1RM</span>
               </p>
               <p className="num text-xs text-sub">
-                {fmtNum(pr.weight)} kg × {pr.reps} · {shortDate(pr.date)}
+                {fmtSetLoad({ weightKg: pr.weight, reps: pr.reps }, usesBodyweightLoad(ex, pr.session))} · {shortDate(pr.date)}
               </p>
               {level && (
                 <div className="mt-1.5">

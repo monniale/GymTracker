@@ -6,7 +6,28 @@ import { suggestNext, type ProgressionSuggestion } from './progression'
 import { DEFAULT_BAR_KG } from './plates'
 import { localDateStr, mondayOf, parseLocalDate } from './dates'
 import { isCardioExercise, isCardioSet, cardioSessionTotals, cardioMinutes, fmtDistance, paceSecPerKm, fmtPace } from './cardio'
-import type { Id, TemplateItem } from '../types'
+import { sessionItems } from './sessionItems'
+import { prescribedSets, currentWeek, lineForPrescription } from './prescription'
+import { programForTemplate } from './programs'
+import { bwFactorOf, effectiveLoad, setE1rm, usesBodyweightLoad } from './load'
+import { briefingTag, SET_NOTATION_LEGEND } from './setTypes'
+import type { Exercise, Id, Session, SetRow } from '../types'
+
+/** A logged set as briefings carry it: RPE and set type only when recorded (absent = working). */
+export interface BriefingSet {
+  weightKg: number
+  reps: number
+  rpe?: number
+  setType?: SetRow['setType']
+}
+
+/** The set's RPE and type, only the fields it has (so a plain set stays `{ weightKg, reps }`). */
+function effortFields(s: Pick<SetRow, 'rpe' | 'setType'>): Pick<BriefingSet, 'rpe' | 'setType'> {
+  return {
+    ...(s.rpe !== undefined ? { rpe: s.rpe } : {}),
+    ...(s.setType !== undefined && s.setType !== 'working' ? { setType: s.setType } : {}),
+  }
+}
 
 /**
  * A compact, pre-computed summary of one finished workout. This is what the AI
@@ -17,7 +38,10 @@ import type { Id, TemplateItem } from '../types'
 export interface BriefingExercise {
   name: string
   muscleGroup: string
-  sets: { weightKg: number; reps: number }[]
+  /** `weightKg` as logged (added kg when `bodyweightFactor` is set), `loadKg` the effective load. */
+  sets: (BriefingSet & { loadKg: number })[]
+  /** Fraction of bodyweight moved, set only for a bodyweight exercise of a stamped session. */
+  bodyweightFactor?: number
   bestE1rm: number
   priorBestE1rm: number | null
   e1rmPr: boolean
@@ -60,33 +84,48 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
   ])
 
   const exMap = new Map(allExercises.map(e => [e.id!, e]))
-  const targetRepsById = new Map<Id, number>()
-  for (const item of template?.items ?? []) targetRepsById.set(item.exerciseId, item.targetReps)
+  // Template lines only (after this session's swaps, so a swapped-in exercise keeps its line's
+  // reps), deliberately without the added exercises: an exercise added mid-session falls back to
+  // 8 reps below, even a cardio one (whose session line would say 20 minutes).
+  const targetRepsById = new Map<Id, { reps: number; max?: number }>()
+  for (const item of sessionItems(template, { extraExerciseIds: [], swaps: session.swaps }, exMap)) {
+    targetRepsById.set(item.exerciseId, { reps: item.targetReps, max: item.targetRepsMax })
+  }
 
   const exercises: BriefingExercise[] = event.breakdown.map(b => {
     const ex = exMap.get(b.exerciseId)
+    const bodyweightLoad = usesBodyweightLoad(ex, session)
     const exSets = sets
       .filter(s => s.exerciseId === b.exerciseId && !s.isWarmup)
       .sort((a, z) => a.setNumber - z.setNumber)
-      .map(s => ({ weightKg: s.weightKg, reps: s.reps }))
+      .map(s => ({ weightKg: s.weightKg, reps: s.reps, loadKg: effectiveLoad(s, ex, session), ...effortFields(s) }))
     const prior = priorBests.e1rm.get(b.exerciseId) ?? null
 
     const std = ex ? standardFor(ex.nameLower) : null
+    // The pull-up standard rates the bodyweight load: not an unstamped session's added kg.
+    const rated = std && (std.key !== 'pullup' || bodyweightLoad)
     const strengthLevel =
-      std && session.bodyweightKg > 0 ? levelFor(b.bestE1rm, session.bodyweightKg, std).level : null
+      std && rated && session.bodyweightKg > 0 ? levelFor(b.bestE1rm, session.bodyweightKg, std).level : null
 
-    const targetReps = targetRepsById.get(b.exerciseId) ?? 8
-    const sug = suggestNext(exSets, targetReps, ex?.progressionStepKg ?? 2.5)
+    const target = targetRepsById.get(b.exerciseId) ?? { reps: 8 }
+    const sug = suggestNext(exSets, target.reps, ex?.progressionStepKg ?? 2.5, {
+      bodyweight: bodyweightLoad,
+      targetRepsMax: target.max,
+    })
+    const sugKg = sug ? (bodyweightLoad ? bwKg(sug.weightKg) : `${sug.weightKg} kg`) : ''
     const nextSuggestion = sug
       ? sug.reason === 'weight-up'
-        ? `${sug.weightKg} kg for ${sug.reps} reps`
-        : `${sug.reps} reps at ${sug.weightKg} kg`
+        ? `${sugKg} for ${sug.reps} reps`
+        : sug.reason === 'hold'
+          ? `hold ${sugKg} for ${sug.reps} reps (this session ended near the limit)`
+          : `${sug.reps} reps at ${sugKg}`
       : null
 
     return {
       name: b.exerciseName,
       muscleGroup: ex?.muscleGroup ?? 'other',
       sets: exSets,
+      ...(bodyweightLoad && ex ? { bodyweightFactor: bwFactorOf(ex) } : {}),
       bestE1rm: Math.round(b.bestE1rm),
       priorBestE1rm: prior !== null ? Math.round(prior) : null,
       e1rmPr: b.e1rmPr,
@@ -142,6 +181,22 @@ export async function gatherWorkoutBriefing(sessionId: Id): Promise<WorkoutBrief
   }
 }
 
+/** Added kg on bodyweight: "BW", "BW+10kg", "BW-20kg" (assisted). */
+function bwKg(addedKg: number): string {
+  return addedKg === 0 ? 'BW' : `BW${addedKg > 0 ? '+' : '-'}${Math.abs(addedKg)}kg`
+}
+
+/** "80kg×8"; on a bodyweight exercise the weight is added kg: "BW×12", "BW+10kg×8", "BW-20kg×6".
+ * Then the RPE and set type (`briefingTag`): "80kg×8@8", "60kg×12 D", "BW+10kg×8@9 F". */
+function briefingSet(s: BriefingSet, bodyweightLoad: boolean): string {
+  return `${bodyweightLoad ? bwKg(s.weightKg) : `${s.weightKg}kg`}×${s.reps}${briefingTag(s)}`
+}
+
+/** True when any set prints an RPE or a set-type tag, so the briefing needs the legend. */
+function usesSetNotation(sets: BriefingSet[]): boolean {
+  return sets.some(s => briefingTag(s) !== '')
+}
+
 /** Serialize a briefing into a compact, grounded prompt for Gemini. Pure. */
 export function formatBriefing(b: WorkoutBriefing): string {
   const lines: string[] = []
@@ -159,9 +214,15 @@ export function formatBriefing(b: WorkoutBriefing): string {
   )
   lines.push('')
   lines.push('Exercises:')
+  if (b.exercises.some(e => e.bodyweightFactor !== undefined)) {
+    lines.push('(BW = bodyweight; on bodyweight exercises the kg are added to it, ×factor = share of bodyweight moved, e1RM counts it)')
+  }
+  if (usesSetNotation(b.exercises.flatMap(e => e.sets))) lines.push(SET_NOTATION_LEGEND)
   for (const e of b.exercises) {
-    const setsStr = e.sets.length ? e.sets.map(s => `${s.weightKg}kg×${s.reps}`).join(', ') : 'no work sets'
+    const bw = e.bodyweightFactor !== undefined
+    const setsStr = e.sets.length ? e.sets.map(s => briefingSet(s, bw)).join(', ') : 'no work sets'
     const tags: string[] = []
+    if (bw) tags.push(`bodyweight ×${e.bodyweightFactor}`)
     if (e.e1rmPr) tags.push('NEW e1RM PR')
     if (e.volumePr) tags.push('volume PR')
     if (e.strengthLevel) tags.push(`level ${e.strengthLevel}`)
@@ -206,10 +267,14 @@ export interface PlanExercise {
   name: string
   muscleGroup: string
   equipment?: string
+  /** Weights are ADDED kg on top of bodyweight (negative = assisted): `usesBodyweightLoad`. */
+  bodyweightLoad?: boolean
   targetSets: number
   targetReps: number
+  /** Top of the line's rep range, when it has one (double progression up to it). */
+  targetRepsMax?: number
   stepKg: number
-  lastSets: { weightKg: number; reps: number }[]
+  lastSets: BriefingSet[]
   baseline: ProgressionSuggestion | null
   strengthLevel: string | null
   recentBestE1rm: number | null
@@ -222,10 +287,27 @@ export interface WorkoutPlanBriefing {
   exercises: PlanExercise[]
 }
 
+/** Best live e1RM of the bodyweight-load rows (stamped sessions) among `rows`, null when none. */
+async function stampedBestE1rm(rows: SetRow[], ex: Exercise | undefined): Promise<number | null> {
+  const ids = [...new Set(rows.map(r => r.sessionId))]
+  const sessions = await db.sessions.bulkGet(ids)
+  const byId = new Map<Id, Session>()
+  sessions.forEach((row, i) => { if (row) byId.set(ids[i], row) })
+  let best: number | null = null
+  for (const r of rows) {
+    const own = byId.get(r.sessionId)
+    if (!usesBodyweightLoad(ex, own)) continue
+    const e1rm = setE1rm(r, ex, own)
+    if (e1rm > 0 && (best === null || e1rm > best)) best = e1rm
+  }
+  return best === null ? null : Math.round(best)
+}
+
 /** Assemble a PRE-workout briefing for a just-started session: the planned
  * exercise list (template + mid-session adds) with each exercise's last-session
- * work sets and the deterministic progression baseline. Null if no session or no
- * exercises to plan. */
+ * work sets and the deterministic progression baseline. Lines whose program
+ * prescription is fixed (linear / percent schemes: src/lib/prescription.ts) are
+ * left to the program, never to the AI. Null if no session or no exercises to plan. */
 export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutPlanBriefing | null> {
   const session = await db.sessions.get(sessionId)
   if (!session) return null
@@ -236,22 +318,22 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
     db.settings.get(1),
   ])
   const exMap = new Map(allExercises.map(e => [e.id!, e]))
+  const barKg = settings?.barWeightKg ?? DEFAULT_BAR_KG
+  // The program week on the session's start day, as ActiveSession reads it (1 without a program).
+  const program = session.templateId != null
+    ? await programForTemplate(session.templateId).catch(() => undefined)
+    : undefined
+  const week = program ? currentWeek(program, localDateStr(new Date(session.startedAt))) : 1
 
-  // Template exercises first, then anything added mid-session (mirror ActiveSession).
-  const items: TemplateItem[] = [...(template?.items ?? [])]
-  const itemIds = new Set(items.map(i => i.exerciseId))
-  for (const exId of session.extraExerciseIds) {
-    if (!itemIds.has(exId)) {
-      const ex = exMap.get(exId)
-      items.push({ exerciseId: exId, targetSets: 3, targetReps: 8, restSec: ex?.defaultRestSec })
-      itemIds.add(exId)
-    }
-  }
+  // Template exercises first, then anything added mid-session (the same lines ActiveSession shows).
+  // An added cardio exercise gets its 1 × 20 min default there, but every cardio item is dropped
+  // just below with the same `isCardioExercise` test, so the plan is unchanged by it.
+  const items = sessionItems(template, session, exMap)
   // Cardio has no weights to plan.
   const strengthItems = items.filter(it => !isCardioExercise(exMap.get(it.exerciseId)))
   if (strengthItems.length === 0) return null
 
-  const exercises: PlanExercise[] = await Promise.all(
+  const planned: (PlanExercise | null)[] = await Promise.all(
     strengthItems.map(async item => {
       const ex = exMap.get(item.exerciseId)
       // Last completed session's work sets for this exercise (exclude this session + warm-ups).
@@ -260,21 +342,34 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
         .equals(item.exerciseId)
         .filter(s => s.sessionId !== sessionId && !s.isWarmup)
         .sortBy('completedAt')
-      let lastSets: { weightKg: number; reps: number }[] = []
+      let lastSets: BriefingSet[] = []
       if (all.length > 0) {
         const lastSessionId = all[all.length - 1].sessionId
         lastSets = all
           .filter(s => s.sessionId === lastSessionId)
           .sort((a, b) => a.setNumber - b.setNumber)
-          .map(s => ({ weightKg: s.weightKg, reps: s.reps }))
+          .map(s => ({ weightKg: s.weightKg, reps: s.reps, ...effortFields(s) }))
       }
       const recentBestE1rm = all.length ? Math.round(Math.max(...all.map(s => s.e1rm))) : null
       const stepKg = ex?.progressionStepKg ?? 2.5
-      const baseline = suggestNext(lastSets, item.targetReps, stepKg)
+      // The session being planned is new, so stamped: a bodyweight move progresses on added kg.
+      const bodyweightLoad = usesBodyweightLoad(ex, session)
+      // A fixed prescription sets every work set itself: nothing for the AI to plan.
+      const plan = ex
+        ? prescribedSets(lineForPrescription(item), ex, lastSets, { week, bodyweightKg: session.bodyweightKg, barKg, bodyweightLoad })
+        : null
+      if (plan?.fixed) return null
+      const baseline = suggestNext(lastSets, item.targetReps, stepKg, {
+        bodyweight: bodyweightLoad,
+        targetRepsMax: item.targetRepsMax,
+      })
       const std = ex ? standardFor(ex.nameLower) : null
+      // The pull-up standard rates the bodyweight load only (invariant 6): the best of the rows
+      // from stamped sessions, read live, never an unstamped session's added kg.
+      const ratedE1rm = std?.key === 'pullup' ? await stampedBestE1rm(all, ex) : recentBestE1rm
       const strengthLevel =
-        std && session.bodyweightKg > 0 && recentBestE1rm !== null
-          ? levelFor(recentBestE1rm, session.bodyweightKg, std).level
+        std && session.bodyweightKg > 0 && ratedE1rm !== null
+          ? levelFor(ratedE1rm, session.bodyweightKg, std).level
           : null
       return {
         ref: String(item.exerciseId),
@@ -282,8 +377,10 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
         name: ex?.name ?? 'Exercise',
         muscleGroup: ex?.muscleGroup ?? 'other',
         equipment: ex?.equipment,
+        ...(bodyweightLoad ? { bodyweightLoad: true } : {}),
         targetSets: item.targetSets,
         targetReps: item.targetReps,
+        ...(item.targetRepsMax && item.targetRepsMax > item.targetReps ? { targetRepsMax: item.targetRepsMax } : {}),
         stepKg,
         lastSets,
         baseline,
@@ -293,12 +390,21 @@ export async function gatherWorkoutPlanBriefing(sessionId: Id): Promise<WorkoutP
     }),
   )
 
+  const exercises = planned.filter((e): e is PlanExercise => e !== null)
+  if (exercises.length === 0) return null
+
   return {
     sessionName: session.name,
     bodyweightKg: session.bodyweightKg,
-    barKg: settings?.barWeightKg ?? DEFAULT_BAR_KG,
+    barKg,
     exercises,
   }
+}
+
+const BASELINE_NOTE: Record<ProgressionSuggestion['reason'], string> = {
+  'weight-up': 'add weight',
+  'reps-up': 'add a rep',
+  hold: 'hold, last session was near the limit',
 }
 
 /** Serialize a pre-workout plan briefing into a grounded prompt. Pure. */
@@ -307,20 +413,23 @@ export function formatWorkoutPlanBriefing(b: WorkoutPlanBriefing): string {
   lines.push(`Session: ${b.sessionName}`)
   lines.push(`Bodyweight: ${b.bodyweightKg} kg; barbell ${b.barKg} kg; round weights to 2.5 kg increments.`)
   lines.push('')
+  if (b.exercises.some(e => e.equipment === 'bodyweight')) {
+    lines.push('Weights for bodyweight exercises are ADDED kg on top of bodyweight (0 = plain bodyweight, negative = assisted by a machine or band).')
+  }
+  if (usesSetNotation(b.exercises.flatMap(e => e.lastSets))) lines.push(SET_NOTATION_LEGEND)
   lines.push('Exercises (plan opening sets for each, keyed by ref):')
   for (const e of b.exercises) {
     const last = e.lastSets.length
-      ? e.lastSets.map(s => `${s.weightKg}kg×${s.reps}`).join(', ')
+      ? e.lastSets.map(s => `${s.weightKg}kg×${s.reps}${briefingTag(s)}`).join(', ')
       : 'no history'
     const base = e.baseline
-      ? e.baseline.reason === 'weight-up'
-        ? `${e.baseline.weightKg}kg×${e.baseline.reps} (add weight)`
-        : `${e.baseline.weightKg}kg×${e.baseline.reps} (add a rep)`
+      ? `${e.baseline.weightKg}kg×${e.baseline.reps} (${BASELINE_NOTE[e.baseline.reason]})`
       : 'none (repeat last, or start light if new)'
     const lvl = e.strengthLevel ? `, level ${e.strengthLevel}` : ''
     const eq = e.equipment ? `, ${e.equipment}` : ''
+    const reps = e.targetRepsMax ? `${e.targetReps}-${e.targetRepsMax} reps` : String(e.targetReps)
     lines.push(
-      `- ${e.ref}) ${e.name} (${e.muscleGroup}${eq}${lvl}): target ${e.targetSets}×${e.targetReps}, step ${e.stepKg}kg. Last: ${last}. Baseline: ${base}.`,
+      `- ${e.ref}) ${e.name} (${e.muscleGroup}${eq}${lvl}): target ${e.targetSets}×${reps}, step ${e.stepKg}kg. Last: ${last}. Baseline: ${base}.`,
     )
   }
   return lines.join('\n')

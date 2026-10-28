@@ -26,18 +26,80 @@ export interface Exercise {
   /** Exercise-library entry this row was added from (`public/exercise-library.json` id, e.g. "0025").
    * Catalog rows are linked by name instead (`SEED_LIBRARY_IDS`). */
   libraryId?: string
+  /** Fraction of bodyweight this move lifts (equipment 'bodyweight' only, e.g. 1.0 pull-up,
+   * 0.64 push-up). Absent = the default by name (`defaultBwFactor` in src/lib/load.ts). */
+  bwFactor?: number
+  /** Training max in kg for percentage programs (5/3/1, nSuns): shared by every template item of
+   * this exercise with a `percent` scheme (src/lib/prescription.ts). Absent = not set yet. */
+  trainingMaxKg?: number
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
+}
+
+/** One prescribed work set of a template item: `pct` of the training max (0-1) for a `percent`
+ * scheme, else the weight comes from progression; `amrap` = as many reps as possible (reps = minimum). */
+export interface PrescribedSet {
+  pct?: number
+  reps: number
+  amrap?: boolean
+}
+
+/**
+ * How a template item progresses (src/lib/prescription.ts). Absent = `double`.
+ * - `double`: today's rule (reps up to `targetRepsMax`, then weight up and reps back to `targetReps`).
+ * - `linear`: fixed sets × reps, +`stepKg` after a pass; `failsToDeload` fails in a row cut the weight
+ *   by `deloadPct` (0-1). With `stages` (GZCLP) a fail moves to the next stage at the same weight
+ *   and a fail on the last stage restarts stage 0 at ×(1 − deloadPct).
+ * - `percent`: sets are percentages of `Exercise.trainingMaxKg`; the TM grows by `tmStepKg` after
+ *   each cycle, or by the `tmBumpByReps` row matching the AMRAP set's reps (nSuns).
+ * - `rpe`: reserved, no engine branch yet (treated as `double`).
+ */
+export type ProgressionScheme =
+  | { kind: 'double' }
+  | {
+      kind: 'linear'
+      stepKg: number
+      failsToDeload: number
+      deloadPct: number
+      stages?: { sets: number; reps: number; amrapLast?: boolean }[]
+    }
+  | { kind: 'percent'; basis: 'tm'; tmStepKg: number; tmBumpByReps?: { minReps: number; kg: number }[] }
+  | { kind: 'rpe' }
+
+/** Progression state of one template item, written once per finished workout (finishSession). */
+export interface ItemProgress {
+  /** Failed sessions in a row at the current weight / stage. */
+  failStreak: number
+  /** Current stage index (linear scheme with stages). */
+  stage?: number
+  lastOutcome?: 'pass' | 'fail' | 'deload'
+  /** The session the outcome was applied from (applying the same session twice is a no-op). */
+  lastSessionId?: Id
+  /** Work weight for the next session (linear scheme); for a bodyweight-load exercise it is added kg. */
+  nextWeightKg?: number
+  /** Percent scheme: the cycle (Monday of its week 1, YYYY-MM-DD) whose training-max change this
+   * item already applied, so a repeated workout in the same cycle never bumps the TM twice. */
+  tmCycle?: string
 }
 
 export interface TemplateItem {
   exerciseId: Id
   targetSets: number
-  /** Target reps; for a cardio exercise, target minutes per set. */
+  /** Target reps; for a cardio exercise, target minutes per set. With `targetRepsMax` the bottom of a rep range. */
   targetReps: number
+  /** Top of a rep range ("8–12"): double progression adds weight once every top set reaches it. */
+  targetRepsMax?: number
   restSec?: number
   /** Linked to the NEXT item as a superset: rest only starts after the last member. */
   supersetWithNext?: boolean
+  /** Progression scheme; absent = double progression. */
+  scheme?: ProgressionScheme
+  /** Constant per-set plan (percent scheme, or explicit sets × reps). */
+  sets?: PrescribedSet[]
+  /** Per-week plan (5/3/1): week N uses `setsByWeek[(N - 1) % length]`. Wins over `sets`. */
+  setsByWeek?: PrescribedSet[][]
+  /** Progression state (src/lib/prescription.ts applyOutcome). */
+  progress?: ItemProgress
 }
 
 export interface WorkoutTemplate {
@@ -45,7 +107,31 @@ export interface WorkoutTemplate {
   name: string
   position: number
   items: TemplateItem[]
+  /** Weekdays this template is scheduled on (0-6 = JS Date.getDay(), Sunday 0), sorted, never
+   * empty (no schedule = field absent). Read by nextTemplate and the workout reminder. */
+  weekdays?: number[]
   updatedAt: number
+}
+
+/**
+ * A training program: a cycle over templates (src/lib/programs.ts). Active = `cycleStartDate` set and
+ * no `endedAt` (one active at a time). Week = whole weeks since `cycleStartDate` % `cycleWeeks` + 1.
+ */
+export interface Program {
+  id?: Id
+  name: string
+  /** Preset it was installed from (`scripts/programs/<id>.json`). */
+  presetId?: string
+  templateIds: Id[]
+  /** Weeks in one cycle (5/3/1: 4). Absent = no week cycle. */
+  cycleWeeks?: number
+  /** Monday (YYYY-MM-DD) the current cycle started on. */
+  cycleStartDate?: string
+  /** Set when the program was stopped. */
+  endedAt?: number
+  notes?: string
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
 }
 
 export interface Session {
@@ -59,6 +145,14 @@ export interface Session {
   extraExerciseIds: Id[]
   /** Set on workouts brought in from another app's CSV export (Settings › Data). */
   importedFrom?: 'strong' | 'hevy'
+  /** Set when the session is created by a build that scores bodyweight load
+   * (src/lib/load.ts): on such a session a bodyweight exercise's load is
+   * bodyweightKg × bwFactor + SetRow.weightKg. Absent on every older session, which
+   * keeps load = weightKg everywhere (forward-only, so re-scoring reproduces old totals). */
+  bwScoring?: true
+  /** Exercises swapped for this session only (src/lib/sessionItems.ts): the template item for
+   * `from` is done as `to`, with the same sets, reps, rest and superset. */
+  swaps?: { from: Id; to: Id }[]
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -68,14 +162,22 @@ export interface SetRow {
   sessionId: Id
   exerciseId: Id
   setNumber: number
+  /** kg on the bar or machine. For a bodyweight exercise on a `Session.bwScoring` session it is
+   * the ADDED kg and may be negative (assisted); the load is `effectiveLoad` (src/lib/load.ts). */
   weightKg: number
   reps: number
   isWarmup: boolean
   completedAt: number
+  /** Epley e1RM of the set's load (`setE1rm` in src/lib/load.ts); 0 for unweighted and cardio rows. */
   e1rm: number
   /** Cardio sets (src/lib/cardio.ts): time and optional distance; weightKg/reps/e1rm are 0. */
   durationSec?: number
   distanceM?: number
+  /** Rate of perceived exertion, 6–10 in 0.5 steps (`normalizeRpe`); absent = not recorded. */
+  rpe?: number
+  /** Set type beside the warm-up flag (src/lib/setTypes.ts; read it with `setKind`). Writers never
+   * store 'working': absent means a working set. Metadata only: every type scores as today. */
+  setType?: 'working' | 'drop' | 'failure' | 'amrap'
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }
@@ -184,6 +286,19 @@ export interface Settings {
   barWeightKg?: number
   platesAvailable?: number[]
   waterTargetMl?: number
+  // Profile for the TDEE / macro calculator (all optional: unset until the user runs it).
+  /** Sex used by the Mifflin-St Jeor BMR formula. */
+  sex?: 'm' | 'f'
+  /** Year of birth; the age is derived from it on the day the calculator runs. */
+  birthYear?: number
+  /** Height in centimetres. */
+  heightCm?: number
+  /** Activity level, mapped to a TDEE multiplier in `src/lib/tdee.ts`. */
+  activity?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very'
+  /** Goal bodyweight in kg (shown as a reference line on the bodyweight chart). */
+  goalWeightKg?: number
+  /** Planned rate in % of bodyweight per week: negative = lose, positive = gain, 0 = maintain. */
+  goalRatePctPerWeek?: number
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }

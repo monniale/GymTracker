@@ -1,0 +1,398 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "phul",
+  "name": {
+    "en": "PHUL",
+    "it": "PHUL"
+  },
+  "description": {
+    "en": "Power Hypertrophy Upper Lower: four days a week, two heavy days (3–5 reps on the main lifts) and two hypertrophy days (8–12 reps). Every lift uses double progression: add weight once every set reaches the top of its rep range.",
+    "it": "Power Hypertrophy Upper Lower: quattro giorni a settimana, due giorni pesanti (3–5 ripetizioni sulle alzate principali) e due di ipertrofia (8–12 ripetizioni). Ogni esercizio usa la doppia progressione: aumenta il peso quando ogni serie arriva al massimo del suo intervallo di ripetizioni."
+  },
+  "level": "intermediate",
+  "daysPerWeek": 4,
+  "templates": [
+    {
+      "name": {
+        "en": "Upper power",
+        "it": "Parte alta forza"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 3,
+          "targetRepsMax": 5,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Incline Dumbbell Press",
+            "libraryId": "0314",
+            "muscleGroup": "chest",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Barbell Row",
+            "libraryId": "0027",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 3,
+          "targetRepsMax": 5,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lat Pulldown",
+            "libraryId": "0150",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 5,
+          "targetRepsMax": 8,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Barbell Curl",
+            "libraryId": "0031",
+            "muscleGroup": "biceps",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Skull Crusher",
+            "libraryId": "0060",
+            "muscleGroup": "triceps",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Lower power",
+        "it": "Parte bassa forza"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 3,
+          "targetRepsMax": 5,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 3,
+          "targetRepsMax": 5,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Press",
+            "libraryId": "0739",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Curl",
+            "libraryId": "0586",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Standing Calf Raise",
+            "libraryId": "0605",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Upper hypertrophy",
+        "it": "Parte alta ipertrofia"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Incline Bench Press",
+            "libraryId": "0047",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Chest Fly",
+            "libraryId": "0308",
+            "muscleGroup": "chest",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Seated Cable Row",
+            "libraryId": "0861",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Dumbbell Row",
+            "libraryId": "0293",
+            "muscleGroup": "back",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lateral Raise",
+            "libraryId": "0334",
+            "muscleGroup": "shoulders",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Incline Dumbbell Curl",
+            "libraryId": "0318",
+            "muscleGroup": "biceps",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Triceps Pushdown",
+            "libraryId": "0241",
+            "muscleGroup": "triceps",
+            "equipment": "cable"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Lower hypertrophy",
+        "it": "Parte bassa ipertrofia"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Front Squat",
+            "libraryId": "0042",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Walking Lunge",
+            "libraryId": "1460",
+            "muscleGroup": "legs",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Extension",
+            "libraryId": "0585",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Curl",
+            "libraryId": "0586",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Seated Calf Raise",
+            "libraryId": "0594",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Standing Calf Raise",
+            "libraryId": "0605",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,12 @@
 import type { Dict } from '../en'
 
 const components: Dict['components'] = {
+  demo: {
+    banner: 'Dati demo caricati',
+    clear: 'Cancella',
+    confirm: 'Cancellare tutto su questo dispositivo, compreso ciò che hai aggiunto dopo aver caricato la demo, e ripartire con l’app vuota?',
+    error: 'Dati demo: {error}',
+  },
   tabBar: {
     workout: 'Workout',
     diet: 'Dieta',
@@ -9,17 +15,17 @@ const components: Dict['components'] = {
     settings: 'Opzioni',
   },
   aiReport: {
-    errKey: 'Chiave Gemini rifiutata: aggiornala nelle Impostazioni.',
-    errRateLimit: 'Limite gratuito giornaliero raggiunto: riprova più tardi.',
+    errKey: 'Chiave AI rifiutata: aggiornala nelle Impostazioni.',
+    errRateLimit: 'Limite di richieste o quota gratuita raggiunti: riprova più tardi.',
     errNetwork: 'Errore di rete: controlla la connessione.',
-    errBlocked: 'Gemini non è riuscito a scrivere la nota: riprova.',
+    errBlocked: 'Il modello non è riuscito a scrivere la nota: riprova.',
     errGeneric: 'Generazione non riuscita: riprova.',
     generate: 'Genera report',
     reviewing: 'Analisi in corso…',
     offline: 'Offline: connettiti per generare.',
     regenerate: 'Rigenera',
     historyEarlier: { one: '{n} precedente · Cronologia', other: '{n} precedenti · Cronologia' },
-    addKey: 'Aggiungi una chiave Gemini gratuita',
+    addKey: 'Collega un modello AI (Gemini è gratuito)',
     inSettings: 'nelle Impostazioni.',
   },
   coach: {

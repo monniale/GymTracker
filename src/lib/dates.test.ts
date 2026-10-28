@@ -1,9 +1,40 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import {
   startOfMonth, addMonths, monthLabel, sameMonth, monthGrid, WEEKDAY_LABELS,
-  addDays, fmtDate, fmtDateTime, fmtLongDate, localDateStr,
+  addDays, fmtDate, fmtDateTime, fmtLongDate, localDateStr, weekdayOf,
 } from './dates'
 import { useUiStore } from './uiStore'
+
+describe('weekdayOf', () => {
+  it('maps a local date to JS getDay (Sunday 0)', () => {
+    expect(weekdayOf('2026-10-25')).toBe(0) // Sunday
+    expect(weekdayOf('2026-10-26')).toBe(1) // Monday
+    expect(weekdayOf('2026-10-31')).toBe(6) // Saturday
+  })
+
+  it('gives the right weekday on Rome DST change days (29 Mar and 25 Oct 2026)', () => {
+    expect(weekdayOf('2026-03-29')).toBe(0)
+    expect(weekdayOf('2026-03-30')).toBe(1)
+    expect(weekdayOf('2026-10-24')).toBe(6)
+  })
+
+  it('reads the date in local time west of UTC too (UTC parsing would give the day before)', () => {
+    // npm test pins Europe/Rome, where parsing the string as UTC midnight still lands on the same
+    // day; New York catches `new Date(date).getDay()`.
+    const saved = process.env.TZ
+    process.env.TZ = 'America/New_York'
+    try {
+      expect(new Date('2026-10-25').getDay()).toBe(6) // the zone switch took effect
+      expect(weekdayOf('2026-10-25')).toBe(0)
+      expect(weekdayOf('2026-03-08')).toBe(0) // US DST start
+      expect(weekdayOf('2026-11-01')).toBe(0) // US DST end
+      expect(weekdayOf('2026-10-26')).toBe(1)
+    } finally {
+      if (saved === undefined) delete process.env.TZ
+      else process.env.TZ = saved
+    }
+  })
+})
 
 describe('month calendar helpers', () => {
   it('startOfMonth returns the first day of the month', () => {

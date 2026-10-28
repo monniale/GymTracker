@@ -1,0 +1,27 @@
+# A free Supabase project is paused after 7 idle days. One tiny request a day keeps it awake.
+# Secrets: VITE_SUPABASE_URL (https://<ref>.supabase.co) and VITE_SUPABASE_ANON_KEY (the public anon key), the same ones the deploy uses.
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    if: ${{ vars.SUPABASE_KEEPALIVE != 'off' }}
+    steps:
+      - name: Query the rows table (empty under RLS, but it counts as traffic)
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY secrets not set — nothing to ping"; exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/rows?select=tbl&limit=1")
+          echo "HTTP $code"
+          case "$code" in 2*) ;; 540|503) echo "::warning::project paused — resume it in the Supabase dashboard"; exit 1 ;; *) exit 1 ;; esac

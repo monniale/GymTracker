@@ -9,6 +9,7 @@ const units: Dict['units'] = {
   kcal: 'kcal',
   g: 'g',
   ml: 'ml',
+  perWeek: '/sett.',
   pts: { one: '{n} pt', other: '{n} pt' },
   points: { one: '{n} punto', other: '{n} punti' },
   sets: { one: '{n} serie', other: '{n} serie' },

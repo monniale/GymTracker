@@ -4,6 +4,7 @@ const lib: Dict['lib'] = {
   dates: {
     dayShort: { sun: 'dom', mon: 'lun', tue: 'mar', wed: 'mer', thu: 'gio', fri: 'ven', sat: 'sab' },
     weekdayHeader: { mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Gio', fri: 'Ven', sat: 'Sab', sun: 'Dom' },
+    weekdayFull: { mon: 'lunedì', tue: 'martedì', wed: 'mercoledì', thu: 'giovedì', fri: 'venerdì', sat: 'sabato', sun: 'domenica' },
     monthShort: {
       jan: 'gen', feb: 'feb', mar: 'mar', apr: 'apr', may: 'mag', jun: 'giu',
       jul: 'lug', aug: 'ago', sep: 'set', oct: 'ott', nov: 'nov', dec: 'dic',

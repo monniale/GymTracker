@@ -3,6 +3,10 @@
  * published strength-level norms (strengthlevel.com-style) for adult males.
  * Thresholds: [Novice, Intermediate, Advanced, Elite] — below Novice is
  * "Untrained". Rough by nature; used for motivation, not diagnosis.
+ * The pull-up compares the e1RM of the effective load (bodyweight + added kg,
+ * src/lib/load.ts) to bodyweight, so callers rate it only for a set that scores
+ * bodyweight load (`usesBodyweightLoad`): an older unstamped set stored the
+ * added kg only (0 or e.g. +20 kg), which is not comparable to bodyweight.
  */
 
 import { t, type Key } from '../i18n'
@@ -37,6 +41,7 @@ export const LIFT_STANDARDS: LiftStandard[] = [
   { key: 'deadlift', names: ['deadlift'], thresholds: [1.25, 1.5, 2.0, 2.5] },
   { key: 'ohp', names: ['overhead press'], thresholds: [0.5, 0.7, 0.9, 1.15] },
   { key: 'row', names: ['barbell row'], thresholds: [0.65, 0.9, 1.2, 1.5] },
+  { key: 'pullup', names: ['pull-up'], thresholds: [1.0, 1.25, 1.5, 1.8] },
 ]
 
 export function standardFor(nameLower: string): LiftStandard | null {

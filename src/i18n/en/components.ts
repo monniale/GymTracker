@@ -1,5 +1,12 @@
 /** `components` namespace (rules in src/i18n/index.ts). Keys: screen.element, camelCase. */
 export default {
+  /** DemoBanner (demo data loaded on the web first run, lib/demoData.ts). */
+  demo: {
+    banner: 'Demo data loaded',
+    clear: 'Clear',
+    confirm: 'Delete everything on this device, including anything you added after loading the demo, and start with an empty app?',
+    error: 'Demo data: {error}',
+  },
   tabBar: {
     workout: 'Workout',
     diet: 'Diet',
@@ -8,17 +15,17 @@ export default {
     settings: 'Settings',
   },
   aiReport: {
-    errKey: 'Gemini key rejected — update it in Settings.',
-    errRateLimit: 'Daily free limit reached — try again later.',
+    errKey: 'AI key rejected — update it in Settings.',
+    errRateLimit: 'Rate limit or daily free quota reached — try again later.',
     errNetwork: 'Network error — check your connection.',
-    errBlocked: 'Gemini couldn’t generate a note — try again.',
+    errBlocked: 'The model couldn’t generate a note — try again.',
     errGeneric: 'Generation failed — try again.',
     generate: 'Generate report',
     reviewing: 'Reviewing…',
     offline: 'Offline — connect to generate.',
     regenerate: 'Regenerate',
     historyEarlier: { one: '{n} earlier · History', other: '{n} earlier · History' },
-    addKey: 'Add a free Gemini key',
+    addKey: 'Connect an AI model (Gemini is free)',
     inSettings: 'in Settings.',
   },
   coach: {

@@ -27,8 +27,55 @@ describe('gatherWidgetState', () => {
     const s = await gatherWidgetState(T(2026, 10, 15, 12))
     expect(s).toEqual({
       points: 2450, tier: 'Gold III', tierColor: '#E8B93B', streakWeeks: 3,
-      weekDone: 1, weekTarget: 4, nextWorkout: 'Pull', weekEndsAt: T(2026, 10, 19), updatedAt: T(2026, 10, 15, 12),
+      weekDone: 1, weekTarget: 4, nextWorkout: 'Pull', nextWorkoutUntil: T(2026, 10, 16), nextWorkoutTomorrow: 'Pull',
+      nextWorkoutByDay: Array(7).fill('Pull'), weekEndsAt: T(2026, 10, 19), updatedAt: T(2026, 10, 15, 12),
     })
+  })
+
+  it("shows the template scheduled for today's weekday, then the rotation once it is done", async () => {
+    const push = await db.templates.add({ name: 'Push', position: 0, items: [], updatedAt: 1 })
+    await db.templates.add({ name: 'Pull', position: 1, items: [], updatedAt: 1 })
+    const legs = await db.templates.add({ name: 'Legs', position: 2, items: [], weekdays: [4], updatedAt: 1 }) // Thursday
+    await db.sessions.add({ name: 'Push', templateId: push, startedAt: T(2026, 10, 13, 18), endedAt: T(2026, 10, 13, 19), bodyweightKg: 80, extraExerciseIds: [] })
+
+    // Thu 15 Oct 2026: Legs day, although the rotation says Pull.
+    expect((await gatherWidgetState(T(2026, 10, 15, 12))).nextWorkout).toBe('Legs')
+    // Wed 14 Oct: no schedule, rotation; after midnight (Thursday) the widget switches to Legs.
+    expect(await gatherWidgetState(T(2026, 10, 14, 12))).toMatchObject({
+      nextWorkout: 'Pull', nextWorkoutUntil: T(2026, 10, 15), nextWorkoutTomorrow: 'Legs',
+      // With the app closed for days: Legs on Thursday (getDay 4), the rotation (Pull) on the others.
+      nextWorkoutByDay: ['Pull', 'Pull', 'Pull', 'Pull', 'Legs', 'Pull', 'Pull'],
+    })
+
+    await db.sessions.add({ name: 'Legs', templateId: legs, startedAt: T(2026, 10, 15, 8), endedAt: T(2026, 10, 15, 9), bodyweightKg: 80, extraExerciseIds: [] })
+    expect((await gatherWidgetState(T(2026, 10, 15, 12))).nextWorkout).toBe('Push')
+
+    // A freestyle workout after Legs the same day does not bring Legs back.
+    await db.sessions.add({ name: 'Run', startedAt: T(2026, 10, 15, 10), endedAt: T(2026, 10, 15, 11), bodyweightKg: 80, extraExerciseIds: [] })
+    expect((await gatherWidgetState(T(2026, 10, 15, 12))).nextWorkout).toBe('Push')
+  })
+
+  it('follows the running program on unscheduled days; a scheduled template still wins', async () => {
+    await db.templates.add({ name: 'Arms', position: 0, items: [], updatedAt: 1 })
+    const a = await db.templates.add({ name: 'Day A', position: 1, items: [], updatedAt: 1 })
+    const b = await db.templates.add({ name: 'Day B', position: 2, items: [], updatedAt: 1 })
+    await db.templates.add({ name: 'Legs', position: 3, items: [], weekdays: [4], updatedAt: 1 }) // Thursday
+    await db.programs.add({ name: 'A/B', templateIds: [a, b], cycleStartDate: '2026-10-12', updatedAt: 1 })
+    await db.sessions.add({ name: 'Day A', templateId: a, startedAt: T(2026, 10, 12, 18), endedAt: T(2026, 10, 12, 19), bodyweightKg: 80, extraExerciseIds: [] })
+    // A freestyle session after it does not restart the program's rotation.
+    await db.sessions.add({ name: 'Run', startedAt: T(2026, 10, 13, 18), endedAt: T(2026, 10, 13, 19), bodyweightKg: 80, extraExerciseIds: [] })
+
+    // Wed 14 Oct: the program says Day B (the plain rotation would restart at Arms).
+    expect(await gatherWidgetState(T(2026, 10, 14, 12))).toMatchObject({
+      nextWorkout: 'Day B', nextWorkoutTomorrow: 'Legs',
+      nextWorkoutByDay: ['Day B', 'Day B', 'Day B', 'Day B', 'Legs', 'Day B', 'Day B'],
+    })
+    // Thu 15 Oct: Legs is scheduled, so it wins over the program.
+    expect((await gatherWidgetState(T(2026, 10, 15, 12))).nextWorkout).toBe('Legs')
+
+    // Stopped: back to the plain rotation (after the freestyle session: the first template).
+    await db.programs.toCollection().modify({ endedAt: T(2026, 10, 14, 8) })
+    expect((await gatherWidgetState(T(2026, 10, 14, 12))).nextWorkout).toBe('Arms')
   })
 
   it('works on a fresh install', async () => {

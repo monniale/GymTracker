@@ -9,6 +9,10 @@ export default {
     reps: 'reps',
     superset: 'Superset',
     equipment: 'Equipment',
+    /** Bodyweight load of a logged set (lib/load.ts fmtSetLoad): "BW × 12", "BW+10 kg × 8", "BW−20 kg × 6". */
+    bw: 'BW',
+    bwPlus: 'BW+{kg} kg',
+    bwMinus: 'BW−{kg} kg',
   },
   /** Muscle-group labels (ExercisePicker chips and badges). */
   home: {
@@ -20,10 +24,15 @@ export default {
     inProgress: 'Session in progress',
     tapToResume: '{name} — tap to resume',
     nextUp: 'Next up',
+    /** Chip on the template scheduled for today's weekday. */
+    today: 'Today',
     editTemplate: 'Edit {name}',
     start: 'Start',
     newTemplate: 'New workout',
     startEmpty: 'Start an empty session',
+    tryDemo: 'Try with demo data',
+    tryDemoHint: 'See the app with 16 weeks of made-up workouts and meals. You can clear it in Settings.',
+    tryDemoLoading: 'Loading demo data…',
   },
   stopwatch: {
     reset: 'Reset stopwatch',
@@ -43,6 +52,8 @@ export default {
     linkSuperset: 'Link as superset',
     link: 'Link',
     delete: 'Delete workout',
+    schedule: 'Schedule',
+    weekdaysHint: 'Days this workout is planned for: on those days it shows as “Today”.',
   },
   picker: {
     search: 'Search exercises…',
@@ -64,6 +75,30 @@ export default {
     ramp: 'Ramp',
     aiSuggestion: 'AI suggestion',
   },
+  /** The "…" menu on a live session's exercise card. */
+  cardMenu: {
+    open: 'More for {name}',
+    notes: 'Notes & settings',
+    history: 'History',
+    swap: 'Swap exercise…',
+  },
+  /** Swapping an exercise for this session (src/screens/workout/ExerciseCardMenu.tsx). */
+  swap: {
+    title: 'Swap {name}',
+    sameMuscle: 'Same muscle: {muscle}',
+    mine: 'My exercises',
+    library: 'Library',
+    none: 'No similar exercises. Try the full picker.',
+    fullPicker: 'Open full picker',
+    updateTemplate: 'Also update the template',
+    updateTemplateHint: 'Use it in “{name}” from now on.',
+    pickNamed: 'Swap to {name}',
+    failed: 'Could not swap the exercise.',
+    alreadyInSession: 'Already in this workout.',
+    alreadyInTemplate: 'Already in this template. Turn off “Also update the template” to swap for this workout only.',
+    swappedFrom: 'Swapped from {name}',
+    swappedOut: 'Swapped out',
+  },
   /** Rest-timer label: also the body of the Android lock-screen countdown. */
   rest: {
     next: 'Next: {name}',
@@ -78,6 +113,12 @@ export default {
     strength: 'Strength',
     cardio: 'Cardio',
     step: 'Progression step',
+    bwFactor: 'Bodyweight share',
+    bwFactorHint: 'Share of your bodyweight this move lifts (pull-up 100%, push-up about 64%). It sets the load of this move in every workout logged with bodyweight load; points already earned stay.',
+    trainingMax: 'Training max',
+    trainingMaxHint: 'Percentage programs (5/3/1, nSuns) work from this weight. 0 = not set.',
+    /** Fills the training max with 90 % of the best working e1RM logged (snapped to 2.5 kg). */
+    useDerived: 'Use 90 % of best ({kg} kg)',
   },
   pending: {
     newWeight: 'new weight',
@@ -91,6 +132,25 @@ export default {
     adjustCardio: 'Adjust time and distance',
     logCardio: 'Log cardio',
     needTime: 'Set a time to log this.',
+    assistedHint: 'Below 0 = assisted (band or machine help).',
+    hold: 'hold: near your limit',
+    rpe: 'RPE',
+    rir: 'RIR',
+    setType: 'Set type',
+    effortNone: '—',
+    effortNoneLabel: 'No effort',
+  },
+  setType: {
+    warmup: 'Warm-up',
+    working: 'Working',
+    drop: 'Drop set',
+    failure: 'To failure',
+    amrap: 'AMRAP',
+    badge: {
+      drop: 'D',
+      failure: 'F',
+      amrap: 'A',
+    },
   },
   summary: {
     complete: '{name} complete',
@@ -115,6 +175,13 @@ export default {
     shareError: 'Could not create the image.',
     creating: 'Creating image…',
     share: 'Share card',
+    /** What the program changed for this exercise after this workout (TemplateItem.progress). */
+    outcome: {
+      up: '+{kg} kg next time',
+      repeat: 'Repeat',
+      deload: 'Deload',
+      tmUp: 'TM +{kg} kg',
+    },
   },
   history: {
     title: 'Past workouts',

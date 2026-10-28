@@ -1,29 +1,36 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles, BookOpen } from 'lucide-react'
+import { Check, Plus, X, Flag, StickyNote, Zap, Link2, Sparkles, MoreHorizontal, ArrowLeftRight } from 'lucide-react'
 import { db } from '../../db/db'
 import { useAppStore } from '../../store'
 import { useNow, useWakeLock } from '../../lib/hooks'
-import { epley, SCORING } from '../../lib/scoring'
-import { suggestNext, type ProgressionSuggestion } from '../../lib/progression'
+import { effectiveLoad, fmtSetLoad, setE1rm, usesBodyweightLoad } from '../../lib/load'
+import { suggestNext } from '../../lib/progression'
 import { platesPerSide, formatPlates, warmupRamp, DEFAULT_BAR_KG, DEFAULT_PLATES } from '../../lib/plates'
 import { useWorkoutPlan } from '../../lib/workoutSuggest'
 import { finishSession } from '../../lib/finishSession'
-import { fmtDuration } from '../../lib/dates'
+import { fmtDuration, localDateStr } from '../../lib/dates'
+import { prescribedSets, currentWeek, lineForPrescription, type PrescribedPlan } from '../../lib/prescription'
+import { programForTemplate } from '../../lib/programs'
 import { isCardioExercise, isCardioSet, cardioDraft, cardioFields, fmtCardioSet, type CardioDraft } from '../../lib/cardio'
-import { EQUIPMENTS, EQUIPMENT_LABEL } from '../../lib/equipment'
+import { EQUIPMENT_LABEL } from '../../lib/equipment'
+import { sessionItems, type SessionItem } from '../../lib/sessionItems'
 import { haptic } from '../../native/haptics'
-import NumberStepper from '../../components/NumberStepper'
-import Sheet from '../../components/Sheet'
 import ExercisePicker from './ExercisePicker'
-import ExerciseDetailSheet from '../../components/library/ExerciseDetailSheet'
-import { libraryIdOf, useExerciseLibrary } from '../../lib/exerciseLibrary'
+import { NoteSheet } from './NoteSheet'
+import { CardMenuSheet, SwapSheet } from './ExerciseCardMenu'
+import { PendingRow, CardioPendingRow, NoBreakParts, SetBadges, type LogExtra } from './PendingRow'
+import { normalizeRpe } from '../../lib/setTypes'
+import { useUiStore } from '../../lib/uiStore'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { t, tp, fmtNum } from '../../i18n'
-import type { Equipment, Exercise, Id, PlannedSet, SetRow, TemplateItem } from '../../types'
+import type { Exercise, Id, PlannedSet, Session, SetRow, WorkoutTemplate } from '../../types'
 
 const WARMUP_REST_SEC = 30
+
+/** A row's prefill; `amrap` = the program prescribes it as an AMRAP set (reps = the minimum). */
+type Draft = { weightKg: number; reps: number; amrap?: boolean }
 
 export default function ActiveSession() {
   const navigate = useNavigate()
@@ -50,6 +57,11 @@ export default function ActiveSession() {
   ) ?? []
   const exercises = useLiveQuery(() => db.exercises.toArray()) ?? []
   const settings = useLiveQuery(() => db.settings.get(1))
+  // The program running this session's template (if any): its week picks the 5/3/1-style sets.
+  const program = useLiveQuery(
+    async () => (session?.templateId != null ? (await programForTemplate(session.templateId)) ?? null : null),
+    [session?.templateId],
+  )
   const now = useNow(1000)
 
   const exMap = useMemo(() => new Map(exercises.map(e => [e.id!, e])), [exercises])
@@ -64,24 +76,22 @@ export default function ActiveSession() {
   if (!activeSessionId) return finishing ? null : <Navigate to="/workout" replace />
   if (!session || (session.templateId !== undefined && !template)) return null
 
-  // Template exercises first, then anything added mid-session.
-  const items: TemplateItem[] = [...(template?.items ?? [])]
+  // Template exercises first (after this session's swaps), then anything added mid-session
+  // (cardio adds: one 20-minute set); a swapped-out exercise with logged sets keeps a 0-target card.
+  const loggedIds = new Set(sets.map(s => s.exerciseId))
+  const items = sessionItems(template, session, exMap, loggedIds)
+  const templateLines = template?.items.length ?? 0
+  // The week is read on the session's start day, so a workout that runs past midnight on Sunday
+  // keeps its prescription.
+  const week = program ? currentWeek(program, localDateStr(new Date(session.startedAt))) : 1
   const itemIds = new Set(items.map(i => i.exerciseId))
-  for (const exId of session.extraExerciseIds) {
-    if (!itemIds.has(exId)) {
-      const ex = exMap.get(exId)
-      // Cardio added mid-session: one 20-minute set (targetReps = minutes; mirrors coachBriefing).
-      items.push(isCardioExercise(ex)
-        ? { exerciseId: exId, targetSets: 1, targetReps: 20, restSec: ex?.defaultRestSec }
-        : { exerciseId: exId, targetSets: 3, targetReps: 8, restSec: ex?.defaultRestSec })
-      itemIds.add(exId)
-    }
-  }
+  /** Not offered as swap targets: swapped-out cards stay pickable, to swap back to them. */
+  const swapExclude = new Set(items.filter(i => !i.swappedOut).map(i => i.exerciseId))
 
   // Work sets done per exercise: drives the rest-timer "what's next" label (Android lock screen).
   const workDone = new Map<Id, number>()
   for (const s of sets) if (!s.isWarmup) workDone.set(s.exerciseId, (workDone.get(s.exerciseId) ?? 0) + 1)
-  const hasSetsLeft = (it: TemplateItem) => (workDone.get(it.exerciseId) ?? 0) < it.targetSets
+  const hasSetsLeft = (it: SessionItem) => (workDone.get(it.exerciseId) ?? 0) < it.targetSets
   const shownName = (id: Id) => {
     const ex = exMap.get(id)
     return ex ? exerciseDisplayName(ex.name) : '…'
@@ -160,12 +170,17 @@ export default function ActiveSession() {
               item={item}
               exercise={exMap.get(item.exerciseId)}
               sessionId={session.id!}
+              session={session}
+              template={template}
+              fromTemplate={idx < templateLines}
+              inSession={swapExclude}
+              swappedFromName={item.swappedFrom !== undefined ? shownName(item.swappedFrom) : undefined}
               sessionSets={sets.filter(s => s.exerciseId === item.exerciseId)}
-              bodyweightKg={session.bodyweightKg}
               defaultRestSec={settings?.defaultRestSec ?? 90}
               barKg={settings?.barWeightKg ?? DEFAULT_BAR_KG}
               plates={settings?.platesAvailable ?? DEFAULT_PLATES}
               aiSets={planByExercise.get(String(item.exerciseId))}
+              week={week}
               suppressRest={!!item.supersetWithNext && idx < items.length - 1}
               nextExerciseName={nextExerciseName(idx)}
               supersetNextName={supersetNextName(idx)}
@@ -194,16 +209,27 @@ export default function ActiveSession() {
 }
 
 interface CardProps {
-  item: TemplateItem
+  item: SessionItem
   exercise?: Exercise
   sessionId: Id
+  /** The active session: its bodyweight and `bwScoring` stamp decide bodyweight-exercise load. */
+  session: Session
+  /** The session's template (undefined for a freestyle session). */
+  template?: WorkoutTemplate
+  /** This card is one of the template's lines (swaps can also update the template). */
+  fromTemplate: boolean
+  /** Exercises with a card in this session (swapped-out cards left out): not offered as swap targets. */
+  inSession: ReadonlySet<Id>
+  /** Shown name of the exercise this line was written for, when swapped. */
+  swappedFromName?: string
   sessionSets: SetRow[]
-  bodyweightKg: number
   defaultRestSec: number
   barKg: number
   plates: number[]
   /** AI-planned opening sets for this exercise (F2). Undefined → offline baseline. */
   aiSets?: PlannedSet[]
+  /** Program week (1 without a program): picks `TemplateItem.setsByWeek`. */
+  week: number
   suppressRest: boolean
   /** Next exercise with sets left (rest label once this one is done); undefined → last exercise. */
   nextExerciseName?: string
@@ -212,15 +238,17 @@ interface CardProps {
 }
 
 function ExerciseCard({
-  item, exercise, sessionId, sessionSets, bodyweightKg, defaultRestSec, barKg, plates, aiSets: aiPlan, suppressRest,
-  nextExerciseName, supersetNextName,
+  item, exercise, sessionId, session, template, fromTemplate, inSession, swappedFromName, sessionSets, defaultRestSec, barKg, plates, aiSets: aiPlan, week,
+  suppressRest, nextExerciseName, supersetNextName,
 }: CardProps) {
   const startRest = useAppStore(s => s.startRest)
   // Cardio: time + distance rows, no weight suggestion, ramp, plates or AI weights.
   const cardio = isCardioExercise(exercise)
-  const aiSets = cardio ? undefined : aiPlan
   const [extraRows, setExtraRows] = useState(0)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [swapOpen, setSwapOpen] = useState(false)
+  const effortScale = useUiStore(s => s.effortScale)
 
   // Last completed session containing this exercise — prefill + progression source.
   const prevSets = useLiveQuery(async () => {
@@ -239,29 +267,53 @@ function ExerciseCard({
   const logged = [...sessionSets].sort((a, b) => a.setNumber - b.setNumber)
   const warmupCount = logged.filter(s => s.isWarmup).length
   const workLogged = logged.length - warmupCount
-  const rowCount = warmupCount + Math.max(item.targetSets, workLogged) + extraRows
   const nextIndex = logged.length
   const restSec = item.restSec ?? exercise?.defaultRestSec ?? defaultRestSec
   const isBarbell = !cardio && exercise?.equipment === 'barbell'
   const name = exercise ? exerciseDisplayName(exercise.name) : undefined
+  // Bodyweight exercise on a stamped session: weightKg is ADDED kg (negative = assisted).
+  const bodyweightLoad = usesBodyweightLoad(exercise, session)
+  const bodyweightKg = session.bodyweightKg
+
+  // The program's prescription for this line (scheme / per-set plan / rep range); null = today's
+  // plain double progression. A fixed plan (linear, percent) is never overridden by the AI.
+  // A swapped-in exercise starts from its own history, not the original's carried weight.
+  const plan: PrescribedPlan | null = useMemo(
+    () => cardio || !exercise || item.swappedOut
+      ? null
+      : prescribedSets(lineForPrescription(item), exercise, prevSets, { week, bodyweightKg, barKg, bodyweightLoad }),
+    [cardio, exercise, item, prevSets, week, bodyweightKg, barKg, bodyweightLoad],
+  )
+  const aiSets = cardio || plan?.fixed ? undefined : aiPlan
+  /** Work rows planned: the prescription's set count (a GZCLP stage can change it), else the line's. */
+  const targetSets = item.swappedOut ? 0 : plan && plan.sets.length > 0 ? plan.sets.length : item.targetSets
+  const rowCount = warmupCount + Math.max(targetSets, workLogged) + extraRows
+  /** "8" or a rep range "8–12". */
+  const repsText = !cardio && item.targetRepsMax && item.targetRepsMax > item.targetReps
+    ? `${item.targetReps}–${item.targetRepsMax}`
+    : String(item.targetReps)
 
   const suggestion = useMemo(
     () => cardio ? null : suggestNext(
-      prevSets.map(s => ({ weightKg: s.weightKg, reps: s.reps })),
+      prevSets.map(s => ({ weightKg: s.weightKg, reps: s.reps, rpe: s.rpe, setType: s.setType })),
       item.targetReps,
       exercise?.progressionStepKg ?? 2.5,
+      { bodyweight: bodyweightLoad, targetRepsMax: item.targetRepsMax },
     ),
-    [cardio, prevSets, item.targetReps, exercise?.progressionStepKg],
+    [cardio, prevSets, item.targetReps, item.targetRepsMax, exercise?.progressionStepKg, bodyweightLoad],
   )
 
-  // The AI-planned set for this row's work-set position (F2), if any.
+  /** A set label: "80 kg × 8", or "BW+10 kg × 8" on a bodyweight exercise. */
+  const loadLabel = (s: { weightKg: number; reps: number }) => fmtSetLoad(s, bodyweightLoad)
+
+  // The AI-planned set for this row's work-set position (F2), if any (a prescribed set wins).
   function aiSetFor(index: number): PlannedSet | undefined {
     if (!aiSets) return undefined
     const workIndex = index - warmupCount
-    return workIndex >= 0 ? aiSets[workIndex] : undefined
+    return workIndex >= 0 && !plan?.sets[workIndex] ? aiSets[workIndex] : undefined
   }
 
-  function draftFor(index: number): { weightKg: number; reps: number } {
+  function draftFor(index: number): Draft {
     return draftForWork(index - warmupCount, logged.filter(s => !s.isWarmup).slice(-1)[0])
   }
 
@@ -269,8 +321,10 @@ function ExerciseCard({
   function draftForWork(
     workIndex: number,
     lastCurrent: { weightKg: number; reps: number } | undefined,
-  ): { weightKg: number; reps: number } {
-    // Prefer the AI plan; otherwise fall back to the offline prefill unchanged.
+  ): Draft {
+    // The program's prescribed set first, then the AI plan, then the offline prefill unchanged.
+    const pre = workIndex >= 0 ? plan?.sets[workIndex] : undefined
+    if (pre) return { weightKg: pre.weightKg, reps: pre.reps, ...(pre.amrap ? { amrap: true } : {}) }
     const ai = workIndex >= 0 ? aiSets?.[workIndex] : undefined
     if (ai) return { weightKg: ai.weightKg, reps: ai.reps }
     // Match previous-session work sets by position among this session's work rows.
@@ -309,7 +363,7 @@ function ExerciseCard({
   ): string {
     if (!isWarmup && supersetNextName) return t('workout.rest.next', { name: supersetNextName })
     const done = workLogged + (isWarmup ? 0 : 1)
-    const planned = item.targetSets + extraRows
+    const planned = targetSets + extraRows
     if (done < planned) {
       const lastWork = isWarmup ? logged.filter(s => !s.isWarmup).slice(-1)[0] : just
       let target: string
@@ -317,7 +371,13 @@ function ExerciseCard({
         target = fmtCardioSet(cardioDraftForWork(done, lastWork))
       } else {
         const next = draftForWork(done, lastWork)
-        target = next.weightKg > 0 ? `${fmtNum(next.weightKg)} kg × ${next.reps}` : tp('units.reps', next.reps)
+        // An AMRAP set reads "80 kg × 5+" (5 = the minimum).
+        const plus = next.amrap ? '+' : ''
+        target = bodyweightLoad
+          ? `${loadLabel(next)}${plus}`
+          : next.weightKg > 0
+            ? `${fmtNum(next.weightKg)} kg × ${next.reps}${plus}`
+            : next.amrap ? `${next.reps}+` : tp('units.reps', next.reps)
       }
       return t('workout.rest.setTarget', {
         name: name ?? t('workout.rest.nextSet'), n: done + 1, total: planned, target,
@@ -326,7 +386,9 @@ function ExerciseCard({
     return nextExerciseName ? t('workout.rest.next', { name: nextExerciseName }) : t('workout.rest.last')
   }
 
-  async function logSet(weightKg: number, reps: number, isWarmup: boolean) {
+  async function logSet(weightKg: number, reps: number, isWarmup: boolean, extra: LogExtra = {}) {
+    // Optional fields are written only when set: a plain working set stores neither (absent = working).
+    const rpe = normalizeRpe(extra.rpe)
     await db.sets.add({
       sessionId,
       exerciseId: item.exerciseId,
@@ -335,7 +397,9 @@ function ExerciseCard({
       reps,
       isWarmup,
       completedAt: Date.now(),
-      e1rm: epley(weightKg, reps),
+      e1rm: setE1rm({ weightKg, reps }, exercise, session),
+      ...(rpe !== undefined ? { rpe } : {}),
+      ...(extra.setType && !isWarmup ? { setType: extra.setType } : {}),
     })
     if (isWarmup) startRest(WARMUP_REST_SEC, restLabel({ weightKg, reps }, true), { warmup: true })
     else if (!suppressRest) startRest(restSec, restLabel({ weightKg, reps }, false))
@@ -355,7 +419,8 @@ function ExerciseCard({
     haptic('set')
   }
 
-  const rampWeight = aiSets?.[0]?.weightKg ?? suggestion?.weightKg ?? draftFor(0).weightKg
+  // The ramp climbs to the first work set: the prescription's when there is one.
+  const rampWeight = plan?.sets[0]?.weightKg ?? aiSets?.[0]?.weightKg ?? suggestion?.weightKg ?? draftFor(0).weightKg
   const showRamp = isBarbell && logged.length === 0 && rampWeight >= barKg * 1.5
 
   async function addRamp() {
@@ -370,7 +435,7 @@ function ExerciseCard({
       reps: st.reps,
       isWarmup: true,
       completedAt: at + i,
-      e1rm: epley(st.weightKg, st.reps),
+      e1rm: setE1rm(st, exercise, session),
     })))
   }
 
@@ -404,7 +469,24 @@ function ExerciseCard({
         >
           <StickyNote size={16} />
         </button>
+        {exercise && (
+          <button
+            onClick={() => setMenuOpen(true)}
+            aria-label={t('workout.cardMenu.open', { name: name ?? '' })}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sub active:bg-muted"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        )}
       </div>
+      {(swappedFromName || item.swappedOut) && (
+        <p className="-mt-0.5 mb-1 flex min-w-0 items-center gap-1 text-xs text-sub">
+          <ArrowLeftRight size={12} className="shrink-0" aria-hidden />
+          <span className="truncate">
+            {item.swappedOut ? t('workout.swap.swappedOut') : t('workout.swap.swappedFrom', { name: swappedFromName ?? '' })}
+          </span>
+        </p>
+      )}
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         {exercise?.equipment && (
           <span className="whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sub">
@@ -412,7 +494,7 @@ function ExerciseCard({
           </span>
         )}
         <span className="num whitespace-nowrap rounded-full bg-muted/40 px-2 py-0.5 text-xs text-sub">
-          {item.targetSets}×{item.targetReps}{cardio ? ' min' : ''} · {restSec}s
+          {!item.swappedOut && <>{targetSets}×{repsText}{cardio ? ' min' : ''} · </>}{restSec}s
         </span>
         {showRamp && (
           <button
@@ -446,8 +528,9 @@ function ExerciseCard({
               >
                 <span className="num w-6 text-sm font-semibold text-sub">{s.setNumber}</span>
                 <span className="num flex-1 font-display text-lg font-semibold">
-                  {isCardioSet(s) ? fmtCardioSet(s) : `${fmtNum(s.weightKg)} kg × ${s.reps}`}
+                  {isCardioSet(s) ? fmtCardioSet(s) : <NoBreakParts text={loadLabel(s)} />}
                   {s.isWarmup && <span className="ml-2 whitespace-nowrap text-xs font-medium text-sub">{t('workout.shared.warmup')}</span>}
+                  {!isCardioSet(s) && <SetBadges set={s} scale={effortScale} />}
                 </span>
                 <Check size={18} className="text-accent" aria-hidden />
                 <button
@@ -481,8 +564,12 @@ function ExerciseCard({
                 initWeight={draft.weightKg}
                 initReps={draft.reps}
                 bodyweightKg={bodyweightKg}
-                suggestion={aiSets ? null : workLogged === 0 ? suggestion : null}
+                bodyweightLoad={bodyweightLoad}
+                loadOf={w => effectiveLoad({ weightKg: w }, exercise, session)}
+                suggestion={plan || aiSets ? null : workLogged === 0 ? suggestion : null}
                 aiFilled={!!aiSetFor(i)}
+                amrap={!!draft.amrap}
+                schemeLabel={plan?.label || undefined}
                 platesFor={platesFor}
                 onLog={logSet}
               />
@@ -495,7 +582,9 @@ function ExerciseCard({
               <span className="num flex-1 text-base text-sub">
                 {cardio
                   ? fmtCardioSet(cardioDraftFor(i))
-                  : ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg × ${ghost.reps}` : `— × ${ghost.reps}`}
+                  : bodyweightLoad
+                    ? `${loadLabel(ghost)}${ghost.amrap ? '+' : ''}`
+                    : `${ghost.weightKg > 0 ? `${fmtNum(ghost.weightKg)} kg` : '—'} × ${ghost.reps}${ghost.amrap ? '+' : ''}`}
               </span>
               {aiSetFor(i) && <Sparkles size={12} className="shrink-0 text-primary/60" aria-label={t('workout.session.aiSuggestion')} />}
             </div>
@@ -511,287 +600,31 @@ function ExerciseCard({
       </button>
 
       {exercise && (
-        <NoteSheet open={noteOpen} onClose={() => setNoteOpen(false)} exercise={exercise} />
-      )}
-    </div>
-  )
-}
-
-function NoteSheet({ open, onClose, exercise }: {
-  open: boolean
-  onClose: () => void
-  exercise: Exercise
-}) {
-  const [text, setText] = useState(exercise.notes ?? '')
-  const [step, setStep] = useState(exercise.progressionStepKg ?? 2.5)
-  const [equip, setEquip] = useState<Equipment>(exercise.equipment ?? 'other')
-  const [logAs, setLogAs] = useState<'strength' | 'cardio'>(isCardioExercise(exercise) ? 'cardio' : 'strength')
-
-  async function save() {
-    const byGroup = exercise.muscleGroup === 'cardio' ? 'cardio' : 'strength'
-    await db.exercises.update(exercise.id!, {
-      notes: text.trim() || undefined,
-      progressionStepKg: step,
-      equipment: equip,
-      // Only store an override; matching the muscle-group default clears it.
-      kind: logAs === byGroup ? undefined : logAs,
-    })
-    onClose()
-  }
-
-  return (
-    <Sheet open={open} onClose={onClose} title={exerciseDisplayName(exercise.name)}>
-      {libraryIdOf(exercise) && <HowTo exercise={exercise} libId={libraryIdOf(exercise)!} />}
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-sub">
-        {t('workout.notes.label')}
-      </label>
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        rows={3}
-        className="w-full rounded-xl bg-card p-3 text-base"
-        placeholder={t('workout.notes.placeholder')}
-      />
-      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.shared.equipment')}</p>
-      <div className="flex flex-wrap gap-2">
-        {EQUIPMENTS.map(eq => (
-          <button
-            key={eq}
-            onClick={() => setEquip(eq)}
-            className={`min-h-[40px] whitespace-nowrap rounded-full px-3 text-sm font-medium ${
-              equip === eq ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
-            }`}
-          >
-            {EQUIPMENT_LABEL[eq]}
-          </button>
-        ))}
-      </div>
-      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-sub">{t('workout.notes.logAs')}</p>
-      <div className="flex gap-2" role="group" aria-label={t('workout.notes.logAs')}>
-        {(['strength', 'cardio'] as const).map(k => (
-          <button
-            key={k}
-            onClick={() => setLogAs(k)}
-            aria-pressed={logAs === k}
-            className={`min-h-[40px] flex-1 whitespace-nowrap rounded-full px-3 text-sm font-medium ${
-              logAs === k ? 'bg-primary text-bg' : 'bg-muted/40 text-sub active:bg-muted'
-            }`}
-          >
-            {k === 'strength' ? t('workout.notes.strength') : t('workout.notes.cardio')}
-          </button>
-        ))}
-      </div>
-      <div className={`mt-3 items-center justify-between ${logAs === 'cardio' ? 'hidden' : 'flex'}`}>
-        <NumberStepper
-          label={t('workout.notes.step')}
-          value={step}
-          onChange={setStep}
-          step={1.25}
-          min={1.25}
-          max={10}
-          unit="kg"
+        <NoteSheet
+          open={noteOpen}
+          onClose={() => setNoteOpen(false)}
+          exercise={exercise}
         />
-      </div>
-      <button
-        onClick={save}
-        className="mt-4 w-full rounded-2xl bg-primary py-3.5 font-display text-lg font-bold text-bg active:opacity-90"
-      >
-        {t('common.save')}
-      </button>
-    </Sheet>
-  )
-}
-
-/** "How to" for an exercise linked to the library: opens its instructions (and animation, if on). */
-function HowTo({ exercise, libId }: { exercise: Exercise; libId: string }) {
-  const { library } = useExerciseLibrary()
-  const [open, setOpen] = useState(false)
-  const lib = library?.byId.get(libId)
-  if (!lib) return null
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="mb-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-muted/40 font-semibold text-ink active:bg-muted"
-      >
-        <BookOpen size={18} /> {t('library.howTo')}
-      </button>
-      <ExerciseDetailSheet open={open} onClose={() => setOpen(false)} library={library} lib={lib} exercise={exercise} />
-    </>
-  )
-}
-
-interface PendingProps {
-  setNumber: number
-  initWeight: number
-  initReps: number
-  bodyweightKg: number
-  suggestion: ProgressionSuggestion | null
-  /** This row's opening values came from the AI plan (F2). */
-  aiFilled?: boolean
-  platesFor: (w: number) => string | null
-  onLog: (weightKg: number, reps: number, isWarmup: boolean) => void
-}
-
-function PendingRow({ setNumber, initWeight, initReps, bodyweightKg, suggestion, aiFilled, platesFor, onLog }: PendingProps) {
-  const [weight, setWeight] = useState(initWeight)
-  const [reps, setReps] = useState(initReps)
-  const [expanded, setExpanded] = useState(false)
-  const [warmup, setWarmup] = useState(false)
-  const [confirmHeavy, setConfirmHeavy] = useState(false)
-
-  // Once the user edits a field, async-arriving prefill/AI values must not clobber
-  // it — so we only re-seed fields the user hasn't touched (F2 "auto-fill untouched").
-  const touchedW = useRef(false)
-  const touchedR = useRef(false)
-  const editWeight = (v: number) => { touchedW.current = true; setWeight(v) }
-  const editReps = (v: number) => { touchedR.current = true; setReps(v) }
-  useEffect(() => { if (!touchedW.current) setWeight(initWeight) }, [initWeight])
-  useEffect(() => { if (!touchedR.current) setReps(initReps) }, [initReps])
-
-  const tooHeavy = weight > bodyweightKg * SCORING.maxWeightBwMult
-  const showSuggestion =
-    suggestion !== null && (suggestion.weightKg !== weight || suggestion.reps !== reps)
-  const plateHint = expanded ? platesFor(weight) : null
-
-  function submit() {
-    if (reps <= 0) return
-    if (tooHeavy && !confirmHeavy) {
-      setConfirmHeavy(true)
-      return
-    }
-    onLog(weight, reps, warmup)
-  }
-
-  return (
-    <div className="rounded-xl border border-primary/40 bg-surface px-3 py-2">
-      {showSuggestion && (
-        <button
-          onClick={() => {
-            editWeight(suggestion.weightKg)
-            editReps(suggestion.reps)
-          }}
-          className="num mb-1.5 flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary active:bg-primary/30"
-        >
-          ↑ {fmtNum(suggestion.weightKg)} kg × {suggestion.reps}
-          <span className="font-medium opacity-70">
-            {suggestion.reason === 'weight-up' ? t('workout.pending.newWeight') : t('workout.pending.oneMoreRep')}
-          </span>
-        </button>
       )}
-      {aiFilled && !showSuggestion && (
-        <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary">
-          <Sparkles size={12} /> {t('workout.pending.aiSuggested')}
-        </p>
+      {exercise && menuOpen && (
+        <CardMenuSheet
+          onClose={() => setMenuOpen(false)}
+          exercise={exercise}
+          onNotes={() => setNoteOpen(true)}
+          onSwap={item.swappedOut ? undefined : () => setSwapOpen(true)}
+        />
       )}
-      <div className="flex items-center gap-2">
-        <span className="num w-6 text-sm font-semibold text-primary">{setNumber}</span>
-        <button
-          onClick={() => setExpanded(x => !x)}
-          className="num flex-1 py-1 text-left font-display text-xl font-bold active:opacity-70"
-          aria-label={t('workout.pending.adjust')}
-        >
-          {weight > 0 ? `${fmtNum(weight)} kg` : '— kg'} × {reps}
-        </button>
-        <button
-          onClick={() => setWarmup(w => !w)}
-          aria-label={t('workout.pending.toggleWarmup')}
-          aria-pressed={warmup}
-          className={`flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold ${
-            warmup ? 'bg-muted text-ink' : 'bg-muted/30 text-sub'
-          }`}
-        >
-          W
-        </button>
-        <button
-          onClick={submit}
-          aria-label={t('workout.pending.logSet')}
-          className="flex h-12 w-14 items-center justify-center rounded-xl bg-primary text-bg active:opacity-90"
-        >
-          <Check size={26} strokeWidth={3} />
-        </button>
-      </div>
-      {expanded && (
-        <div className="mt-2 border-t border-edge/50 pt-2">
-          <div className="flex flex-wrap justify-around gap-2">
-            <NumberStepper label="kg" value={weight} onChange={editWeight} step={2.5} min={0} max={600} compact="narrow" />
-            <NumberStepper label={t('workout.shared.reps')} value={reps} onChange={editReps} step={1} min={1} max={100} compact="narrow" />
-          </div>
-          {plateHint && (
-            <p className="num mt-1.5 text-center text-xs text-sub">{t('workout.pending.plates', { plates: plateHint })}</p>
-          )}
-        </div>
-      )}
-      {tooHeavy && (
-        <p className="mt-1 text-xs font-medium text-danger">
-          {t('workout.pending.tooHeavy', { mult: SCORING.maxWeightBwMult })}
-        </p>
-      )}
-    </div>
-  )
-}
-
-
-/** The next cardio row: minutes, seconds and an optional distance. Logging needs some time. */
-function CardioPendingRow({ setNumber, init, onLog }: {
-  setNumber: number
-  init: CardioDraft
-  onLog: (d: CardioDraft) => void
-}) {
-  const [min, setMin] = useState(Math.floor(init.durationSec / 60))
-  const [sec, setSec] = useState(init.durationSec % 60)
-  const [km, setKm] = useState(init.distanceM / 1000)
-  const [expanded, setExpanded] = useState(false)
-
-  // Like PendingRow: late prefill never overwrites what the user already changed.
-  const touched = useRef(false)
-  const edit = <T,>(set: (v: T) => void) => (v: T) => { touched.current = true; set(v) }
-  useEffect(() => {
-    if (touched.current) return
-    setMin(Math.floor(init.durationSec / 60))
-    setSec(init.durationSec % 60)
-    setKm(init.distanceM / 1000)
-  }, [init.durationSec, init.distanceM])
-
-  const durationSec = min * 60 + sec
-  const distanceM = Math.round(km * 1000)
-
-  function submit() {
-    if (durationSec <= 0) {
-      setExpanded(true)
-      return
-    }
-    onLog({ durationSec, distanceM })
-  }
-
-  return (
-    <div className="rounded-xl border border-primary/40 bg-surface px-3 py-2">
-      <div className="flex items-center gap-2">
-        <span className="num w-6 text-sm font-semibold text-primary">{setNumber}</span>
-        <button
-          onClick={() => setExpanded(x => !x)}
-          className="num min-w-0 flex-1 truncate py-1 text-left font-display text-xl font-bold active:opacity-70"
-          aria-label={t('workout.pending.adjustCardio')}
-        >
-          {fmtCardioSet({ durationSec, distanceM })}
-        </button>
-        <button
-          onClick={submit}
-          aria-label={t('workout.pending.logCardio')}
-          className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-primary text-bg active:opacity-90"
-        >
-          <Check size={26} strokeWidth={3} />
-        </button>
-      </div>
-      {expanded && (
-        <div className="mt-2 border-t border-edge/50 pt-2">
-          <div className="flex flex-wrap justify-around gap-2">
-            <NumberStepper label="min" value={min} onChange={edit(setMin)} step={1} min={0} max={600} compact />
-            <NumberStepper label="sec" value={sec} onChange={edit(setSec)} step={15} min={0} max={59} compact />
-            <NumberStepper label="km" value={km} onChange={edit(setKm)} step={0.1} min={0} max={300} compact />
-          </div>
-          {durationSec <= 0 && <p className="mt-1 text-xs font-medium text-danger">{t('workout.pending.needTime')}</p>}
-        </div>
+      {exercise && swapOpen && (
+        <SwapSheet
+          onClose={() => setSwapOpen(false)}
+          session={session}
+          template={template}
+          item={item}
+          exercise={exercise}
+          fromTemplate={fromTemplate}
+          hasLogged={logged.length > 0}
+          exclude={inSession}
+        />
       )}
     </div>
   )

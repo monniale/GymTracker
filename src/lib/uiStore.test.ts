@@ -1,0 +1,100 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { crossTabUiAction, demoLoadedAnyTab, useUiStore } from './uiStore'
+
+/** Node has no localStorage; zustand persist reads and writes 'gymtracker-ui' there. Installed before
+ * the store is imported. */
+vi.hoisted(() => {
+  const m = new Map<string, string>()
+  const storage: Storage = {
+    get length() { return m.size },
+    clear: () => m.clear(),
+    getItem: k => m.get(k) ?? null,
+    key: i => [...m.keys()][i] ?? null,
+    removeItem: k => void m.delete(k),
+    setItem: (k, v) => void m.set(k, String(v)),
+  }
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true })
+})
+
+const KEY = 'gymtracker-ui'
+const saved = () => JSON.parse(localStorage.getItem(KEY) ?? 'null') as { state: Record<string, unknown> }
+const writeSaved = (state: Record<string, unknown>) => localStorage.setItem(KEY, JSON.stringify({ state, version: 0 }))
+
+describe('uiStore demoLoaded (the flag that blocks sync while the demo is loaded)', () => {
+  beforeEach(() => {
+    useUiStore.getState().setDemoLoaded(false)
+  })
+
+  it('is persisted in gymtracker-ui', () => {
+    useUiStore.getState().setDemoLoaded(true)
+    expect(saved().state.demoLoaded).toBe(true)
+    useUiStore.getState().setDemoLoaded(false)
+    expect(saved().state.demoLoaded).toBe(false)
+  })
+
+  it('survives a reload, and only a literal true turns it on', async () => {
+    writeSaved({ demoLoaded: true })
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().demoLoaded).toBe(true)
+    writeSaved({ demoLoaded: 'yes' })
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().demoLoaded).toBe(false)
+    writeSaved({})
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().demoLoaded).toBe(false)
+  })
+
+  it('demoLoadedAnyTab also sees a value another tab saved', () => {
+    expect(demoLoadedAnyTab()).toBe(false)
+    // Another tab loaded the demo: this tab's store has not caught up yet.
+    writeSaved({ demoLoaded: true })
+    expect(useUiStore.getState().demoLoaded).toBe(false)
+    expect(demoLoadedAnyTab()).toBe(true)
+    writeSaved({ demoLoaded: false })
+    expect(demoLoadedAnyTab()).toBe(false)
+    localStorage.setItem(KEY, '{not json')
+    expect(demoLoadedAnyTab()).toBe(false)
+  })
+})
+
+describe('uiStore effortScale (RPE or RIR display)', () => {
+  beforeEach(() => {
+    useUiStore.getState().setEffortScale('rpe')
+  })
+
+  it('defaults to RPE and is persisted in gymtracker-ui', () => {
+    // A fresh install (nothing saved) keeps the create() default; merge is not called.
+    expect(useUiStore.getInitialState().effortScale).toBe('rpe')
+    useUiStore.getState().setEffortScale('rir')
+    expect(saved().state.effortScale).toBe('rir')
+  })
+
+  it('survives a reload, and anything but rir reads as rpe', async () => {
+    writeSaved({ effortScale: 'rir' })
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().effortScale).toBe('rir')
+    writeSaved({ effortScale: 'borg' })
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().effortScale).toBe('rpe')
+    writeSaved({})
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().effortScale).toBe('rpe')
+  })
+})
+
+describe('crossTabUiAction (another tab saved gymtracker-ui)', () => {
+  const raw = (state: Record<string, unknown>) => JSON.stringify({ state, version: 0 })
+
+  it('reloads when the other tab picked another language, as the tab that changed it does', () => {
+    expect(crossTabUiAction(raw({ language: 'it', demoLoaded: false }), 'en')).toBe('reload')
+    expect(crossTabUiAction(raw({ language: 'en' }), 'it')).toBe('reload')
+  })
+
+  it('rehydrates in place for anything else', () => {
+    expect(crossTabUiAction(raw({ language: 'en', demoLoaded: true }), 'en')).toBe('rehydrate')
+    expect(crossTabUiAction(raw({ language: 'fr' }), 'en')).toBe('rehydrate')
+    expect(crossTabUiAction(raw({ demoLoaded: true }), 'en')).toBe('rehydrate')
+    expect(crossTabUiAction(null, 'en')).toBe('rehydrate')
+    expect(crossTabUiAction('{not json', 'en')).toBe('rehydrate')
+  })
+})

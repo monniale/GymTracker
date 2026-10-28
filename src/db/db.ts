@@ -3,15 +3,16 @@ import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
   PlannedFood, SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
   BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone,
-  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Id,
+  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Program, Id,
 } from '../types'
+import { queueOutbox } from './outbox'
 
 /** Tables with '++id' primary keys: new rows get UUID string ids so inserts
  * made on different devices can never collide (legacy integer ids remain). */
 const UUID_TABLES = new Set([
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'scoreEvents', 'seasons', 'waterLogs', 'tombstones', 'coachHistory',
-  'plannedFoods',
+  'plannedFoods', 'programs',
 ])
 
 /* ---------- sync tracking (dirty flag + suspension during imports) ---------- */
@@ -72,11 +73,13 @@ export function emitDataReplaced(): void {
 
 /** Run fn with sync tracking off (snapshot imports must not stamp/mark dirty). */
 export async function withSyncTrackingSuspended<T>(fn: () => Promise<T>): Promise<T> {
+  // Nestable: an inner call (e.g. healStampedE1rm inside applyTables) must not end the outer one.
+  const outer = suspended
   suspended = true
   try {
     return await fn()
   } finally {
-    suspended = false
+    suspended = outer
   }
 }
 
@@ -110,6 +113,8 @@ export class GymDB extends Dexie {
   coachHistory!: Table<CoachJudgement, Id>
   /** Planned meals (not eaten yet). Synced user data; invisible to totals/quests/reports. */
   plannedFoods!: Table<PlannedFood, Id>
+  /** Training programs (a cycle over templates, src/lib/programs.ts). Synced user data. */
+  programs!: Table<Program, Id>
 
   constructor() {
     super('gymtracker')
@@ -163,8 +168,12 @@ export class GymDB extends Dexie {
     this.version(9).stores({
       plannedFoods: '++id, date, [date+meal], foodId',
     })
+    // Training programs (presets or shared): UUID ids, synced and backed up (a late table).
+    this.version(10).stores({
+      programs: '++id, presetId',
+    })
 
-    // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking.
+    // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking, cloud outbox.
     this.use({
       stack: 'dbcore',
       name: 'gymtracker-sync',
@@ -176,16 +185,20 @@ export class GymDB extends Dexie {
             ...table,
             mutate: req => {
               if (!suspended) {
+                const now = Date.now()
+                const keyPath = table.schema.primaryKey.keyPath
                 if (req.type === 'add' || req.type === 'put') {
-                  const now = Date.now()
                   for (const value of req.values as Array<Record<string, unknown>>) {
                     if (value && typeof value === 'object') {
                       if (req.type === 'add' && UUID_TABLES.has(name) && value.id === undefined) {
                         value.id = crypto.randomUUID()
                       }
                       value.updatedAt = now
+                      if (typeof keyPath === 'string') queueOutbox(name, value[keyPath] as Id, now, false)
                     }
                   }
+                } else if (req.type === 'delete') {
+                  for (const key of req.keys) queueOutbox(name, key as Id, now, true)
                 }
                 markDirty()
               }

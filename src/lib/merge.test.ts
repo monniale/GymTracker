@@ -189,3 +189,42 @@ describe('mergeSnapshots', () => {
     expect(m.tables.dayTypes[0].type).toBe('rest')
   })
 })
+
+describe('mergeSnapshots: programs', () => {
+  const program = (id: string, name: string, updatedAt: number) => ({
+    id, name, templateIds: ['tpl-1'], cycleWeeks: 4, cycleStartDate: '2026-10-19', updatedAt,
+  })
+
+  it('unions programs from both devices; the later edit of the same program wins', () => {
+    const local = payload('A', { programs: [program('p-a', 'Mine', 100), program('p-both', 'Old name', 100)] })
+    const remote = payload('B', { programs: [program('p-b', 'Theirs', 100), program('p-both', 'New name', 200)] })
+    const m = mergeSnapshots(local, remote, NOW)
+    expect(m.tables.programs?.map(p => p.id).sort()).toEqual(['p-a', 'p-b', 'p-both'])
+    expect(m.tables.programs?.find(p => p.id === 'p-both')?.name).toBe('New name')
+  })
+
+  it('a program deleted on one device is dropped by its tombstone', () => {
+    const local = payload('A', {
+      tombstones: [{ id: 't1', table: 'programs', rowId: 'p-1', deletedAt: NOW - 1000 }],
+    })
+    const remote = payload('B', { programs: [program('p-1', '5/3/1', NOW - 5000)] })
+    const m = mergeSnapshots(local, remote, NOW)
+    expect(m.tables.programs).toEqual([])
+  })
+
+  it('keeps the programs of the side that has the table when the other snapshot predates it', () => {
+    const local = payload('A', { programs: [program('p-1', 'GZCLP', 100)] })
+    const old = payload('B', {})
+    delete old.tables.programs
+    expect(mergeSnapshots(local, old, NOW).tables.programs?.map(p => p.id)).toEqual(['p-1'])
+    expect(mergeSnapshots(old, local, NOW).tables.programs?.map(p => p.id)).toEqual(['p-1'])
+  })
+
+  it('two snapshots without the table merge to no programs', () => {
+    const a = payload('A', {})
+    const b = payload('B', {})
+    delete a.tables.programs
+    delete b.tables.programs
+    expect(mergeSnapshots(a, b, NOW).tables.programs).toEqual([])
+  })
+})

@@ -24,6 +24,11 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((parseLocalDate(b).getTime() - parseLocalDate(a).getTime()) / 86400000)
 }
 
+/** Local weekday of a YYYY-MM-DD date: 0-6 as JS Date.getDay() (Sunday 0). */
+export function weekdayOf(date: string): number {
+  return parseLocalDate(date).getDay()
+}
+
 /** Monday of the week containing the given date (weeks start Monday). */
 export function mondayOf(s: string): string {
   const d = parseLocalDate(s)
@@ -47,6 +52,9 @@ export const MONTH_NAMES: string[] = MONTH_KEYS.map(k => t(`lib.dates.monthShort
 
 /** Weekday headers for a Monday-first month grid (matches `mondayOf`), in the UI language. */
 export const WEEKDAY_LABELS: string[] = WEEKDAY_KEYS.map(k => t(`lib.dates.weekdayHeader.${k}`))
+
+/** Full weekday names, Monday first like `WEEKDAY_LABELS` ("Monday" / "lunedì"), in the UI language. */
+export const WEEKDAY_FULL_NAMES: string[] = WEEKDAY_KEYS.map(k => t(`lib.dates.weekdayFull.${k}`))
 
 /** First day of the month containing `s` (YYYY-MM-01). */
 export function startOfMonth(s: string): string {

@@ -17,6 +17,8 @@ import {
   GhError, type GhConfig,
 } from './githubApi'
 import { t } from '../i18n'
+import { demoLoadedAnyTab } from './uiStore'
+import { cloudSyncNow, isCloudSignedIn } from './cloudSync'
 
 export const DATA_PATH = 'data/current.json'
 
@@ -29,6 +31,8 @@ export interface SyncStore {
   deviceId: string
   lastSyncedSha: string | null
   lastSyncAt: number | null
+  /** While cloud sync is on, the GitHub snapshot is a backup written at most once a day. */
+  lastBackupAt: number | null
   lastError: string | null
   syncing: boolean
   setConnection: (c: { token: string; owner: string; repo: string }) => void
@@ -44,6 +48,7 @@ export const useSyncStore = create<SyncStore>()(
       deviceId: crypto.randomUUID(),
       lastSyncedSha: null,
       lastSyncAt: null,
+      lastBackupAt: null,
       lastError: null,
       syncing: false,
       setConnection: c => set({ ...c, lastError: null, lastSyncedSha: null }),
@@ -59,6 +64,7 @@ export const useSyncStore = create<SyncStore>()(
         deviceId: s.deviceId,
         lastSyncedSha: s.lastSyncedSha,
         lastSyncAt: s.lastSyncAt,
+        lastBackupAt: s.lastBackupAt,
       }),
     },
   ),
@@ -114,6 +120,13 @@ async function applyRemote(payload: SyncPayload): Promise<void> {
 
 export type SyncOutcome =
   | 'disconnected' | 'busy' | 'up-to-date' | 'pushed' | 'pulled' | 'merged' | 'error'
+  /** Demo data is loaded (uiStore.demoLoaded): nothing was sent or fetched. */
+  | 'demo'
+
+/** Demo data must never reach a sync repo (lib/demoData.ts), whichever tab loaded it. */
+function demoLoaded(): boolean {
+  return demoLoadedAnyTab()
+}
 
 let syncChain: Promise<SyncOutcome> = Promise.resolve('up-to-date')
 
@@ -136,6 +149,7 @@ export function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function doSync(reason: string): Promise<SyncOutcome> {
+  if (demoLoaded()) return 'demo'
   const config = cfg()
   if (!config) return 'disconnected'
   const store = useSyncStore
@@ -241,6 +255,7 @@ export interface ConnectPreview {
 /** Validates token+repo and reports what exists on both sides, so the UI can
  * ask the bootstrap question (use cloud / merge / overwrite) when needed. */
 export async function previewConnection(token: string, repoName: string): Promise<ConnectPreview> {
+  if (demoLoaded()) throw new Error(t('data.sync.demoLoaded'))
   const owner = await getAuthedUser(token)
   const config: GhConfig = { token, owner, repo: repoName }
   if (!(await repoExists(config))) {
@@ -278,6 +293,7 @@ export async function connect(
   repoName: string,
   choice: BootstrapChoice,
 ): Promise<SyncOutcome> {
+  if (demoLoaded()) throw new Error(t('data.sync.demoLoaded'))
   const owner = await getAuthedUser(token)
   useSyncStore.getState().setConnection({ token, owner, repo: repoName })
   const config: GhConfig = { token, owner, repo: repoName }
@@ -309,6 +325,27 @@ export async function connect(
 
 /* ------------------------------ triggers ------------------------------ */
 
+const BACKUP_INTERVAL_MS = 24 * 3600_000
+
+/**
+ * What a launch / foreground / write event syncs: the cloud when signed in (plus the GitHub
+ * snapshot as a backup at most once a day, not on writes), else the GitHub snapshot as before.
+ */
+export function syncOnEvent(reason: 'launch' | 'foreground' | 'write'): void {
+  if (demoLoaded()) return
+  if (isCloudSignedIn()) {
+    void cloudSyncNow(reason)
+    const { lastBackupAt } = useSyncStore.getState()
+    if (reason !== 'write' && isConnected() && Date.now() - (lastBackupAt ?? 0) > BACKUP_INTERVAL_MS) {
+      void syncNow('backup').then(outcome => {
+        if (outcome !== 'error' && outcome !== 'disconnected') useSyncStore.setState({ lastBackupAt: Date.now() })
+      })
+    }
+    return
+  }
+  if (isConnected()) void syncNow(reason)
+}
+
 let triggersInstalled = false
 
 export function installSyncTriggers(): void {
@@ -317,14 +354,12 @@ export function installSyncTriggers(): void {
 
   let debounce: ReturnType<typeof setTimeout> | undefined
   onSyncDirty(() => {
-    if (!isConnected() || document.visibilityState !== 'visible') return
+    if (demoLoaded() || !(isConnected() || isCloudSignedIn()) || document.visibilityState !== 'visible') return
     clearTimeout(debounce)
-    debounce = setTimeout(() => void syncNow('write'), 8000)
+    debounce = setTimeout(() => syncOnEvent('write'), 8000)
   })
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && isConnected()) {
-      void syncNow('foreground')
-    }
+    if (document.visibilityState === 'visible') syncOnEvent('foreground')
   })
 }

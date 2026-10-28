@@ -2,12 +2,15 @@ import { db, withSyncTrackingSuspended, setSyncDirty, emitDataReplaced } from '.
 import { localDateStr } from '../lib/dates'
 import { isNative } from '../native/platform'
 import { t } from '../i18n'
+import { useUiStore } from '../lib/uiStore'
+import { clearDemoLeftovers } from '../lib/demoData'
+import { healStampedE1rm } from '../lib/finishSession'
 
 export const TABLES = [
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'settings', 'rankState', 'scoreEvents', 'seasons', 'dayTypes',
   'bodyLog', 'waterLogs', 'achievements', 'quests', 'tombstones', 'coachHistory',
-  'plannedFoods',
+  'plannedFoods', 'programs',
 ] as const
 
 /**
@@ -16,7 +19,7 @@ export const TABLES = [
  * not yet updated, syncing with the phone): applying it keeps this device's rows
  * instead of clearing them, and the next push puts them back in the cloud copy.
  */
-const LATE_TABLES: ReadonlySet<TableName> = new Set<TableName>(['coachHistory', 'plannedFoods'])
+const LATE_TABLES: ReadonlySet<TableName> = new Set<TableName>(['coachHistory', 'plannedFoods', 'programs'])
 
 export type TableName = (typeof TABLES)[number]
 export type TableDump = Record<TableName, unknown[]>
@@ -58,6 +61,9 @@ export async function applyTables(tables: Partial<TableDump>): Promise<boolean> 
           await db.table(name).bulkPut(rows)
         }
       }
+      // Stored e1rm of stamped bodyweight rows is derived: re-derive it from the merged or
+      // imported exercises and sessions (rows from another device or an older build).
+      await healStampedE1rm()
     }),
   )
   emitDataReplaced()
@@ -112,7 +118,16 @@ export async function importBackup(fileText: string): Promise<void> {
   if (parsed.app !== 'gymtracker' || !parsed.tables) {
     throw new Error(t('data.backup.notBackup'))
   }
-  await applyTables(parsed.tables)
+  const demo = useUiStore.getState().demoLoaded
+  // Over the demo (lib/demoData.ts), a table the backup lacks (a LATE_TABLES one, from an older
+  // build) is emptied instead of kept: kept demo rows would reach the sync repo once the flag is off.
+  await applyTables(demo
+    ? { ...(Object.fromEntries(TABLES.map(name => [name, []])) as unknown as TableDump), ...parsed.tables }
+    : parsed.tables)
+  if (demo) await clearDemoLeftovers()
+  // A real backup replaced the demo data, so sync may run again. Cleared before the dirty flag so
+  // the sync triggers see it.
+  useUiStore.getState().setDemoLoaded(false)
   // A manual restore is a local change relative to any sync remote.
   setSyncDirty(true)
 }

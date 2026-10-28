@@ -1,0 +1,384 @@
+{
+  "schema": "gymtracker-program/v1",
+  "id": "upper-lower-4day",
+  "name": {
+    "en": "Upper / Lower 4-day",
+    "it": "Upper / Lower 4 giorni"
+  },
+  "description": {
+    "en": "Two upper-body and two lower-body days a week, each muscle trained twice. Heavier compound lifts in the 5–8 range, accessories in the 8–15 range, all with double progression: add weight once every set reaches the top of the range.",
+    "it": "Due giorni per la parte alta e due per la parte bassa a settimana, ogni muscolo allenato due volte. Esercizi multiarticolari più pesanti tra 5 e 8 ripetizioni, complementari tra 8 e 15, tutti con doppia progressione: aumenta il peso quando ogni serie arriva al massimo dell'intervallo."
+  },
+  "level": "intermediate",
+  "daysPerWeek": 4,
+  "templates": [
+    {
+      "name": {
+        "en": "Upper A",
+        "it": "Parte alta A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Bench Press",
+            "libraryId": "0025",
+            "muscleGroup": "chest",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 5,
+          "targetRepsMax": 8,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Barbell Row",
+            "libraryId": "0027",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Seated Dumbbell Press",
+            "libraryId": "0405",
+            "muscleGroup": "shoulders",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lat Pulldown",
+            "libraryId": "0150",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Barbell Curl",
+            "libraryId": "0031",
+            "muscleGroup": "biceps",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Triceps Pushdown",
+            "libraryId": "0241",
+            "muscleGroup": "triceps",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Lower A",
+        "it": "Parte bassa A"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Squat",
+            "libraryId": "0043",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 5,
+          "targetRepsMax": 8,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Romanian Deadlift",
+            "libraryId": "0085",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Press",
+            "libraryId": "0739",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Curl",
+            "libraryId": "0586",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Standing Calf Raise",
+            "libraryId": "0605",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Cable Crunch",
+            "libraryId": "0175",
+            "muscleGroup": "core",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Upper B",
+        "it": "Parte alta B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Overhead Press",
+            "libraryId": "1456",
+            "muscleGroup": "shoulders",
+            "equipment": "barbell"
+          },
+          "targetSets": 4,
+          "targetReps": 5,
+          "targetRepsMax": 8,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Pull-Up",
+            "libraryId": "0652",
+            "muscleGroup": "back",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 4,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Incline Dumbbell Press",
+            "libraryId": "0314",
+            "muscleGroup": "chest",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Seated Cable Row",
+            "libraryId": "0861",
+            "muscleGroup": "back",
+            "equipment": "cable"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Lateral Raise",
+            "libraryId": "0334",
+            "muscleGroup": "shoulders",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 12,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Hammer Curl",
+            "libraryId": "0313",
+            "muscleGroup": "biceps",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Lower B",
+        "it": "Parte bassa B"
+      },
+      "items": [
+        {
+          "exercise": {
+            "name": "Deadlift",
+            "libraryId": "0032",
+            "muscleGroup": "back",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 4,
+          "targetRepsMax": 6,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Front Squat",
+            "libraryId": "0042",
+            "muscleGroup": "legs",
+            "equipment": "barbell"
+          },
+          "targetSets": 3,
+          "targetReps": 6,
+          "targetRepsMax": 10,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Bulgarian Split Squat",
+            "libraryId": "0410",
+            "muscleGroup": "legs",
+            "equipment": "dumbbell"
+          },
+          "targetSets": 3,
+          "targetReps": 8,
+          "targetRepsMax": 12,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Leg Extension",
+            "libraryId": "0585",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Seated Calf Raise",
+            "libraryId": "0594",
+            "muscleGroup": "legs",
+            "equipment": "machine"
+          },
+          "targetSets": 4,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        },
+        {
+          "exercise": {
+            "name": "Hanging Leg Raise",
+            "libraryId": "0472",
+            "muscleGroup": "core",
+            "equipment": "bodyweight"
+          },
+          "targetSets": 3,
+          "targetReps": 10,
+          "targetRepsMax": 15,
+          "scheme": {
+            "kind": "double"
+          }
+        }
+      ]
+    }
+  ]
+}

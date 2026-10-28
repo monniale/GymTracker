@@ -28,6 +28,8 @@ The packages marked "Android only" are left out of the GitHub Pages build at com
 | [lucide-react](https://github.com/lucide-icons/lucide) | 0.454.0 | ISC (parts MIT, from Feather) | Icons |
 | [barcode-detector](https://github.com/Sec-ant/barcode-detector) | 3.2.0 | MIT | `BarcodeDetector` ponyfill for the camera scanner |
 | [zxing-wasm](https://github.com/Sec-ant/zxing-wasm) | 3.1.0 | MIT, with Apache-2.0 parts | WebAssembly barcode reader behind the ponyfill (see the note below) |
+| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) | 1.1.0 | Apache-2.0 (MIT before 1.0.0) | Claude API client, loaded only when the user picks Claude as the AI provider (its own chunk, not precached) |
+| [@opentelemetry/api](https://github.com/open-telemetry/opentelemetry-js) | 1.10.0 | Apache-2.0 | Dependency of `@anthropic-ai/sdk`, in the same lazily loaded chunk |
 | [@fontsource/barlow](https://github.com/fontsource/font-files) | 5.2.8 | OFL-1.1 | Barlow font files, self-hosted |
 | [@fontsource/barlow-condensed](https://github.com/fontsource/font-files) | 5.2.8 | OFL-1.1 | Barlow Condensed font files, self-hosted |
 | [@capacitor/core](https://github.com/ionic-team/capacitor) | 8.5.2 | MIT | Platform detection (in the web bundle); native bridge on Android |
@@ -117,4 +119,6 @@ If the module is unavailable, the app falls back to the zxing camera scanner and
 | [Open Food Facts](https://world.openfoodfacts.org) | Database: [ODbL](https://opendatacommons.org/licenses/odbl/1-0/) | Food search and barcode lookups, fetched at runtime. Nothing from it is stored in this repository. |
 | [USDA FoodData Central](https://fdc.nal.usda.gov) | Public domain (CC0 1.0) | Food search, fetched at runtime from `api.nal.usda.gov`. |
 | [Google Gemini API](https://ai.google.dev) | [Gemini API Terms of Service](https://ai.google.dev/gemini-api/terms) | Optional AI coach and meal estimates. Calls go from the device to Google with the user's own API key. |
+| [Anthropic Claude API](https://platform.claude.com) | [Anthropic Commercial Terms](https://www.anthropic.com/legal/commercial-terms) | Optional AI provider for the same features. Calls go from the device to `api.anthropic.com` with the user's own API key. |
+| OpenAI-compatible APIs (OpenAI, OpenRouter, Groq, Mistral, or a local Ollama / LM Studio server) | Each service's own terms | Optional AI provider for the same features. Calls go from the device to the server the user picks, with the user's own key (none for a local server). |
 | [GitHub REST API](https://docs.github.com/rest) | [GitHub Terms of Service](https://docs.github.com/site-policy/github-terms/github-terms-of-service) | Optional sync to the user's own private repository, with the user's own token. |

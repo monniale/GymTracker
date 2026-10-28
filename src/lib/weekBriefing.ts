@@ -5,6 +5,7 @@ import { gatherWeekNutrition, type WeekNutrition } from './dietReport'
 import { weeklyRate } from './bodyweight'
 import { questsForWeek } from './quests'
 import { isCardioSet, cardioSessionTotals, fmtCardioSet } from './cardio'
+import { effectiveLoad, usesBodyweightLoad } from './load'
 import type { BodyLogEntry, Id } from '../types'
 
 /**
@@ -78,6 +79,16 @@ export interface WeekBriefing {
 
 const r1 = (v: number) => Math.round(v * 10) / 10
 
+/**
+ * A set for the English AI briefing: "80 kg × 8"; on a bodyweight exercise of a
+ * stamped session the weight is added kg: "BW × 12", "BW+10 kg × 8", "BW-20 kg × 6".
+ */
+function briefingSet(s: { weightKg: number; reps: number }, bodyweightLoad: boolean): string {
+  if (!bodyweightLoad) return `${s.weightKg} kg × ${s.reps}`
+  if (s.weightKg === 0) return `BW × ${s.reps}`
+  return `BW${s.weightKg > 0 ? '+' : '-'}${Math.abs(s.weightKg)} kg × ${s.reps}`
+}
+
 function mean(xs: number[]): number | null {
   return xs.length ? r1(xs.reduce((a, b) => a + b, 0) / xs.length) : null
 }
@@ -126,7 +137,7 @@ export async function gatherWeekBriefing(monday: string, today: string = localDa
       const name = exMap.get(exId)?.name ?? 'Exercise'
       if (xs.every(isCardioSet)) return { name, sets: xs.length, best: `${fmtCardioSet(cardioSessionTotals(xs))} cardio` }
       const top = xs.filter(x => !isCardioSet(x)).reduce((a, b) => (b.e1rm > a.e1rm ? b : a))
-      return { name, sets: xs.length, best: `${top.weightKg} kg × ${top.reps}` }
+      return { name, sets: xs.length, best: briefingSet(top, usesBodyweightLoad(exMap.get(exId), s)) }
     })
     return {
       id: s.id!,
@@ -135,7 +146,7 @@ export async function gatherWeekBriefing(monday: string, today: string = localDa
       durationMin: Math.round(((s.endedAt ?? s.startedAt) - s.startedAt) / 60_000),
       points: eventBySession.get(String(s.id))?.total ?? 0,
       workingSets: mine.filter(x => !isCardioSet(x)).length,
-      volumeKg: Math.round(mine.reduce((a, x) => a + x.weightKg * x.reps, 0)),
+      volumeKg: Math.round(mine.reduce((a, x) => a + effectiveLoad(x, exMap.get(x.exerciseId), s) * x.reps, 0)),
       exercises: exList,
     }
   })

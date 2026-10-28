@@ -12,6 +12,13 @@ describe('ALLOWED_ROUTES', () => {
     expect(ALLOWED_ROUTES.some(r => r.includes('summary'))).toBe(false)
     expect(ALLOWED_ROUTES.some(r => r.includes(':'))).toBe(false)
   })
+
+  it('opens the programs screen but never the share import (it writes data)', () => {
+    expect(sanitizeRoute('/workout/programs', null)).toBe('/workout/programs')
+    expect(ALLOWED_ROUTES).not.toContain('/import')
+    expect(sanitizeRoute('/import', null)).toBe('/workout')
+    expect(sanitizeRoute('/import?t=u1234', null)).toBe('/workout')
+  })
 })
 
 describe('sanitizeRoute', () => {

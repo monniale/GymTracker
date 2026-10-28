@@ -21,11 +21,13 @@
  *   predates the table has none, which never deletes the other side's rows.
  * - plannedFoods (meal plan) likewise: union by id, optional per side, foodId
  *   remapped with the barcode dedupe.
+ * - programs (training programs) likewise: union by id (later update wins), optional
+ *   per side, deletes propagate through tombstones.
  */
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog, SavedMeal,
   Settings, RankState, ScoreEvent, Season, DayType, BodyLogEntry, WaterLog,
-  AchievementUnlock, QuestState, Tombstone, CoachJudgement, PlannedFood, Id,
+  AchievementUnlock, QuestState, Tombstone, CoachJudgement, PlannedFood, Program, Id,
 } from '../types'
 import { SEASON_CARRYOVER } from './ranks'
 
@@ -51,6 +53,8 @@ export interface SnapshotTables {
   coachHistory?: CoachJudgement[]
   /** Optional: absent in snapshots from builds before the meal plan existed. */
   plannedFoods?: PlannedFood[]
+  /** Optional: absent in snapshots from builds before training programs existed. */
+  programs?: Program[]
 }
 
 export interface SyncPayload {
@@ -140,6 +144,8 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     .filter(alive('coachHistory', byId))
   const plannedFoodsRaw = unionByKey(L.plannedFoods ?? [], R.plannedFoods ?? [], byId)
     .filter(alive('plannedFoods', byId))
+  const programs = unionByKey(L.programs ?? [], R.programs ?? [], byId)
+    .filter(alive('programs', byId))
   const bodyLog = unionByKey(L.bodyLog, R.bodyLog, row => row.date)
     .filter(alive('bodyLog', row => row.date))
   const dayTypes = unionByKey(L.dayTypes, R.dayTypes, row => row.date)
@@ -194,28 +200,7 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     if (l.userOverridden !== r.userOverridden) return l.userOverridden ? l : r
     return ts(r) > ts(l) ? r : l
   }).filter(alive('foods', byId))
-  const byOff = new Map<string, Food[]>()
-  for (const f of foodsUnion) {
-    if (!f.offId) continue
-    const list = byOff.get(f.offId) ?? []
-    list.push(f)
-    byOff.set(f.offId, list)
-  }
-  const remap = new Map<string, Id>()
-  const dropped = new Set<string>()
-  for (const [offId, group] of byOff) {
-    if (group.length < 2) continue
-    const winner = [...group].sort((a, b) => {
-      if (a.userOverridden !== b.userOverridden) return a.userOverridden ? -1 : 1
-      return Math.max(ts(b), b.lastUsedAt ?? 0) - Math.max(ts(a), a.lastUsedAt ?? 0)
-    })[0]
-    for (const f of group) {
-      if (f === winner) continue
-      remap.set(String(f.id), winner.id!)
-      dropped.add(String(f.id))
-      notes.push(`deduped barcode ${offId}: ${String(f.id)} -> ${String(winner.id)}`)
-    }
-  }
+  const { remap, dropped } = dedupFoodsByOffId(foodsUnion, notes)
   const foods = foodsUnion.filter(f => !dropped.has(String(f.id)))
   const foodLogs = foodLogsRaw.map(log =>
     remap.has(String(log.foodId)) ? { ...log, foodId: remap.get(String(log.foodId))! } : log)
@@ -238,10 +223,50 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     tables: {
       exercises, templates, sessions, sets, foods, foodLogs, savedMeals,
       settings, rankState, scoreEvents, seasons, dayTypes, bodyLog, waterLogs,
-      achievements, quests, tombstones, coachHistory, plannedFoods,
+      achievements, quests, tombstones, coachHistory, plannedFoods, programs,
     },
     notes,
   }
+}
+
+/**
+ * Barcode duplicates (the same `offId` saved on two devices): the winner is the user-edited row,
+ * else the most recently updated/used one. Returns the losers and the id remap for their logs.
+ */
+export function dedupFoodsByOffId(foods: Food[], notes: string[] = []): { remap: Map<string, Id>; dropped: Set<string> } {
+  const byOff = new Map<string, Food[]>()
+  for (const f of foods) {
+    if (!f.offId) continue
+    const list = byOff.get(f.offId) ?? []
+    list.push(f)
+    byOff.set(f.offId, list)
+  }
+  const remap = new Map<string, Id>()
+  const dropped = new Set<string>()
+  for (const [offId, group] of byOff) {
+    if (group.length < 2) continue
+    const winner = [...group].sort((a, b) => {
+      if (a.userOverridden !== b.userOverridden) return a.userOverridden ? -1 : 1
+      return Math.max(ts(b), b.lastUsedAt ?? 0) - Math.max(ts(a), a.lastUsedAt ?? 0)
+    })[0]
+    for (const f of group) {
+      if (f === winner) continue
+      remap.set(String(f.id), winner.id!)
+      dropped.add(String(f.id))
+      notes.push(`deduped barcode ${offId}: ${String(f.id)} -> ${String(winner.id)}`)
+    }
+  }
+  return { remap, dropped }
+}
+
+/** Season points as the sum of this season's events + carry-over − idle decay (the merge truth). */
+export function rankPointsFor(base: RankState, scoreEvents: ScoreEvent[], seasons: Season[]): number {
+  const prev = seasons.find(s => s.seasonId === base.seasonId - 1)
+  const carry = prev ? Math.round(prev.finalPoints * SEASON_CARRYOVER) : 0
+  const seasonSum = scoreEvents
+    .filter(e => e.date >= base.seasonStart)
+    .reduce((acc, e) => acc + e.total, 0)
+  return Math.max(0, Math.round(carry + seasonSum - base.idleDecayTaken))
 }
 
 function pickSingleton<T extends Stamped>(local: T[], remote: T[]): T[] {
@@ -270,12 +295,7 @@ function mergeRankState(
     base = ts(r as Stamped) > ts(l as Stamped) ? r : l
   }
 
-  const prev = seasons.find(s => s.seasonId === base.seasonId - 1)
-  const carry = prev ? Math.round(prev.finalPoints * SEASON_CARRYOVER) : 0
-  const seasonSum = scoreEvents
-    .filter(e => e.date >= base.seasonStart)
-    .reduce((acc, e) => acc + e.total, 0)
-  const points = Math.max(0, Math.round(carry + seasonSum - base.idleDecayTaken))
+  const points = rankPointsFor(base, scoreEvents, seasons)
   if (points !== base.points) {
     notes.push(`rankState points recomputed ${base.points} -> ${points}`)
   }
