@@ -98,6 +98,8 @@ describe('gatherPlannerData (fake-indexeddb, fresh GymDB)', () => {
       rank: { points: 1234, seasonStart: '2026-09-01', lastSessionDate: '2026-10-13', streakWeeks: 2, lastStreakWeek: '2026-10-05' },
       // Sunday-evening recap on 18 Oct covers this week: 2 finished sessions, 120.5 + 90 + 15 pts.
       recap: { weekMonday: '2026-10-12', sessions: 2, points: 225.5 },
+      supplements: [],
+      supplementsTakenToday: [],
     })
   })
 
@@ -118,6 +120,25 @@ describe('gatherPlannerData (fake-indexeddb, fresh GymDB)', () => {
       sessionDays: [], weekSessionsDone: 0, weeklyTarget: 3, dayTypeOverrides: {}, mealsLoggedToday: [],
       waterTodayMl: 0, waterTargetMl: 2500, lastWaterAt: null, bodyLogDates: [], scheduledDays: {}, rank: null, recap: null,
     })
+  })
+
+  it('lists the supplements in order and the ones taken today', async () => {
+    await withSyncTrackingSuspended(async () => {
+      await gdb.supplements.bulkPut([
+        { id: 'sp-d', name: 'Vitamin D', time: '21:00', position: 1, createdAt: 1 },
+        { id: 'sp-c', name: 'Creatine', time: '09:00', position: 0, createdAt: 1 },
+      ])
+      await gdb.supplementLogs.bulkPut([
+        { id: 'sp-c|2026-10-14', supplementId: 'sp-c', date: '2026-10-14', takenAt: T(2026, 10, 14, 9) },
+        { id: 'sp-d|2026-10-13', supplementId: 'sp-d', date: '2026-10-13', takenAt: T(2026, 10, 13, 21) },
+      ])
+    })
+    const d = await gatherPlannerData(NOW, mergeNotifyPrefs({}), null, gdb)
+    expect(d.supplements).toEqual([
+      { id: 'sp-c', name: 'Creatine', time: '09:00' },
+      { id: 'sp-d', name: 'Vitamin D', time: '21:00' },
+    ])
+    expect(d.supplementsTakenToday).toEqual(['sp-c'])
   })
 
   it('maps the template schedule onto the window dates (lowest position wins a shared weekday)', async () => {

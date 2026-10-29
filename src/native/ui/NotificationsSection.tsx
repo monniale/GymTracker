@@ -507,6 +507,7 @@ function RemindersCard({ status, muted, refresh }: { status: Status; muted: numb
             <RankCard status={status} update={update} />
             <RecapCard status={status} update={update} />
             <WeighInCard status={status} update={update} />
+            <SupplementsCard status={status} update={update} />
           </div>
         ) : (
           <p className="mt-2 px-1 text-xs text-sub">{t('native.notifications.reminders.turnOnHint')}</p>
@@ -812,6 +813,24 @@ function WeighInCard({ status, update }: CardProps) {
         </FieldRow>
       )}
     </Card>
+  )
+}
+
+function SupplementsCard({ status, update }: CardProps) {
+  const on = useNotifyStore(s => s.prefs.supplements.enabled)
+  return (
+    <Card
+      k="supplements"
+      status={status}
+      header={
+        <SwitchRow
+          label={t('native.notifications.supplements.label')}
+          hint={t('native.notifications.supplements.hint')}
+          on={on}
+          onChange={v => update(p => ({ ...p, supplements: { enabled: v } }), v)}
+        />
+      }
+    />
   )
 }
 

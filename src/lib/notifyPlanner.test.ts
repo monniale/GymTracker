@@ -95,9 +95,9 @@ describe('ids', () => {
     expect(() => nid(10, 1.5, 0)).toThrow(RangeError)
   })
 
-  it('isManagedId covers the planner categories 10..18 only', () => {
-    for (let c = 10; c <= 18; c++) expect(isManagedId(nid(c, 284, 0))).toBe(true)
-    expect(isManagedId(nid(19, 284, 0))).toBe(false)
+  it('isManagedId covers the planner categories 10..19 only', () => {
+    for (let c = 10; c <= 19; c++) expect(isManagedId(nid(c, 284, 0))).toBe(true)
+    expect(isManagedId(nid(20, 284, 0))).toBe(false)
     expect(isManagedId(nid(CAT.TEST, 0, 0))).toBe(false)
     expect(isManagedId(4201)).toBe(false)
     expect(isManagedId(4202)).toBe(false)
@@ -529,6 +529,52 @@ describe('WEIGHIN, OPEN_SESSION, KEEPALIVE', () => {
     expect(k[0].body).toBe('Open GymTracker to keep your reminders coming.')
     expect(ofCat(plan(MON_12_10, prefsWith({ workout: { openSessionNudge: true } })), 'keepalive')).toEqual([])
     expect(ofCat(plan(MON_12_10, prefsWith({ workout: { enabled: true, days: [] } })), 'keepalive')).toEqual([])
+  })
+})
+
+describe('SUPPLEMENT', () => {
+  const sups = [
+    { id: 'c', name: 'Creatine', time: '09:00' },
+    { id: 'o', name: 'Omega 3', time: '21:00' },
+    { id: 'd', name: 'Vitamin D', time: '21:00' },
+  ]
+  const on = () => prefsWith({ supplements: { enabled: true } })
+
+  it('one reminder per due time and day, naming what is not logged, opening the Diet screen', () => {
+    const s = ofCat(plan(MON_12_10, on(), { supplements: sups }), 'supplement')
+    const today = s.filter(x => x.key.startsWith('supplement:2026-10-12'))
+    // 09:00 today is past (10:00): only 21:00 is left today.
+    expect(today.map(x => x.key)).toEqual(['supplement:2026-10-12:21:00'])
+    expect(today[0]).toMatchObject({ route: '/diet', channelId: CHANNEL_FOR.supplement, atMs: T(2026, 10, 12, 21) })
+    expect(today[0].body).toContain('Omega 3, Vitamin D')
+    expect(s.filter(x => x.key.startsWith('supplement:2026-10-13')).map(x => x.atMs))
+      .toEqual([T(2026, 10, 13, 9), T(2026, 10, 13, 21)])
+    expect(s).toHaveLength(1 + 2 * (WINDOW_DAYS - 1))
+  })
+
+  it('a supplement logged today drops out of today only; all logged drops the reminder', () => {
+    const s = ofCat(plan(MON_12_10, on(), { supplements: sups, supplementsTakenToday: ['o'] }), 'supplement')
+    const tonight = s.find(x => x.key === 'supplement:2026-10-12:21:00')!
+    expect(tonight.body).toContain('Vitamin D')
+    expect(tonight.body).not.toContain('Omega')
+    expect(s.find(x => x.key === 'supplement:2026-10-13:21:00')!.body).toContain('Omega 3, Vitamin D')
+
+    const none = ofCat(plan(MON_12_10, on(), { supplements: sups, supplementsTakenToday: ['o', 'd'] }), 'supplement')
+    expect(none.some(x => x.key.startsWith('supplement:2026-10-12'))).toBe(false)
+  })
+
+  it('a time keeps its id while names change; off or no supplements plans nothing', () => {
+    const a = ofCat(plan(MON_12_10, on(), { supplements: sups }), 'supplement')
+    const b = ofCat(plan(MON_12_10, on(), { supplements: sups, supplementsTakenToday: ['o'] }), 'supplement')
+    expect(a.find(x => x.key === 'supplement:2026-10-12:21:00')!.id).toBe(b.find(x => x.key === 'supplement:2026-10-12:21:00')!.id)
+    expect(a.every(x => isManagedId(x.id))).toBe(true)
+    expect(ofCat(plan(MON_12_10, prefsWith({ supplements: { enabled: false } }), { supplements: sups }), 'supplement')).toEqual([])
+    expect(ofCat(plan(MON_12_10, on(), { supplements: [] }), 'supplement')).toEqual([])
+  })
+
+  it('keeps the keep-alive going with only supplements on', () => {
+    expect(ofCat(plan(MON_12_10, on(), { supplements: sups }), 'keepalive')).toHaveLength(1)
+    expect(ofCat(plan(MON_12_10, on(), {}), 'keepalive')).toHaveLength(0)
   })
 })
 

@@ -4,6 +4,7 @@ import { atLocal, nextRecapDate, recapWeekMonday, WINDOW_DAYS } from './notifyPl
 import type { PlannerData } from './notifyPlanner'
 import { isAdjustment } from './pointsAdjust'
 import type { NotifyPrefs } from './notifyPrefs'
+import { sortSupplements } from './supplements'
 import type { Id, MealType } from '../types'
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner']
@@ -28,9 +29,11 @@ export async function gatherPlannerData(
   return database.transaction(
     'r',
     [database.sessions, database.dayTypes, database.foodLogs, database.waterLogs, database.settings,
-      database.rankState, database.scoreEvents, database.bodyLog, database.templates],
+      database.rankState, database.scoreEvents, database.bodyLog, database.templates,
+      database.supplements, database.supplementLogs],
     async () => {
-      const [around, weekDone, active, dayTypes, mealCounts, water, settings, rank, bodyRows, recap, templates] = await Promise.all([
+      const [around, weekDone, active, dayTypes, mealCounts, water, settings, rank, bodyRows, recap, templates,
+        supplements, takenToday] = await Promise.all([
         database.sessions
           .where('startedAt').between(atLocal(addDays(today, -7), '00:00'), atLocal(addDays(today, 8), '00:00'))
           .toArray(),
@@ -57,6 +60,8 @@ export async function gatherPlannerData(
               return { weekMonday: recapWeek, sessions, points: events.filter(e => !isAdjustment(e)).reduce((a, e) => a + (e.total || 0), 0) }
             })(),
         database.templates.orderBy('position').toArray(),
+        database.supplements.toArray(),
+        database.supplementLogs.where('date').equals(today).toArray(),
       ])
 
       // Template schedule: each window date → the template scheduled that weekday (lowest position).
@@ -99,6 +104,8 @@ export async function gatherPlannerData(
             }
           : null,
         recap,
+        supplements: sortSupplements(supplements).map(s => ({ id: String(s.id), name: s.name, time: s.time })),
+        supplementsTakenToday: takenToday.map(l => String(l.supplementId)),
       }
     },
   )

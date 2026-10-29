@@ -22,6 +22,8 @@ export interface NotifyPrefs {
   /** 'monday-morning' recaps the previous ISO week; 'sunday-evening' the current one. */
   recap: { enabled: boolean; when: 'monday-morning' | 'sunday-evening'; time: HHMM }
   weighIn: { enabled: boolean; weekday: IsoWeekday; time: HHMM }
+  /** At each supplement's own time (`Supplement.time`, synced), unless logged that day. */
+  supplements: { enabled: boolean }
 }
 
 /** Native rest-timer notifications. 'notification' = discreet (follows ringer); 'alarm' = loud opt-in. */
@@ -45,6 +47,7 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   rank: { decayWarning: true, decayTime: '19:00', streakWarning: true, streakTime: '18:00' },
   recap: { enabled: true, when: 'monday-morning', time: '09:00' },
   weighIn: { enabled: false, weekday: 1, time: '08:00' },
+  supplements: { enabled: true },
 }
 
 export const DEFAULT_REST_ALERT: RestAlertPrefs = { countdown: true, alert: true, alertMode: 'notification', warmupAlert: false }
@@ -91,6 +94,7 @@ export function mergeNotifyPrefs(persisted: unknown): NotifyPrefs {
   const r = obj(p.rank)
   const rc = obj(p.recap)
   const wi = obj(p.weighIn)
+  const su = obj(p.supplements)
   const meals = {} as NotifyPrefs['meals']
   for (const meal of MEALS) {
     const x = obj(m[meal])
@@ -128,6 +132,7 @@ export function mergeNotifyPrefs(persisted: unknown): NotifyPrefs {
       weekday: weekday(wi.weekday, D.weighIn.weekday),
       time: hhmm(wi.time, D.weighIn.time),
     },
+    supplements: { enabled: bool(su.enabled, D.supplements.enabled) },
   }
 }
 

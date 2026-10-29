@@ -3,7 +3,7 @@ import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog,
   PlannedFood, SavedMeal, Settings, RankState, ScoreEvent, Season, DayType,
   BodyLogEntry, WaterLog, AchievementUnlock, QuestState, Tombstone,
-  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Program, Id,
+  CoachNoteRow, DietNoteRow, WorkoutPlanRow, DietSuggestionRow, CoachJudgement, Program, Supplement, SupplementLog, Id,
 } from '../types'
 import { queueOutbox } from './outbox'
 
@@ -12,7 +12,7 @@ import { queueOutbox } from './outbox'
 const UUID_TABLES = new Set([
   'exercises', 'templates', 'sessions', 'sets', 'foods', 'foodLogs',
   'savedMeals', 'scoreEvents', 'seasons', 'waterLogs', 'tombstones', 'coachHistory',
-  'plannedFoods', 'programs',
+  'plannedFoods', 'programs', 'supplements',
 ])
 
 /* ---------- sync tracking (dirty flag + suspension during imports) ---------- */
@@ -115,6 +115,10 @@ export class GymDB extends Dexie {
   plannedFoods!: Table<PlannedFood, Id>
   /** Training programs (a cycle over templates, src/lib/programs.ts). Synced user data. */
   programs!: Table<Program, Id>
+  /** Supplements taken daily (src/lib/supplements.ts). Synced user data. */
+  supplements!: Table<Supplement, Id>
+  /** One row per supplement taken per day, keyed `supplementId|date`. Synced user data. */
+  supplementLogs!: Table<SupplementLog, string>
 
   constructor() {
     super('gymtracker')
@@ -171,6 +175,12 @@ export class GymDB extends Dexie {
     // Training programs (presets or shared): UUID ids, synced and backed up (a late table).
     this.version(10).stores({
       programs: '++id, presetId',
+    })
+    // Supplements + their daily intake log: synced and backed up (late tables). Logs use a natural
+    // key (supplement + day), so the same intake logged on two devices is one row.
+    this.version(11).stores({
+      supplements: '++id, position',
+      supplementLogs: 'id, date, supplementId',
     })
 
     // Sync middleware: UUID ids for new rows, updatedAt stamps, dirty tracking, cloud outbox.

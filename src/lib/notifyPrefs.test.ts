@@ -64,6 +64,7 @@ describe('mergeNotifyPrefs', () => {
       rank: { decayWarning: false, decayTime: '20:00', streakWarning: false, streakTime: '17:00' },
       recap: { enabled: false, when: 'sunday-evening', time: '20:00' },
       weighIn: { enabled: true, weekday: 7, time: '06:45' },
+      supplements: { enabled: false },
     }
     expect(mergeNotifyPrefs(persisted)).toEqual(persisted)
   })

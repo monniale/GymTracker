@@ -36,6 +36,8 @@ export default {
     recapLastWeekStreak: 'Last week: {sessions}, +{points} pts, {streak}.',
     recapThisWeek: 'This week: {sessions}, +{points} pts.',
     recapThisWeekStreak: 'This week: {sessions}, +{points} pts, {streak}.',
+    supplementTitle: 'Supplements due',
+    supplementBody: { one: 'Not logged yet: {names}. Tap to log it.', other: 'Not logged yet: {names}. Tap to log them.' },
     weighInTitle: 'Weigh-in day',
     weighInBody: 'Log your bodyweight — it keeps your strength score accurate.',
     openSessionTitle: 'Workout still open',

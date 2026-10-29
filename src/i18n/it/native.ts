@@ -175,6 +175,10 @@ const native: Dict['native'] = {
       dayLabel: 'Giorno della pesata',
       timeLabel: 'Orario della pesata',
     },
+    supplements: {
+      label: 'Integratori',
+      hint: 'All’orario di ogni integratore (impostato nella schermata Dieta), se quel giorno non l’hai ancora registrato',
+    },
     footer: {
       blocked: 'Le notifiche sono bloccate: sistemale prima qui sopra.',
       testSent: 'Promemoria di prova tra 15 s: blocca il telefono ora.',
@@ -205,6 +209,8 @@ const native: Dict['native'] = {
       decayDesc: 'Avvisi di calo del rank e di streak a rischio',
       recap: 'Riepilogo settimanale',
       recapDesc: 'La tua settimana in numeri',
+      supplement: 'Promemoria integratori',
+      supplementDesc: 'Integratori non registrati entro il loro orario',
       keepalive: 'Stato dell’app',
       keepaliveDesc: 'Ti chiede di aprire l’app prima che i promemoria finiscano',
     },
