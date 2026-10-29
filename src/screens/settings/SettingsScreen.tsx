@@ -17,12 +17,13 @@ import { db } from "../../db/db";
 import { exportBackup, importBackup } from "../../db/backup";
 import { unlockAudio, beep } from "../../lib/audio";
 import { localDateStr } from "../../lib/dates";
-import { archiveCurrentSeason } from "../../lib/season";
+import { endSeasonForEveryone, socialErrorText } from "../../lib/social";
 import { DEFAULT_BAR_KG, DEFAULT_PLATES } from "../../lib/plates";
 import NumberStepper from "../../components/NumberStepper";
 import SegmentedControl from "../../components/SegmentedControl";
 import SyncSection from "./SyncSection";
 import CloudSyncSection from "./CloudSyncSection";
+import { useCloudPermission } from "../../lib/cloudSync";
 import AiSection from "./AiSection";
 import ImportHistorySheet from "./ImportHistorySheet";
 import TargetsCalculatorSheet from "./TargetsCalculator";
@@ -56,6 +57,9 @@ export default function SettingsScreen() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [historyCsv, setHistoryCsv] = useState<string | null>(null);
   const [calcOpen, setCalcOpen] = useState(false);
+  const [seasonMsg, setSeasonMsg] = useState<string | null>(null);
+  // Ending a season early is an admin action, granted on the cloud project (0002_permissions.sql).
+  const canEndSeason = useCloudPermission("end_season");
   const location = useLocation();
   const navigate = useNavigate();
   // Android's first-run card links here with `state.focus` ("sync" | "data").
@@ -98,12 +102,20 @@ export default function SettingsScreen() {
     }
   }
 
+  // The season is shared by every cloud account (0003_social.sql): ending it ends it for all.
   async function resetSeason() {
     if (
+      !canEndSeason ||
       !window.confirm(t("settings.danger.endSeasonConfirm"))
     )
       return;
-    await archiveCurrentSeason(localDateStr());
+    setSeasonMsg(null);
+    try {
+      await endSeasonForEveryone();
+      setSeasonMsg(t("settings.danger.seasonEnded"));
+    } catch (e) {
+      setSeasonMsg(socialErrorText(e));
+    }
   }
 
   return (
@@ -445,14 +457,17 @@ export default function SettingsScreen() {
         </p>
       </Section>
 
-      <Section title={t("settings.danger.title")}>
-        <button
-          onClick={resetSeason}
-          className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-danger/40 font-semibold text-danger active:bg-danger/10"
-        >
-          <AlertTriangle size={18} className="shrink-0" /> {t("settings.danger.endSeason")}
-        </button>
-      </Section>
+      {canEndSeason && (
+        <Section title={t("settings.danger.title")}>
+          <button
+            onClick={resetSeason}
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-danger/40 font-semibold text-danger active:bg-danger/10"
+          >
+            <AlertTriangle size={18} className="shrink-0" /> {t("settings.danger.endSeason")}
+          </button>
+          {seasonMsg && <p className="mt-2 text-sm text-sub">{seasonMsg}</p>}
+        </Section>
+      )}
 
       {UpdateSection && (
         <Suspense fallback={null}>

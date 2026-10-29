@@ -6,7 +6,7 @@ import { ensureSeeded } from '../db/seed'
 import { ackOutbox, clearOutbox, pendingOutbox, queueOutbox } from '../db/outbox'
 import { useUiStore } from './uiStore'
 import {
-  cloudTables, applyCloudRows, cloudSignIn, activePendingSignIn, cancelPendingSignIn, PENDING_SIGN_IN_MS, cloudInitialSync, cloudSyncNow, cloudVerify, keyFromCloudId, useCloudStore,
+  cloudTables, applyCloudRows, cloudSignIn, activePendingSignIn, cancelPendingSignIn, cloudSignOut, PENDING_SIGN_IN_MS, cloudInitialSync, cloudSyncNow, cloudVerify, keyFromCloudId, useCloudStore,
 } from './cloudSync'
 import { parseSignInLink, type CloudRow } from './supabaseApi'
 
@@ -23,6 +23,9 @@ let cloud: Map<string, Stored>
 let seq: number
 let requests: Array<{ path: string; body: unknown }>
 let failNext: { status: number; body?: unknown } | null
+let permissions: string[] | null // null: the project lacks my_permissions (404)
+let season: { id: number; startedOn: string; endsOn: string } | null // null: no 0003_social.sql
+let published: unknown[]
 
 const SESSION = { access_token: 'tok', refresh_token: 'ref', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'f@x.it' } }
 
@@ -52,6 +55,15 @@ function installFetch() {
     if (path.startsWith('/auth/v1/token')) return ok({ ...SESSION, access_token: 'tok2' })
     if (path === '/auth/v1/logout') return ok({})
     if (path === '/rest/v1/rpc/push_rows') return ok(pushToCloud(body.p))
+    const notFound = { ok: false, status: 404, json: async () => ({ message: 'not found' }), text: async () => '' }
+    if (path === '/rest/v1/rpc/current_season') return season ? ok(season) : notFound
+    if (path === '/rest/v1/rpc/publish_stats') {
+      published.push(body.s)
+      return ok(null)
+    }
+    if (path === '/rest/v1/rpc/my_permissions') {
+      return permissions ? ok(permissions) : { ok: false, status: 404, json: async () => ({ message: 'not found' }), text: async () => '' }
+    }
     if (path.startsWith('/rest/v1/rows?select=tbl,id,updated_at&')) {
       return ok([...cloud.values()].filter(r => !r.deleted).map(r => ({ tbl: r.tbl, id: r.id, updated_at: r.updated_at })))
     }
@@ -85,12 +97,15 @@ beforeEach(async () => {
   seq = 0
   requests = []
   failNext = null
+  permissions = []
+  season = null
+  published = []
   installFetch()
   db.close()
   await Dexie.delete('gymtracker')
   await db.open()
   clearOutbox()
-  useCloudStore.setState({ session: { ...SESSION }, lastSeq: 0, lastSyncAt: null, lastError: null, syncing: false })
+  useCloudStore.setState({ session: { ...SESSION }, lastSeq: 0, lastSyncAt: null, lastError: null, syncing: false, permissions: [] })
   useUiStore.setState({ demoLoaded: false })
   await ensureSeeded()
 })
@@ -202,6 +217,54 @@ describe('cloudSyncNow', () => {
     // and the fix-ups reached the cloud
     expect(cloud.get(`foods\u0000${foodA}`)!.deleted).toBe(true)
     expect(cloud.get('rankState\u00001')!.data).toMatchObject({ points: 55 })
+  })
+})
+
+describe('shared season and friends stats', () => {
+  it('follows the server season and pushes the rollover in the same sync', async () => {
+    season = { id: 7, startedOn: '2020-01-01', endsOn: '2020-03-24' }
+    expect(await cloudSyncNow('test')).toBe('synced')
+    const rank = (await db.rankState.get(1))!
+    expect(rank).toMatchObject({ seasonId: 7, sharedSeason: true, seasonEndsOn: '2020-03-24' })
+    expect(cloud.get('rankState\u00001')!.data).toMatchObject({ seasonId: 7, sharedSeason: true })
+  })
+
+  it('publishes the workout stats once per change', async () => {
+    await cloudSyncNow('test')
+    expect(published).toHaveLength(1)
+    expect(published[0]).toMatchObject({ seasonId: 1, points: 0, sessionsSeason: 0, bestLifts: [] })
+    await cloudSyncNow('test')
+    expect(published).toHaveLength(1)
+    await db.rankState.update(1, { points: 42 })
+    await cloudSyncNow('test')
+    expect(published).toHaveLength(2)
+    expect(published[1]).toMatchObject({ points: 42 })
+  })
+})
+
+describe('permissions', () => {
+  it('refreshes them on every sync, keeps them when the check fails, drops them on sign-out', async () => {
+    permissions = ['end_season']
+    expect(await cloudSyncNow('test')).toBe('up-to-date')
+    expect(useCloudStore.getState().permissions).toEqual(['end_season'])
+
+    permissions = null // a project without 0002: the sync still works, the cached answer stays
+    expect(await cloudSyncNow('test')).toBe('up-to-date')
+    expect(useCloudStore.getState().permissions).toEqual(['end_season'])
+
+    permissions = [] // revoked on the server
+    await cloudSyncNow('test')
+    expect(useCloudStore.getState().permissions).toEqual([])
+
+    useCloudStore.setState({ permissions: ['end_season'] })
+    await cloudSignOut()
+    expect(useCloudStore.getState().permissions).toEqual([])
+  })
+
+  it('forgets the previous account\'s permissions when another one signs in', async () => {
+    useCloudStore.setState({ permissions: ['end_season'] })
+    await cloudVerify('other@x.it', '123456')
+    expect(useCloudStore.getState().permissions).toEqual([])
   })
 })
 

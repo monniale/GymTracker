@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  Flame, CalendarDays, ChevronDown, ChevronUp, Info, Target, Check, Lock,
-  Dumbbell, Trophy, Scale, UtensilsCrossed, Zap, Medal, Ghost,
+  Flame, CalendarDays, ChevronDown, ChevronUp, ChevronRight, Info, Target, Check, Lock,
+  Dumbbell, Trophy, Scale, UtensilsCrossed, Zap, Medal, Ghost, Users,
 } from 'lucide-react'
 import { db } from '../../db/db'
-import { rankForPoints, rankLabel, translateRankLabel, SEASON_DAYS, TIERS, type RankTier } from '../../lib/ranks'
+import { rankForPoints, rankLabel, translateRankLabel, TIERS, type RankTier } from '../../lib/ranks'
+import { seasonLastDay } from '../../lib/season'
+import { useCloudStore } from '../../lib/cloudSync'
+import { currentView } from '../../lib/socialStats'
+import { loadFriends } from '../../lib/social'
+import { cloudConfigured } from '../../lib/supabaseConfig'
 import { ACHIEVEMENTS, type AchievementDef } from '../../lib/achievements'
 import { evaluateQuests, displayEventLabel, QUEST_BONUS, type QuestStatus } from '../../lib/quests'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
@@ -14,7 +20,7 @@ import RankParticles from '../../components/RankParticles'
 import Sheet from '../../components/Sheet'
 import { addDays, daysBetween, fmtDate, localDateStr } from '../../lib/dates'
 import { t, tp, fmtNum } from '../../i18n'
-import type { Season } from '../../types'
+import type { RankState, Season } from '../../types'
 
 const ICONS: Record<AchievementDef['icon'], typeof Dumbbell> = {
   dumbbell: Dumbbell,
@@ -70,7 +76,7 @@ export default function RankScreen() {
   if (!rankState) return null
 
   const info = rankForPoints(rankState.points)
-  const seasonEnd = addDays(rankState.seasonStart, SEASON_DAYS - 1)
+  const seasonEnd = seasonLastDay(rankState)
   const daysLeft = Math.max(0, daysBetween(localDateStr(), seasonEnd))
 
   return (
@@ -123,6 +129,8 @@ export default function RankScreen() {
           </p>
         )}
       </div>
+
+      {cloudConfigured() && <FriendsCard rank={rankState} />}
 
       {quests.length > 0 && (
         <div className="mt-3 rounded-2xl border border-edge bg-card p-4">
@@ -267,6 +275,48 @@ export default function RankScreen() {
         )}
       </Sheet>
     </div>
+  )
+}
+
+/** The top of the friends board (as last fetched) and the way into `/rank/friends`. */
+function FriendsCard({ rank }: { rank: RankState }) {
+  const friends = useCloudStore(s => s.friends)
+  const signedIn = useCloudStore(s => s.session !== null)
+  const hasProfile = useCloudStore(s => s.profile !== null)
+  useEffect(() => {
+    // Best effort: the card shows the board as last fetched until this lands.
+    if (signedIn && hasProfile) loadFriends().catch(() => {})
+  }, [signedIn, hasProfile])
+  const requests = friends.filter(f => f.status === 'incoming').length
+  const top = friends
+    .filter(f => f.status === 'me' || f.status === 'friend')
+    .map(f => ({ f, points: f.stats ? currentView(f.stats, rank.seasonId).points : null }))
+    .sort((a, b) => (b.points ?? -1) - (a.points ?? -1))
+    .slice(0, 3)
+
+  return (
+    <Link to="/rank/friends" className="mt-3 block rounded-2xl border border-edge bg-card p-4 active:bg-muted/40">
+      <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
+        <Users size={17} className="shrink-0 text-accent" /> {t('social.card.title')}
+        {requests > 0 && (
+          <span className="num rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-bg">{requests}</span>
+        )}
+        <ChevronRight size={18} className="ml-auto text-sub" />
+      </h2>
+      {!signedIn || top.length <= 1 ? (
+        <p className="mt-1 text-sm text-sub">{signedIn ? t('social.card.invite') : t('social.card.signIn')}</p>
+      ) : (
+        <div className="mt-2 space-y-1">
+          {top.map(({ f, points }, i) => (
+            <div key={f.userId} className="num flex items-center gap-2 text-sm">
+              <span className="w-4 text-sub">{i + 1}</span>
+              <span className={`min-w-0 flex-1 truncate ${f.status === 'me' ? 'font-bold' : 'font-medium'}`}>{f.displayName}</span>
+              <span className="shrink-0 font-semibold">{points != null ? tp('units.pts', points) : '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Link>
   )
 }
 

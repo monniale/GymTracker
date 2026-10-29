@@ -59,7 +59,8 @@ const settings: Dict['settings'] = {
   danger: {
     title: 'Zona pericolosa',
     endSeason: 'Chiudi la stagione ora',
-    endSeasonConfirm: 'Chiudere ora la stagione in corso? Il 20% dei punti passa alla prossima.',
+    endSeasonConfirm: 'Chiudere ora la stagione in corso per tutti gli utenti? Ognuno porta il 20% dei punti nella prossima.',
+    seasonEnded: 'Stagione chiusa. Da oggi ne inizia una nuova per tutti.',
   },
   version: {
     build: 'Build {sha} · {date} {time}',

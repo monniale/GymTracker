@@ -259,9 +259,13 @@ export function dedupFoodsByOffId(foods: Food[], notes: string[] = []): { remap:
   return { remap, dropped }
 }
 
-/** Season points as the sum of this season's events + carry-over − idle decay (the merge truth). */
+/** Season points as the sum of this season's events + carry-over − idle decay (the merge truth).
+ * The carry-over comes from the latest season that started before this one (not `seasonId − 1`:
+ * joining the shared season renumbers the running one, lib/season.ts `followGlobalSeason`). */
 export function rankPointsFor(base: RankState, scoreEvents: ScoreEvent[], seasons: Season[]): number {
-  const prev = seasons.find(s => s.seasonId === base.seasonId - 1)
+  const prev = seasons
+    .filter(s => s.startDate < base.seasonStart)
+    .reduce<Season | undefined>((best, s) => (!best || s.startDate > best.startDate ? s : best), undefined)
   const carry = prev ? Math.round(prev.finalPoints * SEASON_CARRYOVER) : 0
   const seasonSum = scoreEvents
     .filter(e => e.date >= base.seasonStart)

@@ -5,16 +5,31 @@ import {
   rankForPoints, rankLabelEn,
 } from './ranks'
 import { effectiveLoad } from './load'
-import type { Season } from '../types'
+import type { RankState, Season } from '../types'
 
-/** Archives the running season (with recap stats) and starts the next one. */
-export async function archiveCurrentSeason(endDate: string): Promise<void> {
+/** The season that follows an archived one, when it is not simply "a new local season from today". */
+export interface NextSeason {
+  seasonId: number
+  seasonStart: string
+  /** The shared season's last day (`RankState.seasonEndsOn`). */
+  seasonEndsOn: string
+}
+
+/**
+ * Archives the running season (with recap stats) and starts the next one: `next` (the shared
+ * season) or a new local season from today. Score events dated on or after the next season's
+ * start move into it, so the points stay what `rankPointsFor` (the merge truth) recomputes:
+ * carry-over of the archived season + this season's events.
+ */
+export async function archiveCurrentSeason(endDate: string, next?: NextSeason): Promise<void> {
   const state = await db.rankState.get(1)
   if (!state) return
 
+  const nextStart = next?.seasonStart ?? localDateStr()
   const seasonStartMs = parseLocalDate(state.seasonStart).getTime()
+  const nextStartMs = parseLocalDate(nextStart).getTime()
   const sessions = await db.sessions
-    .where('startedAt').aboveOrEqual(seasonStartMs)
+    .where('startedAt').between(seasonStartMs, nextStartMs)
     .filter(s => s.endedAt !== undefined)
     .toArray()
   const byId = new Map(sessions.map(s => [s.id!, s]))
@@ -34,18 +49,28 @@ export async function archiveCurrentSeason(endDate: string): Promise<void> {
     recap = { ...recap, bestLift: { exerciseName: ex?.name ?? 'Exercise', e1rm: Math.round(best.e1rm * 10) / 10 } }
   }
 
-  await db.seasons.add({
+  const movedFrom = nextStart > state.seasonStart ? nextStart : state.seasonStart
+  const moved = (await db.scoreEvents.where('date').aboveOrEqual(movedFrom).toArray())
+    .reduce((a, e) => a + e.total, 0)
+  const finalPoints = Math.max(0, Math.round(state.points - moved))
+
+  // A key every device derives alike: two devices that archive the same season write one row.
+  await db.seasons.put({
+    id: `season-${state.seasonId}-${state.seasonStart}`,
     seasonId: state.seasonId,
     startDate: state.seasonStart,
     endDate,
-    finalPoints: Math.round(state.points),
-    finalRank: rankLabelEn(rankForPoints(state.points).tier),
+    finalPoints,
+    finalRank: rankLabelEn(rankForPoints(finalPoints).tier),
     recap,
   })
-  const today = localDateStr()
-  state.seasonId += 1
-  state.seasonStart = today
-  state.points = Math.round(state.points * SEASON_CARRYOVER)
+  state.seasonId = next?.seasonId ?? state.seasonId + 1
+  state.seasonStart = nextStart
+  if (next) {
+    state.sharedSeason = true
+    state.seasonEndsOn = next.seasonEndsOn
+  }
+  state.points = Math.round(finalPoints * SEASON_CARRYOVER) + moved
   state.streakWeeks = 0
   state.lastStreakWeek = ''
   state.idleDecayTaken = 0
@@ -53,8 +78,42 @@ export async function archiveCurrentSeason(endDate: string): Promise<void> {
 }
 
 /**
+ * Brings the rank state onto the shared season (`current_season`, 0003_social.sql); run after
+ * each cloud pull, on the sync lock. Returns whether it wrote.
+ * - Same season, or an older one (this device already rolled over offline): only the end day is
+ *   taken from the server.
+ * - A newer season, or the first time on the shared one: a running season that started before the
+ *   shared one is archived and the shared one starts with the usual carry-over; one that started
+ *   on or after it simply becomes it (renumbered, its points and start kept).
+ */
+export async function followGlobalSeason(g: { id: number; startedOn: string; endsOn: string }): Promise<boolean> {
+  const state = await db.rankState.get(1)
+  if (!state) return false
+  if (state.sharedSeason && state.seasonId >= g.id) {
+    if (state.seasonId !== g.id || state.seasonEndsOn === g.endsOn) return false
+    state.seasonEndsOn = g.endsOn
+    await db.rankState.put(state)
+    return true
+  }
+  if (state.seasonStart >= g.startedOn) {
+    state.seasonId = g.id
+    state.sharedSeason = true
+    state.seasonEndsOn = g.endsOn
+    await db.rankState.put(state)
+    return true
+  }
+  await archiveCurrentSeason(addDays(g.startedOn, -1), { seasonId: g.id, seasonStart: g.startedOn, seasonEndsOn: g.endsOn })
+  return true
+}
+
+/** The running season's last day: the shared season's from the server, else 12 weeks from its start. */
+export function seasonLastDay(state: Pick<RankState, 'seasonStart' | 'seasonEndsOn' | 'sharedSeason'>): string {
+  return state.sharedSeason && state.seasonEndsOn ? state.seasonEndsOn : addDays(state.seasonStart, SEASON_DAYS - 1)
+}
+
+/**
  * Idempotent maintenance run on every app launch:
- * - rolls the season over when 12 weeks have passed (archives the old one),
+ * - rolls the season over after its last day (archives the old one),
  * - resets a broken weekly streak,
  * - applies idle decay (3%/day after 7 sessionless days, max 25% per idle streak).
  */
@@ -64,8 +123,17 @@ export async function runDailyChecks(): Promise<void> {
   const today = localDateStr()
   let changed = false
 
-  if (daysBetween(state.seasonStart, today) >= SEASON_DAYS) {
-    await archiveCurrentSeason(addDays(state.seasonStart, SEASON_DAYS - 1))
+  const lastDay = seasonLastDay(state)
+  if (today > lastDay) {
+    // The shared season also rolls over every SEASON_DAYS on the server: follow it offline (the
+    // next sync corrects an early end). A device-local season restarts today.
+    let next: NextSeason | undefined
+    if (state.sharedSeason && state.seasonEndsOn) {
+      const skipped = Math.floor(daysBetween(addDays(lastDay, 1), today) / SEASON_DAYS)
+      const seasonStart = addDays(lastDay, 1 + skipped * SEASON_DAYS)
+      next = { seasonId: state.seasonId + 1 + skipped, seasonStart, seasonEndsOn: addDays(seasonStart, SEASON_DAYS - 1) }
+    }
+    await archiveCurrentSeason(lastDay, next)
     const rolled = await db.rankState.get(1)
     if (rolled) Object.assign(state, rolled)
     changed = true
