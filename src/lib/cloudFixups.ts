@@ -1,11 +1,13 @@
 import { db, deleteWithTombstone } from '../db/db'
 import { rankPointsFor } from './merge'
+import { isAdjustment } from './pointsAdjust'
 import type { Id, ScoreEvent } from '../types'
 
 /**
  * What row-level last-write-wins cannot do on its own after a cloud pull — the cross-row rules
  * `mergeSnapshots` applies to whole snapshots:
- * - scoreEvents: the same quest award earned on two devices → one event;
+ * - scoreEvents: the same quest award earned on two devices → one event (never points
+ *   adjustments: two on one day are two admin edits);
  * - rankState.points: the sum of this season's events (both devices' training counts).
  * (Barcode duplicates are settled while the pull is applied: `applyCloudRows`, since the unique
  * `offId` index cannot hold both rows; the losers' logs are remapped here, `remapFoodIds`.)
@@ -42,7 +44,7 @@ async function dedupAwards(): Promise<void> {
   const seen = new Map<string, ScoreEvent>()
   const extra: ScoreEvent[] = []
   for (const e of events) {
-    if (!e.label) continue
+    if (!e.label || isAdjustment(e)) continue
     const key = `${e.date}|${e.label}`
     const prior = seen.get(key)
     // Keep the earliest-written award (stable across devices); drop the later copies.

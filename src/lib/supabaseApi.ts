@@ -260,6 +260,28 @@ export async function fetchFriendsBoard(token: string): Promise<FriendEntry[]> {
   return Array.isArray(list) ? (list as FriendEntry[]) : []
 }
 
+/** One account in the admin's points list (0004_adjust_points.sql `admin_users`). */
+export interface AdminUser {
+  userId: string
+  email: string
+  displayName: string | null
+  /** The season points its synced rows add up to; null before its first sync. */
+  points: number | null
+  seasonId: number | null
+  /** Newest `updated_at` among its rows (ms). */
+  lastChange: number | null
+}
+
+export async function fetchAdminUsers(token: string): Promise<AdminUser[]> {
+  const list = await rpc(token, 'admin_users')
+  return Array.isArray(list) ? (list as AdminUser[]) : []
+}
+
+/** Sets an account's season points (`adjust_points`); `delta` is the score event written. */
+export async function adminSetPoints(token: string, userId: string, points: number): Promise<{ points: number; delta: number }> {
+  return (await rpc(token, 'admin_set_points', { target_user: userId, new_points: points })) as { points: number; delta: number }
+}
+
 export interface LiveId { tbl: string; id: string; updated_at: number }
 
 /** Every live row's key and clock (for "overwrite cloud": what to beat, what to mark deleted). */

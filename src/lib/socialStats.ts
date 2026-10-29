@@ -1,7 +1,7 @@
 import { db } from '../db/db'
 import { localDateStr, mondayOf, parseLocalDate } from './dates'
 import { effectiveLoad } from './load'
-import type { PublicStats } from './supabaseApi'
+import type { FriendEntry, PublicStats } from './supabaseApi'
 import type { Exercise, Id, RankState, Session, SetRow } from '../types'
 
 /** How many exercises a published profile lists (the server accepts up to 60). */
@@ -77,6 +77,13 @@ export async function collectPublicStats(today = localDateStr()): Promise<Public
     db.sessions.toArray(), db.sets.toArray(), db.exercises.toArray(),
   ])
   return buildPublicStats({ rank, sessions, sets, exercises, today })
+}
+
+/** The board with this device's own numbers as 'me': the server copy lags until the next sync. */
+export function withMyStats(friends: FriendEntry[], mine: PublicStats | null | undefined): FriendEntry[] {
+  if (!mine) return friends
+  return friends.map(f =>
+    f.status === 'me' ? { ...f, stats: { ...mine, updatedAt: f.stats?.updatedAt ?? new Date().toISOString() } } : f)
 }
 
 /**

@@ -3,6 +3,7 @@ import { localDateStr, mondayOf, addDays, parseLocalDate } from './dates'
 import { dayTargets, totalsForLogs } from './nutrition'
 import { effectiveLoad } from './load'
 import { t, fmtNum } from '../i18n'
+import { ADJUSTMENT_LABEL } from './pointsAdjust'
 import type { Id } from '../types'
 
 export const QUEST_BONUS = 15
@@ -208,6 +209,7 @@ export async function evaluateQuests(): Promise<{ statuses: QuestStatus[]; fresh
 /** Display form of a stored score-event label: "Quest: Finish 3 sessions" (stored in English) →
  * "Missione: Completa 3 allenamenti" in Italian. Labels of no known quest pass through unchanged. */
 export function displayEventLabel(label: string): string {
+  if (label === ADJUSTMENT_LABEL) return t('rank.recent.adjustment')
   if (!label.startsWith(EVENT_PREFIX)) return label
   const en = label.slice(EVENT_PREFIX.length)
   const def = POOL.find(q => q.labelEn === en)

@@ -6,6 +6,7 @@ import { weeklyRate } from './bodyweight'
 import { questsForWeek } from './quests'
 import { isCardioSet, cardioSessionTotals, fmtCardioSet } from './cardio'
 import { effectiveLoad, usesBodyweightLoad } from './load'
+import { isAdjustment } from './pointsAdjust'
 import type { BodyLogEntry, Id } from '../types'
 
 /**
@@ -167,8 +168,8 @@ export async function gatherWeekBriefing(monday: string, today: string = localDa
     bodyweightKg: settings?.bodyweightKg ?? 0,
     weeklyTarget: settings?.weeklySessionTarget ?? 3,
     sessions: summaries,
-    points: Math.round(events.reduce((a, e) => a + e.total, 0)),
-    questBonus: Math.round(events.filter(e => e.sessionId === undefined).reduce((a, e) => a + e.total, 0)),
+    points: Math.round(events.filter(e => !isAdjustment(e)).reduce((a, e) => a + e.total, 0)),
+    questBonus: Math.round(events.filter(e => e.sessionId === undefined && !isAdjustment(e)).reduce((a, e) => a + e.total, 0)),
     prs,
     muscles: computeWeeklyMuscleVolume(volumeSets, exMap, sunday),
     nutrition: await gatherWeekNutrition(sunday),

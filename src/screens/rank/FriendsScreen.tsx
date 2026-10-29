@@ -9,7 +9,7 @@ import {
   addFriend, answerRequest, inviteLink, loadFriends, loadProfile, normalizeFriendCode, setDisplayName,
   socialErrorText, unfriend,
 } from '../../lib/social'
-import { commonLifts, currentView } from '../../lib/socialStats'
+import { collectPublicStats, commonLifts, currentView, withMyStats } from '../../lib/socialStats'
 import { rankForPoints, rankLabel } from '../../lib/ranks'
 import { exerciseDisplayName } from '../../lib/exerciseNames'
 import { fmtDateTime } from '../../lib/dates'
@@ -305,8 +305,10 @@ function Requests() {
 
 /** The season board: you and your friends by points this season. */
 function Board() {
-  const friends = useCloudStore(s => s.friends)
+  const board = useCloudStore(s => s.friends)
   const rank = useLiveQuery(() => db.rankState.get(1))
+  const mine = useLiveQuery(() => collectPublicStats())
+  const friends = withMyStats(board, mine)
   const [open, setOpen] = useState<FriendEntry | null>(null)
   if (!rank) return null
   const players = friends.filter(f => f.status === 'me' || f.status === 'friend')

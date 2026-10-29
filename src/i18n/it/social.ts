@@ -88,6 +88,21 @@ const social: Dict['social'] = {
     seasonToday: 'La stagione in corso è iniziata oggi: non c\'è ancora nulla da chiudere.',
     notAllowed: 'Solo un amministratore può chiudere la stagione.',
     notSetUp: 'Gli amici non sono ancora configurati sul progetto cloud (supabase/migrations/0003_social.sql).',
+    notAllowedPoints: 'Solo un amministratore può cambiare i punti.',
+    notSynced: 'Quell\'account non si è ancora sincronizzato.',
+    pointsRange: 'I punti devono essere tra 0 e 1.000.000.',
+  },
+  admin: {
+    title: 'Punti degli utenti',
+    intro: 'Punti stagione come ogni account li ha sincronizzati l\'ultima volta. Una modifica arriva ai dispositivi di quell\'account alla prossima sincronizzazione, come "Correzione punti" nei punteggi recenti.',
+    noName: 'Nessun nome visibile',
+    notSynced: 'Non ancora sincronizzato',
+    meta: 'Stagione {season} · ultima modifica {when}',
+    set: 'Imposta',
+    cancel: 'Annulla',
+    confirm: 'Cambiare i punti stagione di {name} da {from} a {to}?',
+    done: '{name}: {points} punti.',
+    empty: 'Ancora nessun account.',
   },
 }
 

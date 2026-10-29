@@ -27,6 +27,7 @@ import RankScreen from './screens/rank/RankScreen'
 import FriendsScreen from './screens/rank/FriendsScreen'
 import InviteScreen from './screens/InviteScreen'
 import SettingsScreen from './screens/settings/SettingsScreen'
+import AdminPointsScreen from './screens/settings/AdminPointsScreen'
 import { isNative } from './native/platform'
 
 // Android-only router companion (back button, notification taps, keep-awake). Gated at module
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/rank" element={<RankScreen />} />
           <Route path="/rank/friends" element={<FriendsScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
+          <Route path="/settings/points" element={<AdminPointsScreen />} />
           {/* Shared template / program links (`#/import?t=…`, src/lib/shareTemplate.ts). Not a native route. */}
           <Route path="/import" element={<ImportShare />} />
           <Route path="/invite/:code" element={<InviteScreen />} />

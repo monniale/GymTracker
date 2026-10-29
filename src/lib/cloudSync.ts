@@ -19,7 +19,7 @@ import { fixAfterPull, remapFoodIds } from './cloudFixups'
 import { dedupFoodsByOffId } from './merge'
 import { cloudConfigured } from './supabaseConfig'
 import {
-  SbError, fetchCurrentSeason, fetchPermissions, getUser, listLiveIds, publishStats, pullRows, pushRows, refreshSession,
+  SbError, fetchCurrentSeason, fetchFriendsBoard, fetchPermissions, getUser, listLiveIds, publishStats, pullRows, pushRows, refreshSession,
   requestOtp, signOutRemote, verifyOtp,
   type CloudRow, type FriendEntry, type SbSession, type SocialProfile,
 } from './supabaseApi'
@@ -110,7 +110,7 @@ export function isCloudSignedIn(): boolean {
 }
 
 /** Permissions the app checks; granted per role in supabase/migrations/0002_permissions.sql. */
-export type CloudPermission = 'end_season'
+export type CloudPermission = 'end_season' | 'adjust_points'
 
 /** Whether the signed-in account holds `permission` (false when signed out or without a project). */
 export function useCloudPermission(permission: CloudPermission): boolean {
@@ -345,6 +345,7 @@ async function doCloudSync(): Promise<CloudOutcome> {
     }
     await refreshPermissions(token)
     await publishMyStats(token)
+    await refreshFriends(token)
     store.setState({ lastSyncAt: Date.now() })
     return touched.size > 0 || pushed ? 'synced' : 'up-to-date'
   } catch (e) {
@@ -386,6 +387,16 @@ async function publishMyStats(token: string): Promise<void> {
     useCloudStore.setState({ statsPublished: json })
   } catch {
     /* sent again on the next sync */
+  }
+}
+
+/** Best effort: the friends board (Rank screen card, Friends screen) follows every sync. */
+async function refreshFriends(token: string): Promise<void> {
+  if (!useCloudStore.getState().profile) return
+  try {
+    useCloudStore.setState({ friends: await fetchFriendsBoard(token) })
+  } catch {
+    /* keep the last board */
   }
 }
 

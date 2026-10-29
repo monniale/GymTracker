@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { buildPublicStats, commonLifts, currentView } from './socialStats'
+import { buildPublicStats, commonLifts, currentView, withMyStats } from './socialStats'
 import { normalizeFriendCode, inviteLink } from './social'
+import type { FriendEntry } from './supabaseApi'
 import type { Exercise, Session, SetRow } from '../types'
 
 const T = (y: number, m: number, d: number, h = 10) => new Date(y, m - 1, d, h).getTime()
@@ -47,6 +48,17 @@ describe('buildPublicStats', () => {
     expect(currentView(stats, 4, '2026-10-28')).toMatchObject({ points: 512, sessionsWeek: 1, sessionsSeason: 2 })
     expect(currentView(stats, 4, '2026-11-03')).toMatchObject({ points: 512, sessionsWeek: 0, volumeWeekKg: 0 })
     expect(currentView(stats, 5, '2026-10-28')).toMatchObject({ points: null, sessionsSeason: null, volumeSeasonKg: null })
+  })
+
+  it('shows my own numbers from this device, not the server copy', () => {
+    const friends: FriendEntry[] = [
+      { userId: 'me', displayName: 'Fede', status: 'me', stats: { ...stats, points: 100, updatedAt: '2026-10-27T10:00:00Z' } },
+      { userId: 'u2', displayName: 'Ale', status: 'friend', stats: null },
+    ]
+    const board = withMyStats(friends, stats)
+    expect(board[0].stats).toEqual({ ...stats, updatedAt: '2026-10-27T10:00:00Z' })
+    expect(board[1]).toBe(friends[1])
+    expect(withMyStats(friends, null)).toBe(friends)
   })
 
   it('compares only the lifts both have', () => {
