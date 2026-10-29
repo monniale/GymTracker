@@ -321,6 +321,10 @@ export interface RankState {
   lastSessionDate?: string
   idleDecayTaken: number // points already removed during the current idle streak
   lastDecayCheckDate: string
+  /** On the season every cloud account shares (`current_season`, 0003_social.sql): `seasonId` is
+   * the shared season's number and `seasonEndsOn` its last day. Absent = a device-local season. */
+  sharedSeason?: boolean
+  seasonEndsOn?: string // YYYY-MM-DD
   /** Stamped on every write by the sync middleware; merge tie-breaker. */
   updatedAt?: number
 }

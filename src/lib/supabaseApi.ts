@@ -10,7 +10,8 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseConfig'
 export type SbErrorKind = 'auth' | 'bad-code' | 'rate-limit' | 'paused' | 'network' | 'other'
 
 export class SbError extends Error {
-  constructor(message: string, public status: number, public kind: SbErrorKind) {
+  /** `detail`: the server's own message (e.g. a database function's `raise exception` text). */
+  constructor(message: string, public status: number, public kind: SbErrorKind, public detail = '') {
     super(message)
     this.name = 'SbError'
   }
@@ -51,12 +52,12 @@ async function sb(path: string, init: RequestInit, token?: string): Promise<Resp
   }
   if (res.ok) return res
   const detail = await errorDetail(res)
-  if (res.status === 401 || res.status === 403) throw new SbError(t('data.cloud.auth'), res.status, 'auth')
+  if (res.status === 401 || res.status === 403) throw new SbError(t('data.cloud.auth'), res.status, 'auth', detail)
   if (res.status === 429) throw new SbError(t('data.cloud.rateLimit'), 429, 'rate-limit')
   // A free project paused for inactivity answers 540 (and 503 while resuming).
   if (res.status === 540 || res.status === 503) throw new SbError(t('data.cloud.paused'), res.status, 'paused')
   if (res.status === 400 && /otp|token|expired|invalid/i.test(detail)) throw new SbError(t('data.cloud.badCode'), 400, 'bad-code')
-  throw new SbError(t('data.cloud.error', { status: res.status, detail: detail.slice(0, 80) }), res.status, 'other')
+  throw new SbError(t('data.cloud.error', { status: res.status, detail: detail.slice(0, 80) }), res.status, 'other', detail)
 }
 
 async function errorDetail(res: Response): Promise<string> {
@@ -154,6 +155,109 @@ export async function pullRows(token: string, afterSeq: number, limit = 1000): P
   const q = `select=tbl,id,data,updated_at,deleted,server_seq&server_seq=gt.${afterSeq}&order=server_seq.asc&limit=${limit}`
   const res = await sb(`/rest/v1/rows?${q}`, { method: 'GET' }, token)
   return (await res.json()) as CloudRow[]
+}
+
+/** The caller's permissions: `my_permissions()` in supabase/migrations/0002_permissions.sql. */
+export async function fetchPermissions(token: string): Promise<string[]> {
+  const res = await sb('/rest/v1/rpc/my_permissions', { method: 'POST', body: '{}' }, token)
+  const list: unknown = await res.json()
+  return Array.isArray(list) ? list.filter((p): p is string => typeof p === 'string') : []
+}
+
+/* ------------------------------ social (0003_social.sql) ------------------------------ */
+
+async function rpc(token: string, fn: string, args: Record<string, unknown> = {}): Promise<unknown> {
+  const res = await sb(`/rest/v1/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) }, token)
+  const text = await res.text()
+  return text ? JSON.parse(text) : null
+}
+
+/** The shared season every account plays in (`startedOn`/`endsOn` are Europe/Rome days). */
+export interface GlobalSeason { id: number; startedOn: string; endsOn: string }
+
+function parseSeason(raw: unknown): GlobalSeason {
+  const r = raw as Partial<GlobalSeason> | null
+  if (!r || !Number.isInteger(r.id) || typeof r.startedOn !== 'string' || typeof r.endsOn !== 'string') {
+    throw new SbError(t('data.cloud.error', { status: 200, detail: 'no season' }), 200, 'other')
+  }
+  return { id: r.id!, startedOn: r.startedOn, endsOn: r.endsOn }
+}
+
+export async function fetchCurrentSeason(token: string): Promise<GlobalSeason> {
+  return parseSeason(await rpc(token, 'current_season'))
+}
+
+/** Ends the season for everyone (the `end_season` permission); returns the new one. */
+export async function endGlobalSeason(token: string): Promise<GlobalSeason> {
+  return parseSeason(await rpc(token, 'end_season'))
+}
+
+export interface SocialProfile { displayName: string; friendCode: string }
+
+function parseProfile(raw: unknown): SocialProfile | null {
+  const r = raw as Partial<SocialProfile> | null
+  return r && typeof r.displayName === 'string' && typeof r.friendCode === 'string'
+    ? { displayName: r.displayName, friendCode: r.friendCode }
+    : null
+}
+
+export async function fetchMyProfile(token: string): Promise<SocialProfile | null> {
+  return parseProfile(await rpc(token, 'my_profile'))
+}
+
+export async function saveDisplayName(token: string, name: string): Promise<SocialProfile> {
+  const p = parseProfile(await rpc(token, 'set_display_name', { name }))
+  if (!p) throw new SbError(t('data.cloud.error', { status: 200, detail: 'no profile' }), 200, 'other')
+  return p
+}
+
+export type FriendRequestResult = 'requested' | 'accepted' | 'already'
+
+export async function sendFriendRequest(token: string, code: string): Promise<FriendRequestResult> {
+  const r = await rpc(token, 'send_friend_request', { code })
+  return r === 'accepted' || r === 'already' ? r : 'requested'
+}
+
+export async function answerFriendRequest(token: string, requesterId: string, accept: boolean): Promise<void> {
+  await rpc(token, 'answer_friend_request', { requester_id: requesterId, accept })
+}
+
+export async function removeFriend(token: string, otherId: string): Promise<void> {
+  await rpc(token, 'remove_friend', { other: otherId })
+}
+
+/** What friends see of an account: workout numbers only (src/lib/socialStats.ts). */
+export interface PublicStats {
+  seasonId: number
+  points: number
+  streakWeeks: number
+  /** The Monday the week counters belong to. */
+  weekStart: string
+  sessionsWeek: number
+  sessionsSeason: number
+  volumeWeekKg: number
+  volumeSeasonKg: number
+  /** Best estimated 1RM per exercise; `key` matches the same exercise across accounts. */
+  bestLifts: Array<{ key: string; name: string; e1rm: number }>
+}
+
+export async function publishStats(token: string, stats: PublicStats): Promise<void> {
+  await rpc(token, 'publish_stats', { s: stats })
+}
+
+export type FriendStatus = 'me' | 'friend' | 'incoming' | 'outgoing'
+
+export interface FriendEntry {
+  userId: string
+  displayName: string
+  status: FriendStatus
+  /** Only for 'me' and accepted friends who have synced at least once. */
+  stats: (PublicStats & { updatedAt: string }) | null
+}
+
+export async function fetchFriendsBoard(token: string): Promise<FriendEntry[]> {
+  const list = await rpc(token, 'friends_board')
+  return Array.isArray(list) ? (list as FriendEntry[]) : []
 }
 
 export interface LiveId { tbl: string; id: string; updated_at: number }

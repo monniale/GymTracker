@@ -24,6 +24,8 @@ import CoachHistory from './screens/progress/CoachHistory'
 import WeekReview from './screens/progress/WeekReview'
 import ExerciseHistory from './screens/progress/ExerciseHistory'
 import RankScreen from './screens/rank/RankScreen'
+import FriendsScreen from './screens/rank/FriendsScreen'
+import InviteScreen from './screens/InviteScreen'
 import SettingsScreen from './screens/settings/SettingsScreen'
 import { isNative } from './native/platform'
 
@@ -83,9 +85,11 @@ export default function App() {
           <Route path="/progress/week" element={<WeekReview />} />
           <Route path="/progress/exercise/:id" element={<ExerciseHistory />} />
           <Route path="/rank" element={<RankScreen />} />
+          <Route path="/rank/friends" element={<FriendsScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           {/* Shared template / program links (`#/import?t=…`, src/lib/shareTemplate.ts). Not a native route. */}
           <Route path="/import" element={<ImportShare />} />
+          <Route path="/invite/:code" element={<InviteScreen />} />
           <Route path="*" element={<Navigate to="/workout" replace />} />
         </Routes>
       </div>

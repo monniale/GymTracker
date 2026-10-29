@@ -19,9 +19,12 @@ import { fixAfterPull, remapFoodIds } from './cloudFixups'
 import { dedupFoodsByOffId } from './merge'
 import { cloudConfigured } from './supabaseConfig'
 import {
-  SbError, getUser, listLiveIds, pullRows, pushRows, refreshSession, requestOtp, signOutRemote, verifyOtp,
-  type CloudRow, type SbSession,
+  SbError, fetchCurrentSeason, fetchPermissions, getUser, listLiveIds, publishStats, pullRows, pushRows, refreshSession,
+  requestOtp, signOutRemote, verifyOtp,
+  type CloudRow, type FriendEntry, type SbSession, type SocialProfile,
 } from './supabaseApi'
+import { followGlobalSeason } from './season'
+import { collectPublicStats } from './socialStats'
 import { demoLoadedAnyTab } from './uiStore'
 import { t } from '../i18n'
 import type { Food, Id } from '../types'
@@ -51,6 +54,16 @@ export interface CloudStore {
   /** A sign-in email on its way: kept across tab switches, app restarts and the trip to the
    * mail app, so the code/link can be entered without requesting a new one. */
   pendingSignIn: { email: string; sentAt: number } | null
+  /** What the server lets this account do beyond its own data (`my_permissions`): refreshed on
+   * every sync, kept for offline use, cleared when the account changes. */
+  permissions: string[]
+  /** Friends (lib/social.ts): this account's name + code, and the last friends board fetched. */
+  profile: SocialProfile | null
+  friends: FriendEntry[]
+  /** The stats last published (JSON): an unchanged profile is not sent again. */
+  statsPublished: string | null
+  /** A friend code from an invite link opened before signing in; offered on the Friends screen. */
+  pendingInvite: string | null
   setSession: (s: SbSession | null) => void
 }
 
@@ -63,6 +76,9 @@ export function activePendingSignIn(now = Date.now()): { email: string; sentAt: 
   return p && now - p.sentAt < PENDING_SIGN_IN_MS ? p : null
 }
 
+/** What belongs to the signed-in account: dropped when it signs out or another one signs in. */
+const NO_ACCOUNT_DATA = { permissions: [], profile: null, friends: [], statsPublished: null } satisfies Partial<CloudStore>
+
 /** Device-local (invariant 3): the session and cursor never enter Dexie or a backup. */
 export const useCloudStore = create<CloudStore>()(
   persist(
@@ -73,17 +89,32 @@ export const useCloudStore = create<CloudStore>()(
       lastError: null,
       syncing: false,
       pendingSignIn: null,
+      permissions: [],
+      profile: null,
+      friends: [],
+      statsPublished: null,
+      pendingInvite: null,
       setSession: session => set({ session, lastError: null }),
     }),
     {
       name: 'gymtracker-cloud',
-      partialize: s => ({ session: s.session, lastSeq: s.lastSeq, lastSyncAt: s.lastSyncAt, pendingSignIn: s.pendingSignIn }),
+      partialize: s => ({ session: s.session, lastSeq: s.lastSeq, lastSyncAt: s.lastSyncAt, pendingSignIn: s.pendingSignIn, permissions: s.permissions,
+        profile: s.profile, friends: s.friends, statsPublished: s.statsPublished, pendingInvite: s.pendingInvite,
+      }),
     },
   ),
 )
 
 export function isCloudSignedIn(): boolean {
   return cloudConfigured() && useCloudStore.getState().session !== null
+}
+
+/** Permissions the app checks; granted per role in supabase/migrations/0002_permissions.sql. */
+export type CloudPermission = 'end_season'
+
+/** Whether the signed-in account holds `permission` (false when signed out or without a project). */
+export function useCloudPermission(permission: CloudPermission): boolean {
+  return useCloudStore(s => cloudConfigured() && s.session !== null && s.permissions.includes(permission))
 }
 
 /* ------------------------------ auth ------------------------------ */
@@ -103,7 +134,7 @@ export function cancelPendingSignIn(): void {
 /** Step 2: the code → a session on this device. The cursor starts at 0: the first sync pulls everything. */
 export async function cloudVerify(email: string, code: string): Promise<SbSession> {
   const session = await verifyOtp(email.trim(), code)
-  useCloudStore.setState({ session, lastSeq: 0, lastError: null, pendingSignIn: null })
+  useCloudStore.setState({ session, lastSeq: 0, lastError: null, pendingSignIn: null, ...NO_ACCOUNT_DATA })
   return session
 }
 
@@ -124,7 +155,7 @@ export async function consumeAuthRedirect(): Promise<boolean> {
   try {
     const user = await getUser(access)
     const expiresAt = Number(q.get('expires_at')) || Math.floor(Date.now() / 1000) + (Number(q.get('expires_in')) || 3600)
-    useCloudStore.setState({ session: { access_token: access, refresh_token: refresh, expires_at: expiresAt, user }, lastSeq: 0, lastError: null, pendingSignIn: null })
+    useCloudStore.setState({ session: { access_token: access, refresh_token: refresh, expires_at: expiresAt, user }, lastSeq: 0, lastError: null, pendingSignIn: null, ...NO_ACCOUNT_DATA })
     return true
   } catch (e) {
     useCloudStore.setState({ lastError: (e as Error).message })
@@ -135,12 +166,12 @@ export async function consumeAuthRedirect(): Promise<boolean> {
 export async function cloudSignOut(): Promise<void> {
   const { session } = useCloudStore.getState()
   if (session) await signOutRemote(session.access_token)
-  useCloudStore.setState({ session: null, lastSeq: 0, lastSyncAt: null, lastError: null })
+  useCloudStore.setState({ session: null, lastSeq: 0, lastSyncAt: null, lastError: null, ...NO_ACCOUNT_DATA })
   clearOutbox()
 }
 
 /** A valid access token, refreshed when it is about to expire. */
-async function accessToken(): Promise<string> {
+export async function accessToken(): Promise<string> {
   const { session } = useCloudStore.getState()
   if (!session) throw new SbError(t('data.cloud.notSignedIn'), 0, 'auth')
   if (session.expires_at - REFRESH_MARGIN_S > Date.now() / 1000) return session.access_token
@@ -305,11 +336,15 @@ async function doCloudSync(): Promise<CloudOutcome> {
       emitDataReplaced()
       await fixAfterPull(touched)
     }
+    // Before the push, so a season rollover reaches the cloud in this same sync.
+    await followSharedSeason(token)
     const pushed = await pushOutbox(token)
     if (pushed) {
       // Our push bumped server_seq: read it back so the next pull doesn't re-fetch our own rows.
       for (const name of await pullAll(token)) touched.add(name)
     }
+    await refreshPermissions(token)
+    await publishMyStats(token)
     store.setState({ lastSyncAt: Date.now() })
     return touched.size > 0 || pushed ? 'synced' : 'up-to-date'
   } catch (e) {
@@ -317,6 +352,40 @@ async function doCloudSync(): Promise<CloudOutcome> {
     return 'error'
   } finally {
     store.setState({ syncing: false })
+  }
+}
+
+/** Best effort: a failed check keeps the last answer (a project without 0002 has none to give). */
+async function refreshPermissions(token: string): Promise<void> {
+  try {
+    useCloudStore.setState({ permissions: await fetchPermissions(token) })
+  } catch {
+    /* keep the cached list */
+  }
+}
+
+/** Best effort, like the two below: a project without 0003_social.sql keeps device-local seasons. */
+async function followSharedSeason(token: string): Promise<void> {
+  let season
+  try {
+    season = await fetchCurrentSeason(token)
+  } catch {
+    return
+  }
+  await followGlobalSeason(season)
+}
+
+/** Publishes the workout stats friends see (lib/socialStats.ts) when they changed. */
+async function publishMyStats(token: string): Promise<void> {
+  try {
+    const stats = await collectPublicStats()
+    if (!stats) return
+    const json = JSON.stringify(stats)
+    if (json === useCloudStore.getState().statsPublished) return
+    await publishStats(token, stats)
+    useCloudStore.setState({ statsPublished: json })
+  } catch {
+    /* sent again on the next sync */
   }
 }
 

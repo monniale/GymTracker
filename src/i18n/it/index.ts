@@ -15,5 +15,6 @@ import data from './data'
 import library from './library'
 import schemes from './schemes'
 import programs from './programs'
+import social from './social'
 
-export const it: Dict = { common, units, workout, diet, progress, rank, settings, components, native, notify, lib, ai, data, library, schemes, programs }
+export const it: Dict = { common, units, workout, diet, progress, rank, settings, components, native, notify, lib, ai, data, library, schemes, programs, social }
