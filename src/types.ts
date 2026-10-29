@@ -388,6 +388,32 @@ export interface WaterLog {
   updatedAt?: number
 }
 
+/** A supplement taken every day (src/lib/supplements.ts). Synced user data. */
+export interface Supplement {
+  id?: Id
+  name: string
+  /** Free text shown next to the name, e.g. "5 g" or "1 capsule". */
+  dose?: string
+  /** 'HH:MM': when it is due. Not logged by then → the supplement reminder (notifyPlanner). */
+  time: string
+  /** Order on the Diet screen. */
+  position: number
+  createdAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
+}
+
+/** One supplement taken on one day. */
+export interface SupplementLog {
+  /** `supplementLogId(supplementId, date)`: one row per supplement and day, the same on every device. */
+  id: string
+  supplementId: Id
+  date: string // YYYY-MM-DD local
+  takenAt: number
+  /** Stamped on every write by the sync middleware; merge tie-breaker. */
+  updatedAt?: number
+}
+
 export interface AchievementUnlock {
   id: string // achievement id, primary key
   unlockedAt: number

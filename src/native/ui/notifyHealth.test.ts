@@ -37,6 +37,7 @@ const allOff = (p: NotifyPrefs): NotifyPrefs => ({
   workout: { ...p.workout, enabled: false, openSessionNudge: false },
   rank: { ...p.rank, decayWarning: false, streakWarning: false },
   recap: { ...p.recap, enabled: false },
+  supplements: { enabled: false },
 })
 const rest = (patch: Partial<RestAlertPrefs> = {}): RestAlertPrefs => ({ ...DEFAULT_REST_ALERT, ...patch })
 const ctx = { remindersActive: true, samsungDone: false, countdown: true }
@@ -52,7 +53,7 @@ describe('notificationsState', () => {
 })
 
 describe('categories', () => {
-  it('defaults: workout (open-session nudge), rank and recap on; meals, water, weigh-in off', () => {
+  it('defaults: workout (open-session nudge), rank, recap and supplements on; meals, water, weigh-in off', () => {
     const p = prefs()
     expect(categoryOn(p, 'workout')).toBe(true)
     expect(categoryOn(p, 'rank')).toBe(true)
@@ -60,7 +61,8 @@ describe('categories', () => {
     expect(categoryOn(p, 'meals')).toBe(false)
     expect(categoryOn(p, 'water')).toBe(false)
     expect(categoryOn(p, 'weighIn')).toBe(false)
-    expect(enabledCategoryCount(p)).toBe(3)
+    expect(categoryOn(p, 'supplements')).toBe(true)
+    expect(enabledCategoryCount(p)).toBe(4)
     expect(remindersActive(p)).toBe(true)
   })
 

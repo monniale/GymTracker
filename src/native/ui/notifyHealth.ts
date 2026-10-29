@@ -16,14 +16,15 @@ export const CHANNEL = {
   water: 'water_reminders_v1',
   rank: 'rank_alerts_v1',
   recap: 'weekly_recap_v1',
+  supplements: 'supplement_reminders_v1',
   status: 'app_status_v1',
   restCountdown: 'rest_countdown_v1',
   restAlertLoud: 'rest_alert_v1',
   restAlertQuiet: 'rest_alert_quiet_v1',
 } as const
 
-export type CategoryKey = 'workout' | 'meals' | 'water' | 'rank' | 'recap' | 'weighIn'
-export const CATEGORY_KEYS: CategoryKey[] = ['workout', 'meals', 'water', 'rank', 'recap', 'weighIn']
+export type CategoryKey = 'workout' | 'meals' | 'water' | 'rank' | 'recap' | 'weighIn' | 'supplements'
+export const CATEGORY_KEYS: CategoryKey[] = ['workout', 'meals', 'water', 'rank', 'recap', 'weighIn', 'supplements']
 
 /** The channel each Settings category posts on (weigh-in and the open-session nudge share workout's). */
 export const CATEGORY_CHANNEL: Record<CategoryKey, string> = {
@@ -33,6 +34,7 @@ export const CATEGORY_CHANNEL: Record<CategoryKey, string> = {
   rank: CHANNEL.rank,
   recap: CHANNEL.recap,
   weighIn: CHANNEL.workout,
+  supplements: CHANNEL.supplements,
 }
 
 /** True when the category would schedule something (ignores the master switch). */
@@ -50,6 +52,8 @@ export function categoryOn(p: NotifyPrefs, k: CategoryKey): boolean {
       return p.recap.enabled
     case 'weighIn':
       return p.weighIn.enabled
+    case 'supplements':
+      return p.supplements.enabled
   }
 }
 

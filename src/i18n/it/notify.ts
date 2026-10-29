@@ -35,6 +35,8 @@ const notify: Dict['notify'] = {
     recapLastWeekStreak: 'Settimana scorsa: {sessions}, +{points} pt, {streak}.',
     recapThisWeek: 'Questa settimana: {sessions}, +{points} pt.',
     recapThisWeekStreak: 'Questa settimana: {sessions}, +{points} pt, {streak}.',
+    supplementTitle: 'Ora degli integratori',
+    supplementBody: { one: 'Non ancora registrato: {names}. Tocca per registrarlo.', other: 'Non ancora registrati: {names}. Tocca per registrarli.' },
     weighInTitle: 'Giorno della pesata',
     weighInBody: 'Registra il tuo peso: mantiene preciso il punteggio di forza.',
     openSessionTitle: 'Allenamento ancora aperto',

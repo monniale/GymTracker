@@ -17,6 +17,7 @@ import DemoBanner from '../../components/DemoBanner'
 import AddFoodSheet from './AddFoodSheet'
 import EntryEditor from './EntryEditor'
 import PlannedEntrySheet from './PlannedEntrySheet'
+import SupplementsCard from './SupplementsCard'
 import type { FoodLog, MealType, PlannedFood } from '../../types'
 
 const MEALS: { key: MealType; labelKey: Key }[] = [
@@ -207,6 +208,8 @@ export default function DietDay() {
         )}
         <WaterRow date={date} targetMl={settings?.waterTargetMl ?? 2500} />
       </div>
+
+      <SupplementsCard date={date} today={today} />
 
       <div className="space-y-4">
         {MEALS.map(({ key, labelKey }) => {

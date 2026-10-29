@@ -14,7 +14,7 @@ import { bindT, type Translator } from '../i18n'
  * from the stored UI language; they are part of each spec's sig, so a language change re-plans.
  *
  * Notification ids (ROUTEMAP invariant 16): `cat*10_000_000 + dayIdx*100 + slot`.
- * cat 10..18 belong to the planner (`isManagedId`), 99 is the Settings test reminder, and the
+ * cat 10..19 belong to the planner (`isManagedId`), 99 is the Settings test reminder, and the
  * RestTimer's 4201/4202 are never touched.
  */
 
@@ -28,11 +28,12 @@ export const CAT = {
   WEIGHIN: 16,
   OPEN_SESSION: 17,
   KEEPALIVE: 18,
+  SUPPLEMENT: 19,
   TEST: 99,
 } as const
 
 export type Category =
-  | 'workout' | 'meal' | 'water' | 'decay' | 'streak' | 'recap' | 'weighin' | 'openSession' | 'keepalive'
+  | 'workout' | 'meal' | 'water' | 'decay' | 'streak' | 'recap' | 'weighin' | 'openSession' | 'keepalive' | 'supplement'
 
 const CAT_ID: Record<Category, number> = {
   workout: CAT.WORKOUT,
@@ -44,6 +45,7 @@ const CAT_ID: Record<Category, number> = {
   weighin: CAT.WEIGHIN,
   openSession: CAT.OPEN_SESSION,
   keepalive: CAT.KEEPALIVE,
+  supplement: CAT.SUPPLEMENT,
 }
 
 /** Android channel per category. Channels are immutable: change one by bumping its `_vN` (invariant 17). */
@@ -57,6 +59,7 @@ export const CHANNEL_FOR: Record<Category, string> = {
   weighin: 'workout_reminders_v1',
   openSession: 'workout_reminders_v1',
   keepalive: 'app_status_v1',
+  supplement: 'supplement_reminders_v1',
 }
 
 /** Hash routes a reminder tap may open (⊆ ALLOWED_ROUTES in src/native/navigation.ts). */
@@ -108,10 +111,10 @@ export function decodeNid(id: number): { cat: number; day: number; slot: number 
   return { cat: Math.floor(id / 10_000_000), day: Math.floor(rest / 100), slot: rest % 100 }
 }
 
-/** Ids owned by the planner (cat 10..18). Excludes the test reminder (99) and RestTimer 4201/4202. */
+/** Ids owned by the planner (cat 10..19). Excludes the test reminder (99) and RestTimer 4201/4202. */
 export function isManagedId(id: number): boolean {
   const d = decodeNid(id)
-  return d !== null && d.cat >= CAT.WORKOUT && d.cat <= CAT.KEEPALIVE
+  return d !== null && d.cat >= CAT.WORKOUT && d.cat <= CAT.SUPPLEMENT
 }
 
 function hhmmMinutes(hhmm: HHMM): number {
@@ -183,6 +186,10 @@ export interface PlannerData {
   rank: { points: number; seasonStart: string; lastSessionDate?: string; streakWeeks: number; lastStreakWeek: string } | null
   /** Stats of the week the next recap covers (recapWeekMonday(nextRecapDate)); null when the recap is off. */
   recap: { weekMonday: string; sessions: number; points: number } | null
+  /** Every supplement (`Supplement.time` = when it is due), in Diet-screen order. */
+  supplements?: Array<{ id: string; name: string; time: HHMM }>
+  /** Ids of the supplements already logged today. */
+  supplementsTakenToday?: string[]
 }
 
 export interface PlannerInput {
@@ -237,6 +244,7 @@ function anyReminderEnabled(p: NotifyPrefs, data: PlannerData): boolean {
     || p.rank.streakWarning
     || p.recap.enabled
     || p.weighIn.enabled
+    || (p.supplements.enabled && (data.supplements?.length ?? 0) > 0)
 }
 
 type TrainingReason =
@@ -444,6 +452,22 @@ function planCandidates(input: PlannerInput): NotificationSpec[] {
       if (isoWeekday(d) !== prefs.weighIn.weekday || logged.has(d)) continue
       push(spec('weighin', d, 0, atLocal(d, prefs.weighIn.time), t('notify.planner.weighInTitle'),
         t('notify.planner.weighInBody'), '/progress', `weighin:${d}`))
+    }
+  }
+
+  /* ---- supplements: one reminder per due time and day, naming the ones not logged yet ---- */
+  if (prefs.supplements.enabled && data.supplements?.length) {
+    const taken = new Set(data.supplementsTakenToday ?? [])
+    // Slots follow the sorted distinct times, so a time keeps its id while names change.
+    const times = [...new Set(data.supplements.map(s => s.time))].sort().slice(0, 100)
+    for (const d of windowDates) {
+      times.forEach((time, slot) => {
+        const due = data.supplements!.filter(s => s.time === time && !(d === today && taken.has(s.id)))
+        if (due.length === 0) return
+        const names = due.map(s => s.name).join(', ')
+        push(spec('supplement', d, slot, atLocal(d, time), t('notify.planner.supplementTitle'),
+          tp('notify.planner.supplementBody', due.length, { names }), '/diet', `supplement:${d}:${time}`))
+      })
     }
   }
 

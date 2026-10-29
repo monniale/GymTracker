@@ -7,6 +7,8 @@ import { isCloudSignedIn } from './cloudSync'
 import { useUiStore } from './uiStore'
 import { useAppStore } from '../store'
 import { t } from '../i18n'
+import { supplementLogId } from './supplements'
+import type { Id } from '../types'
 
 /**
  * Demo data for a first look at the web app (docs/FEATURE_PLAN.md, feature 3). The demo is a
@@ -63,6 +65,8 @@ const DATE_FIELDS: Record<TableName, DateFields> = {
   coachHistory: { days: ['date'], ms: ['generatedAt', 'updatedAt'] },
   plannedFoods: { days: ['date'], ms: ['plannedAt', 'updatedAt'] },
   programs: { days: ['cycleStartDate'], ms: ['endedAt', 'updatedAt'] },
+  supplements: { ms: ['createdAt', 'updatedAt'] },
+  supplementLogs: { days: ['date'], ms: ['takenAt', 'updatedAt'] },
 }
 
 /** Tables whose primary key is a local day: a tombstone of one of their rows names it by date. */
@@ -154,6 +158,10 @@ function rebaseRow(table: TableName, row: unknown, days: number, zone: string): 
   }
   if (table === 'tombstones' && DATE_KEYED_TABLES.has(String(out.table))) {
     out.rowId = shiftDay(out.rowId, days)
+  }
+  // Its key names the day (lib/supplements.ts `supplementLogId`): keep it on the moved date.
+  if (table === 'supplementLogs' && typeof out.date === 'string') {
+    out.id = supplementLogId(out.supplementId as Id, out.date)
   }
   return out
 }

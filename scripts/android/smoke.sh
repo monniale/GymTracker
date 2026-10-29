@@ -468,7 +468,8 @@ if want 5; then
     const s = await window.__plugin("DeviceSettings").getStatus()
     const ch = Object.fromEntries(s.channels.map(c => [c.id, c.importance]))
     const want = { rest_countdown_v1: 3, rest_alert_v1: 4, rest_alert_quiet_v1: 4, workout_reminders_v1: 3, meal_reminders_v1: 3,
-      water_reminders_v1: 2, rank_alerts_v1: 3, weekly_recap_v1: 2, app_status_v1: 2 }
+      water_reminders_v1: 2, rank_alerts_v1: 3, weekly_recap_v1: 2, app_status_v1: 2,
+      supplement_reminders_v1: 3 }
     const bad = Object.entries(want).filter(([id, imp]) => ch[id] !== imp).map(([id, imp]) => `${id}=${ch[id] ?? "missing"} (want ${imp})`)
     if (!("default" in ch)) bad.push("default=missing")
     return { ok: bad.length === 0, detail: bad.length ? bad.join(", ") : Object.entries(ch).map(([id, imp]) => id + "=" + imp).join(" ") }

@@ -40,6 +40,7 @@ export const LN_CHANNELS: Channel[] = [
   { id: CHANNEL_FOR.water, name: t('native.engine.channel.water'), description: t('native.engine.channel.waterDesc'), importance: 2, visibility: 1, vibration: false },
   { id: CHANNEL_FOR.decay, name: t('native.engine.channel.decay'), description: t('native.engine.channel.decayDesc'), importance: 3, visibility: 1, vibration: true },
   { id: CHANNEL_FOR.recap, name: t('native.engine.channel.recap'), description: t('native.engine.channel.recapDesc'), importance: 2, visibility: 1, vibration: false },
+  { id: CHANNEL_FOR.supplement, name: t('native.engine.channel.supplement'), description: t('native.engine.channel.supplementDesc'), importance: 3, visibility: 1, vibration: true },
   { id: CHANNEL_FOR.keepalive, name: t('native.engine.channel.keepalive'), description: t('native.engine.channel.keepaliveDesc'), importance: 2, visibility: 1, vibration: false },
 ]
 

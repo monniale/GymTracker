@@ -175,6 +175,10 @@ export default {
       dayLabel: 'Weigh-in day',
       timeLabel: 'Weigh-in time',
     },
+    supplements: {
+      label: 'Supplements',
+      hint: 'At each supplement’s time (set on the Diet screen), unless you’ve logged it that day',
+    },
     footer: {
       blocked: 'Notifications are blocked — fix that above first.',
       testSent: 'Test reminder in 15 s — lock your phone now.',
@@ -206,6 +210,8 @@ export default {
       decayDesc: 'Decay and streak-at-risk warnings',
       recap: 'Weekly recap',
       recapDesc: 'Your week in numbers',
+      supplement: 'Supplement reminders',
+      supplementDesc: 'Supplements not logged by their time',
       keepalive: 'App status',
       keepaliveDesc: 'Asks you to open the app before your reminders run out',
     },

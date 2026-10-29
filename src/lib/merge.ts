@@ -23,11 +23,13 @@
  *   remapped with the barcode dedupe.
  * - programs (training programs) likewise: union by id (later update wins), optional
  *   per side, deletes propagate through tombstones.
+ * - supplements and supplementLogs likewise (logs keyed `supplementId|date`, so one intake
+ *   logged on both devices is one row).
  */
 import type {
   Exercise, WorkoutTemplate, Session, SetRow, Food, FoodLog, SavedMeal,
   Settings, RankState, ScoreEvent, Season, DayType, BodyLogEntry, WaterLog,
-  AchievementUnlock, QuestState, Tombstone, CoachJudgement, PlannedFood, Program, Id,
+  AchievementUnlock, QuestState, Tombstone, CoachJudgement, PlannedFood, Program, Supplement, SupplementLog, Id,
 } from '../types'
 import { SEASON_CARRYOVER } from './ranks'
 
@@ -55,6 +57,9 @@ export interface SnapshotTables {
   plannedFoods?: PlannedFood[]
   /** Optional: absent in snapshots from builds before training programs existed. */
   programs?: Program[]
+  /** Optional: absent in snapshots from builds before supplements existed. */
+  supplements?: Supplement[]
+  supplementLogs?: SupplementLog[]
 }
 
 export interface SyncPayload {
@@ -146,6 +151,10 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     .filter(alive('plannedFoods', byId))
   const programs = unionByKey(L.programs ?? [], R.programs ?? [], byId)
     .filter(alive('programs', byId))
+  const supplements = unionByKey(L.supplements ?? [], R.supplements ?? [], byId)
+    .filter(alive('supplements', byId))
+  const supplementLogs = unionByKey(L.supplementLogs ?? [], R.supplementLogs ?? [], byId)
+    .filter(alive('supplementLogs', byId))
   const bodyLog = unionByKey(L.bodyLog, R.bodyLog, row => row.date)
     .filter(alive('bodyLog', row => row.date))
   const dayTypes = unionByKey(L.dayTypes, R.dayTypes, row => row.date)
@@ -223,7 +232,7 @@ export function mergeSnapshots(local: SyncPayload, remote: SyncPayload, now: num
     tables: {
       exercises, templates, sessions, sets, foods, foodLogs, savedMeals,
       settings, rankState, scoreEvents, seasons, dayTypes, bodyLog, waterLogs,
-      achievements, quests, tombstones, coachHistory, plannedFoods, programs,
+      achievements, quests, tombstones, coachHistory, plannedFoods, programs, supplements, supplementLogs,
     },
     notes,
   }

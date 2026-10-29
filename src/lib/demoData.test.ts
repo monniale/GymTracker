@@ -114,6 +114,8 @@ function fixture(): BackupFile {
     ],
     coachHistory, plannedFoods,
     programs: [{ id: 'pr1', name: 'Push cycle', templateIds: ['t1'], cycleWeeks: 4, cycleStartDate: '2026-10-12', updatedAt: T(2026, 10, 12, 9) }],
+    supplements: [{ id: 'sp1', name: 'Creatine', time: '09:00', position: 0, createdAt: T(2026, 10, 1, 9), updatedAt: T(2026, 10, 1, 9) }],
+    supplementLogs: [{ id: 'sp1|2026-10-14', supplementId: 'sp1', date: '2026-10-14', takenAt: T(2026, 10, 14, 9), updatedAt: T(2026, 10, 14, 9) }],
   }
   return { app: 'gymtracker', version: 2, exportedAt: T(2026, 10, 14, 20), tables }
 }
@@ -230,7 +232,11 @@ describe('rebaseDemoTables', () => {
     expect(out).toEqual({
       ...(shiftEverythingDateLike(f.tables, shift) as object),
       plannedFoods: shiftEverythingDateLike(f.tables.plannedFoods, 100),
+      // A supplement log's key names its day: it moves with the date.
+      supplementLogs: (shiftEverythingDateLike(f.tables.supplementLogs, shift) as { date: string }[])
+        .map(l => ({ ...l, id: `sp1|${l.date}` })),
     })
+    expect((out.supplementLogs as { id: string }[])[0].id).toBe('sp1|2027-01-20')
     // Spot checks on the trickier fields.
     expect((out.quests as QuestState[])[0].quests[0].awardedAt).toBe(T(2027, 1, 20, 8))
     expect((out.tombstones as { rowId: unknown }[])[0].rowId).toBe('2027-01-12')

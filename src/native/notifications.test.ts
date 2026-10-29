@@ -149,7 +149,8 @@ describe('reminder engine', () => {
     expect(r.horizon).toBeGreaterThan(Date.now())
     const channels = h.api.createChannel.mock.calls.map(c => c[0])
     expect(channels.map(c => c.id)).toEqual([
-      'workout_reminders_v1', 'meal_reminders_v1', 'water_reminders_v1', 'rank_alerts_v1', 'weekly_recap_v1', 'app_status_v1',
+      'workout_reminders_v1', 'meal_reminders_v1', 'water_reminders_v1', 'rank_alerts_v1', 'weekly_recap_v1',
+      'supplement_reminders_v1', 'app_status_v1',
     ])
     expect(channels.find(c => c.id === 'app_status_v1')?.importance).toBe(2)
   })
@@ -159,7 +160,7 @@ describe('reminder engine', () => {
     await Promise.all([m.startReminderEngine(), m.startReminderEngine()])
     await m.startReminderEngine()
     await settle(m)
-    expect(h.api.createChannel).toHaveBeenCalledTimes(6)
+    expect(h.api.createChannel).toHaveBeenCalledTimes(7)
     expect(h.api.schedule).toHaveBeenCalledTimes(1)
   })
 
