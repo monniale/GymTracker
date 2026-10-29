@@ -60,6 +60,7 @@ export default {
     endSeason: 'End season now',
     endSeasonConfirm: 'End the current season now for every user? Everyone carries 20% of their points into the next one.',
     seasonEnded: 'Season ended. A new one starts today for everyone.',
+    usersPoints: 'Users\' points',
   },
   version: {
     build: 'Build {sha} · {date} {time}',

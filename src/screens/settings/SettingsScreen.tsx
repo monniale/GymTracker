@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Volume2,
@@ -12,6 +12,7 @@ import {
   ImageOff,
   FlaskConical,
   Calculator,
+  Users,
 } from "lucide-react";
 import { db } from "../../db/db";
 import { exportBackup, importBackup } from "../../db/backup";
@@ -57,9 +58,9 @@ export default function SettingsScreen() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [historyCsv, setHistoryCsv] = useState<string | null>(null);
   const [calcOpen, setCalcOpen] = useState(false);
-  const [seasonMsg, setSeasonMsg] = useState<string | null>(null);
-  // Ending a season early is an admin action, granted on the cloud project (0002_permissions.sql).
+  // Admin actions, granted on the cloud project (0002_permissions.sql, 0004_adjust_points.sql).
   const canEndSeason = useCloudPermission("end_season");
+  const canAdjustPoints = useCloudPermission("adjust_points");
   const location = useLocation();
   const navigate = useNavigate();
   // Android's first-run card links here with `state.focus` ("sync" | "data").
@@ -99,22 +100,6 @@ export default function SettingsScreen() {
       setImportMsg(t("settings.data.imported"));
     } catch (e) {
       setImportMsg(t("settings.data.importFailed", { error: (e as Error).message }));
-    }
-  }
-
-  // The season is shared by every cloud account (0003_social.sql): ending it ends it for all.
-  async function resetSeason() {
-    if (
-      !canEndSeason ||
-      !window.confirm(t("settings.danger.endSeasonConfirm"))
-    )
-      return;
-    setSeasonMsg(null);
-    try {
-      await endSeasonForEveryone();
-      setSeasonMsg(t("settings.danger.seasonEnded"));
-    } catch (e) {
-      setSeasonMsg(socialErrorText(e));
     }
   }
 
@@ -457,15 +442,9 @@ export default function SettingsScreen() {
         </p>
       </Section>
 
-      {canEndSeason && (
+      {(canEndSeason || canAdjustPoints) && (
         <Section title={t("settings.danger.title")}>
-          <button
-            onClick={resetSeason}
-            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-danger/40 font-semibold text-danger active:bg-danger/10"
-          >
-            <AlertTriangle size={18} className="shrink-0" /> {t("settings.danger.endSeason")}
-          </button>
-          {seasonMsg && <p className="mt-2 text-sm text-sub">{seasonMsg}</p>}
+          <AdminActions canEndSeason={canEndSeason} canAdjustPoints={canAdjustPoints} />
         </Section>
       )}
 
@@ -628,6 +607,50 @@ function ExerciseMediaSection() {
       </button>
       <p className="mt-2 text-xs text-sub">{t("library.settings.hint")}</p>
     </Section>
+  );
+}
+
+function AdminActions({
+  canEndSeason,
+  canAdjustPoints,
+}: {
+  canEndSeason: boolean;
+  canAdjustPoints: boolean;
+}) {
+  const [msg, setMsg] = useState<string | null>(null);
+
+  // The season is shared by every cloud account (0003_social.sql): ending it ends it for all.
+  async function resetSeason() {
+    if (!window.confirm(t("settings.danger.endSeasonConfirm"))) return;
+    setMsg(null);
+    try {
+      await endSeasonForEveryone();
+      setMsg(t("settings.danger.seasonEnded"));
+    } catch (e) {
+      setMsg(socialErrorText(e));
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {canAdjustPoints && (
+        <Link
+          to="/settings/points"
+          className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-muted/40 font-semibold active:bg-muted"
+        >
+          <Users size={18} className="shrink-0" /> {t("settings.danger.usersPoints")}
+        </Link>
+      )}
+      {canEndSeason && (
+        <button
+          onClick={resetSeason}
+          className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-danger/40 font-semibold text-danger active:bg-danger/10"
+        >
+          <AlertTriangle size={18} className="shrink-0" /> {t("settings.danger.endSeason")}
+        </button>
+      )}
+      {msg && <p className="text-sm text-sub">{msg}</p>}
+    </div>
   );
 }
 

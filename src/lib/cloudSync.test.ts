@@ -26,6 +26,7 @@ let failNext: { status: number; body?: unknown } | null
 let permissions: string[] | null // null: the project lacks my_permissions (404)
 let season: { id: number; startedOn: string; endsOn: string } | null // null: no 0003_social.sql
 let published: unknown[]
+let board: unknown[] | null // null: friends_board fails
 
 const SESSION = { access_token: 'tok', refresh_token: 'ref', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'f@x.it' } }
 
@@ -61,6 +62,7 @@ function installFetch() {
       published.push(body.s)
       return ok(null)
     }
+    if (path === '/rest/v1/rpc/friends_board') return board ? ok(board) : notFound
     if (path === '/rest/v1/rpc/my_permissions') {
       return permissions ? ok(permissions) : { ok: false, status: 404, json: async () => ({ message: 'not found' }), text: async () => '' }
     }
@@ -100,6 +102,7 @@ beforeEach(async () => {
   permissions = []
   season = null
   published = []
+  board = []
   installFetch()
   db.close()
   await Dexie.delete('gymtracker')
@@ -239,6 +242,22 @@ describe('shared season and friends stats', () => {
     await cloudSyncNow('test')
     expect(published).toHaveLength(2)
     expect(published[1]).toMatchObject({ points: 42 })
+  })
+
+  it('refreshes the friends board after each sync once there is a profile, keeping it when that fails', async () => {
+    const friend = { userId: 'u2', displayName: 'Ale', status: 'friend', stats: null }
+    board = [friend]
+    await cloudSyncNow('test')
+    expect(requests.some(r => r.path === '/rest/v1/rpc/friends_board')).toBe(false)
+    expect(useCloudStore.getState().friends).toEqual([])
+
+    useCloudStore.setState({ profile: { displayName: 'Fede', friendCode: 'AB12CD34' } })
+    await cloudSyncNow('test')
+    expect(useCloudStore.getState().friends).toEqual([friend])
+
+    board = null
+    expect(await cloudSyncNow('test')).toBe('up-to-date')
+    expect(useCloudStore.getState().friends).toEqual([friend])
   })
 })
 

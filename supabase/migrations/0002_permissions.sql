@@ -8,7 +8,7 @@
 --   delete from public.user_roles where email = 'someone@example.com' and role = 'admin';
 --   insert into public.role_permissions (role, permission) values ('admin', 'another_permission');
 -- The app asks `my_permissions()` on every sync and keeps the answer on the device, so a change
--- reaches a device on its next sync. Permission names the app knows: `end_season`.
+-- reaches a device on its next sync. Permission names the app knows: `end_season`, `adjust_points` (0004).
 
 create table if not exists public.role_permissions (
   role       text not null,

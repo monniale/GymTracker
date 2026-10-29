@@ -24,6 +24,7 @@ export default {
   recent: {
     title: 'Recent scores',
     empty: 'Finish a workout to earn your first points.',
+    adjustment: 'Points adjustment',
   },
   achievements: {
     title: 'Achievements',

@@ -2,6 +2,7 @@ import { db, type GymDB } from '../db/db'
 import { addDays, localDateStr, mondayOf, weekdayOf } from './dates'
 import { atLocal, nextRecapDate, recapWeekMonday, WINDOW_DAYS } from './notifyPlanner'
 import type { PlannerData } from './notifyPlanner'
+import { isAdjustment } from './pointsAdjust'
 import type { NotifyPrefs } from './notifyPrefs'
 import type { Id, MealType } from '../types'
 
@@ -53,7 +54,7 @@ export async function gatherPlannerData(
                   .count(),
                 database.scoreEvents.where('date').anyOf(days).toArray(),
               ])
-              return { weekMonday: recapWeek, sessions, points: events.reduce((a, e) => a + (e.total || 0), 0) }
+              return { weekMonday: recapWeek, sessions, points: events.filter(e => !isAdjustment(e)).reduce((a, e) => a + (e.total || 0), 0) }
             })(),
         database.templates.orderBy('position').toArray(),
       ])

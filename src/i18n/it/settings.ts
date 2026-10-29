@@ -61,6 +61,7 @@ const settings: Dict['settings'] = {
     endSeason: 'Chiudi la stagione ora',
     endSeasonConfirm: 'Chiudere ora la stagione in corso per tutti gli utenti? Ognuno porta il 20% dei punti nella prossima.',
     seasonEnded: 'Stagione chiusa. Da oggi ne inizia una nuova per tutti.',
+    usersPoints: 'Punti degli utenti',
   },
   version: {
     build: 'Build {sha} · {date} {time}',

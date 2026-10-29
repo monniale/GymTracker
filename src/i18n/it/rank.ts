@@ -24,6 +24,7 @@ const rank: Dict['rank'] = {
   recent: {
     title: 'Punteggi recenti',
     empty: 'Completa un allenamento per guadagnare i primi punti.',
+    adjustment: 'Correzione punti',
   },
   achievements: {
     title: 'Traguardi',

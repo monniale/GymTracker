@@ -37,6 +37,7 @@ export const KNOWN_ROUTES: string[] = [
   '/rank',
   '/rank/friends',
   '/settings',
+  '/settings/points',
   '/import',
   '/invite/:code',
 ]

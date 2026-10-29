@@ -198,7 +198,7 @@ export default function RankScreen() {
                 PR +{e.prBonus}
               </span>
             )}
-            <span className="num shrink-0 font-display text-lg font-bold text-primary">+{e.total}</span>
+            <span className="num shrink-0 font-display text-lg font-bold text-primary">{e.total < 0 ? e.total : `+${e.total}`}</span>
           </div>
         ))}
       </div>
@@ -290,7 +290,11 @@ function FriendsCard({ rank }: { rank: RankState }) {
   const requests = friends.filter(f => f.status === 'incoming').length
   const top = friends
     .filter(f => f.status === 'me' || f.status === 'friend')
-    .map(f => ({ f, points: f.stats ? currentView(f.stats, rank.seasonId).points : null }))
+    // My own points from this device: the server copy lags until the next sync publishes it.
+    .map(f => ({
+      f,
+      points: f.status === 'me' ? Math.round(rank.points) : f.stats ? currentView(f.stats, rank.seasonId).points : null,
+    }))
     .sort((a, b) => (b.points ?? -1) - (a.points ?? -1))
     .slice(0, 3)
 
